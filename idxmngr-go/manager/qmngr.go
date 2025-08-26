@@ -2,16 +2,16 @@
 package manager
 
 type IndexInfo struct {
-	IdxID        string
-	IdxName      string
-	KeyCol       string
-	FilePath     string
-	BlockNum     int32
-	KeySize      int32
-	Address      string
-	CallCnt      int32
-	KeyCnt       int32
-	IndexDataCnt int32
+	IdxID        string `yaml:"idxid"`
+	IdxName      string `yaml:"idxname"`
+	KeyCol       string `yaml:"keycol"`
+	FilePath     string `yaml:"filepath"`
+	BlockNum     int32  `yaml:"blocknum"`
+	KeySize      int32  `yaml:"keysize"`
+	Address      string `yaml:"address"`
+	CallCnt      int32  `yaml:"callcnt"`
+	KeyCnt       int32  `yaml:"keycnt"`
+	IndexDataCnt int32  `yaml:"indexdatacnt"`
 	// QCnt			[]*QueryCallHist
 }
 

@@ -77,6 +77,8 @@ func readIndexList() {
 
 func main() {
 
+
+
 	// lis, err := net.Listen("tcp", port)
 	// if err != nil {
 	// 	log.Fatal("An error has occurred while retrieving on launch: ", err)
@@ -84,7 +86,7 @@ func main() {
 
 	// mngrServer := grpc.NewServer(grpc.MaxSendMsgSize(50*1024*1024), grpc.MaxRecvMsgSize(50*1024*1024))
 	// //pvdapi.RegisterPvdServiceServer(grpcServer, &handler.PvdHandler{})
-	// api.RegisterIndexManagerServer(mngrServer,  &mg.MServer{})
+	// api.RegisterIndexManagerServer(mngrServer,  &mg.MServer{})1
 
 	// //log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
 	// log.Println("Grpc Server will be started. Listening" + port)
@@ -92,6 +94,9 @@ func main() {
 	// 	log.Fatal("An error has occurred while retriving on launch", err)
 	// }
 
+	// config.yaml 읽기
+	mg.ReadIndexConfig()
+	
 	pool := mg.NewConnectionPool()
 	defer pool.CloseAllConnections()
 

@@ -216,7 +216,7 @@ func PutMultiDataM(client idxmngr.IndexManagerClient, idxID string, idxCol strin
 			txdata := idxmngr.InsertDatatoIdx{
 				IndexID: idxID,
 				ColName: idxCol,
-				TxId:    strconv.Itoa(idx),
+				TxId:    "dummy_tx_" + strconv.Itoa(idx),  // 더미 TxId 생성
 				X:       float32(conv_x),
 				Y:       float32(conv_y),
 				OBU_ID:  rec.Obu_id,
@@ -261,7 +261,7 @@ func PutMultiDataM(client idxmngr.IndexManagerClient, idxID string, idxCol strin
 			json.Unmarshal(Value, &data)
 
 			txdata := idxmngr.BcDataList{
-				TxId: strconv.Itoa(idx),
+				TxId: "dummy_tx_" + strconv.Itoa(idx),  // 더미 TxId 생성
 				Pvd:  &data,
 			}
 			lists = append(lists, &txdata)
@@ -510,7 +510,7 @@ func main() {
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "btridx_dt", Field: "CollectionDt", Begin: "20211001053430718", End: "20211001055430718", ComOp: idxmngr.ComparisonOps_Range})
 
 	case "fexacts": //fileindex-speed
-		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_sp", Field: "Speed", Value: "100", ComOp: idxmngr.ComparisonOps_Eq}) //42
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_sp", Field: "Speed", Value: "85", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5}) //42
 	case "fexactd": //fileindex-20211001053430718
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_dt", Field: "CollectionDt", Value: "20211001053430718", ComOp: idxmngr.ComparisonOps_Eq})
 	case "franges": //fileindex-speed

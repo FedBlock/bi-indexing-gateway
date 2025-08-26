@@ -2,13 +2,13 @@ items:
     - idxid: fileidx_sp
       idxname: speed
       keycol: Speed
-      filepath: speed_file_8.bf
-      blocknum: 200018
-      keysize: 8
+      filepath: speed_file.bf
+      blocknum: 0
+      keysize: 5
       address: localhost:50053
       callcnt: 0
       keycnt: 0
-      indexdatacnt: 2000061
+      indexdatacnt: 0
     - idxid: fileidx_ad
       idxname: address
       keycol: Address

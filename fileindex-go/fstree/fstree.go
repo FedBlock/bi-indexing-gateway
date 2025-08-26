@@ -145,19 +145,11 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 
 		if isFirst {
 			//log.Println(recvDatas.BcList[0])
-			filePath := recvDatas.GetFilePath()
-			//log.Println("FilePath: ", filePath)
 			keySize = int(recvDatas.GetKeySize())
 			//log.Println("KeySize: ", keySize)
-			if err != nil || keySize <= 0 {
-				log.Printf("Invalid key size: %v", err)
-				return status.Errorf(codes.InvalidArgument, "Invalid key size: %v", err)
-			}
-
-			err = openOrCreateIndex(filePath, keySize, &idxTree)
-			if err != nil {
-				log.Println("openOrCreateIndex Error")
-				return err
+			if keySize <= 0 {
+				log.Printf("Invalid key size: %d", keySize)
+				return status.Errorf(codes.InvalidArgument, "Invalid key size: %d", keySize)
 			}
 			isFirst = false
 		}
@@ -174,11 +166,20 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 		// 왜 메시지가 마지막에 한 번 더 뜰까?
 		//log.Printf("File index recv [%d] data, size : %d", recv_idx, len(txlist))
 
-		key := make([]byte, keySize)
-
 		for idx, rec := range txlist {
+			var key []byte
+			var targetTree **bptree.BpTree
+			
 			switch idxCol {
 			case "Address":
+				if AddrTree == nil {
+					err := openOrCreateIndex(recvDatas.GetFilePath(), keySize, &AddrTree)
+					if err != nil {
+						log.Println("openOrCreateIndex Error for Address")
+						return err
+					}
+				}
+				targetTree = &AddrTree
 				words := strings.Fields(rec.Pvd.Address)
 				if len(words) >= 3 {
 					key = stringToFixedBytes(words[2], keySize)
@@ -187,9 +188,24 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 				}
 				//log.Println("Address Key: ", key)
 			case "CollectionDt":
+				if DtTree == nil {
+					err := openOrCreateIndex(recvDatas.GetFilePath(), keySize, &DtTree)
+					if err != nil {
+						log.Println("openOrCreateIndex Error for CollectionDt")
+						return err
+					}
+				}
+				targetTree = &DtTree
 				key = stringToFixedBytes(rec.Pvd.CollectionDt, keySize)
 			case "Speed":
-				//sKey := strconv.Itoa(int(rec.Pvd.Speed))
+				if SpeedTree == nil {
+					err := openOrCreateIndex(recvDatas.GetFilePath(), keySize, &SpeedTree)
+					if err != nil {
+						log.Println("openOrCreateIndex Error for Speed")
+						return err
+					}
+				}
+				targetTree = &SpeedTree
 				key = stringToFixedBytes(strconv.Itoa(int(rec.Pvd.Speed)), keySize)
 				//log.Println("Speed Key: ", key)
 			default:
@@ -203,7 +219,7 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 				log.Printf("Invalid data at index: %d", idx)
 				continue
 			}
-			if err := idxTree.Add(key, newValue); err != nil {
+			if err := (*targetTree).Add(key, newValue); err != nil {
 				log.Printf("Failed to add to tree: %v", err)
 				return status.Errorf(codes.Internal, "Failed to add data: %v", err)
 			}
@@ -444,8 +460,11 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 
 		} else if req.ComOp == fsindex.ComparisonOps_Eq {
 			log.Printf("Original query value: %s", req.Value)
+			log.Printf("KeySize: %d", keySize)
+			log.Printf("req.Value length: %d", len(req.Value))
 			key := stringToFixedBytes(req.Value, keySize)
 			log.Println("Original query key: ", key)
+			log.Printf("Generated key length: %d", len(key))
 
 			returned_pointers, _ := SpeedTree.Find(key)
 

@@ -72,7 +72,7 @@ var indexToPortMap = map[string]string{
 	"spatialidx": "50061",
 }
 
-func readIndexConfig() {
+func ReadIndexConfig() {
 	data, err := ioutil.ReadFile("./config.yaml")
 	if err != nil {
 		log.Fatalf("YAML 파일을 읽을 수 없습니다: %v", err)
@@ -85,9 +85,15 @@ func readIndexConfig() {
 		log.Fatalf("YAML 데이터를 언마샬링할 수 없습니다: %v", err)
 	}
 
+	log.Printf("config.yaml에서 읽은 데이터:")
 	for _, idx := range list.Items {
-		//fmt.Println("IndexInfo: ", idx)
+		log.Printf("  %s: %+v", idx.IdxID, idx)
 		MngrIndexList[idx.IdxID] = idx
+	}
+	
+	log.Printf("MngrIndexList에 저장된 데이터:")
+	for key, val := range MngrIndexList {
+		log.Printf("  %s: %+v", key, val)
 	}
 }
 
@@ -305,7 +311,7 @@ func makeKey(x, y float64) uint32 {
 func (m *MServer) GetIndexList(ctx context.Context, in *mngr.IndexInfoRequest) (*mngr.IndexList, error) {
 	log.SetPrefix("[" + funcName() + "] ")
 
-	readIndexConfig()
+	ReadIndexConfig()
 
 	idxCnt := int32(len(MngrIndexList))
 
@@ -835,17 +841,23 @@ func (m *MServer) buildSearchRequest(req *mngr.SearchRequestM) (*idxserverapi.Se
 		return nil, fmt.Errorf("invalid Comparison Operation: %d", req.GetComOp())
 	}
 
+	// config.yaml에서 읽은 설정 사용
+	indexInfo, exists := MngrIndexList[req.IndexID]
+	if !exists {
+		return nil, fmt.Errorf("index ID %s not found in configuration", req.IndexID)
+	}
+	
 	request := &idxserverapi.SearchRequest{
 		IndexID:  req.IndexID,
 		Field:    req.Field,
 		ComOp:    comOp,
-		FilePath: MngrIndexList[req.IndexID].FilePath,
+		FilePath: indexInfo.FilePath,  // config.yaml에서 읽은 FilePath
 		X:        req.X,
 		Y:        req.Y,
 		K:        req.K,
 		Range:    req.Range,
 		Value:    req.Value,
-		KeySize:  req.KeySize,
+		KeySize:  indexInfo.KeySize,   // config.yaml에서 읽은 KeySize
 	}
 	log.Printf("Built request: %v", request)
 
