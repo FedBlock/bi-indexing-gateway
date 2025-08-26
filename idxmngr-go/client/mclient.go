@@ -337,7 +337,16 @@ func IndexDatasByFieldM(client idxmngr.IndexManagerClient, request *idxmngr.Sear
 	}
 
 	//time.Sleep(2000 * time.Millisecond)
-	txList := data.GetIdxData()
+	txList := []*idxmngr.IndexValue{}
+	
+	// string 타입의 IdxData를 IndexValue 구조체로 변환
+	for _, txId := range data.GetIdxData() {
+		indexValue := &idxmngr.IndexValue{
+			TxId:  txId,
+			ObuId: "", // IdxData에는 TxId만 있으므로 ObuId는 빈 문자열로 설정
+		}
+		txList = append(txList, indexValue)
+	}
 
 	//keyList := data.GetKey()
 	log.Println("Rst Tx Cnt :", len(txList))
