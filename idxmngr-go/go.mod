@@ -8,7 +8,6 @@ require (
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
-	grpc-go v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -20,8 +19,5 @@ require (
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 )
 
-replace btreeidx-go => ../btreeidx-go
-
-replace grpc-go => ../grpc-go
 
 replace fileindex-go => ../fileindex-go
