@@ -1,0 +1,130 @@
+// file-based btree index package 2024-06-10 
+// created by myjang@etri.re.kr
+// Update 2024-12-05
+
+syntax = "proto3";
+
+package idxserver;
+option go_package = "fileindex-go/idxserver_api"; // *.pb.go file create directory 
+
+service HLFDataIndex{
+  rpc CreateIndex(CreateRequest) returns (IdxResponse);
+  rpc InsertIndex(stream InsertData) returns (IdxResponse);
+  rpc InsertSIndex(stream InsertSData) returns (IdxResponse);
+  rpc GetindexDataByField(SearchRequest) returns (RstTxList);
+}
+
+enum ComparisonOps {
+	Eq              = 0;
+	NotEq           = 1;
+	Less            = 2;
+	LessThanEq      = 3;
+	Greater         = 4;
+	GreaterThanEq   = 5;
+	Range           = 6;
+  Knn             = 7;
+} 
+
+message CreateRequest {   //CreateIndexRequest
+    string	IndexID		= 1;	//index id = used as a key
+    string	IndexName	= 2;	//index name
+    string  KeyCol    = 3;  //index column name (one of PvdHist_data)
+    string  FilePath  = 4;  //file index storage FilePath
+    int32   KeySize   = 5;  //file index key size (byte)
+    string	Reuqest_message = 6;
+    int32   BlockNum = 7;
+}
+
+message IdxResponse {
+	int32	  Response_code     = 1;	// if 200 OK else Error 
+	string	Response_message  = 2;
+	string 	IndexID           = 3;
+  string  IndexCol          = 4; //index column name
+}
+
+message BcDataInfo {
+  string            TxId   		= 1;
+  string            key_col   = 2; 
+  PvdHist_data      Pvd   		= 3; 
+	IdxResponse       Response 	= 4;
+}
+
+message InsertData{
+	string              ColIndex  = 1;    //indexid
+	repeated BcDataInfo BcList 		= 2;
+	IdxResponse         Response	= 3;
+  string                ColName   = 4;    //indexing column (KeyCol)
+  string                FilePath  = 5;  //file index storage FilePath
+  int32                 KeySize   = 6;  //file index key size (byte)
+}
+
+message InsertSData{
+ 	string ColIndex     = 1;    //indexid
+  string ColName      = 2;    //indexing column (KeyCol)
+  float   x           = 3;
+  float   y           = 4;
+  uint32  GeoHash     = 5;
+  string  TxId        = 6;
+  string  OBU_ID      = 7; 
+  uint64  time        = 8;
+  string  FilePath  = 9;  //file index storage FilePath
+  int32   KeySize   = 10;  //file index key size (byte)
+}
+
+message SearchRequest{
+	string			IndexID	= 1;	//index id = used as a key
+	string			Key		  = 2;
+	string			TxId	  = 3;
+	string			Field	  = 4;
+	string			Value	  = 5;  //for simple query (CompOp 0~5)
+	string			Begin	  = 6;  //for range query
+	string			End		  = 7;
+	ComparisonOps	ComOp	= 8;
+  float       x       = 9;
+  float       y       = 10;
+  int32       k       = 11;
+  float       range   = 12;
+  string  FilePath  = 13;  //file index storage FilePath
+  int32  keySize     = 14;
+}
+
+message RstTxList{
+	string IndexID 	  = 1;
+	string Key 				    = 2;
+	repeated string IdxData 	= 3;
+}
+
+message PvdHist_data {
+     string Obu_id                 = 1;
+     string Collection_dt          = 2;
+     string Startvector_latitude   = 3;
+     string Startvector_longitude  = 4;
+     string Transmisstion          = 5;
+     int32  Speed                  = 6;
+     string Hazard_lights          = 7;
+     string Left_turn_signal_on    = 8;
+     string Right_turn_signal_on   = 9;
+     int32  Steering               = 10;
+     int32  Rpm                    = 11;
+     string Footbrake              = 12;
+     string Gear                   = 13;
+     int32  Accelator              = 14;
+     string Wipers                 = 15;
+     string Tire_warn_left_f       = 16;
+     string Tire_warn_left_r       = 17;
+     string Tire_warn_right_f      = 18;
+     string Tire_warn_right_r      = 19;
+     int32  Tire_psi_left_f        = 20;
+     int32  Tire_psi_left_r        = 21;
+     int32  Tire_psi_right_f       = 22;
+     int32  Tire_psi_right_r       = 23;
+     int32  Fuel_percent           = 24;
+     int32  Fuel_liter             = 25;
+     int32  Totaldist              = 26;
+     string Rsu_id                 = 27;
+     string Msg_id                 = 28;
+     int32  Startvector_heading    = 29;
+     string Address                = 30;
+}                                  
+
+

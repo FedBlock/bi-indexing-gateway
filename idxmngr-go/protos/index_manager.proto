@@ -1,0 +1,170 @@
+// btree index package for btree index module 2023-06-10 
+// created by myjang@etri.re.kr
+// Update 2023-07-03
+
+syntax = "proto3";
+
+package idxmngrapi;
+option go_package = "idxmngr-go/mngrapi"; // *.pb.go file create directory 
+
+service Index_manager{
+  //for index server
+  rpc CreateIndexRequest(IndexInfo) returns (IdxMngrResponse);
+  rpc UpdateIndexRequest(IndexInfo) returns (IdxMngrResponse);
+  rpc InsertIndexRequest(stream InsertDatatoIdx) returns (IdxMngrResponse);
+  rpc GetindexDataByFieldM(SearchRequestM) returns (RstTxListM);
+
+  //for idxmngr
+  rpc GetIndexInfo(IndexInfo) returns (IdxMngrResponse);  //index 유무 확인 0516, query=(column명, key) index 매니저질의 vs grpc질의 여부 확인
+  rpc GetIndexList(IndexInfoRequest) returns (IndexList); //index list 반환
+  rpc GetQueryInfo(QueryRequest) returns (QueryInfo);
+}
+
+enum ComparisonOps {
+	Eq              = 0;
+	NotEq           = 1;
+	Less            = 2;
+	LessThanEq      = 3;
+	Greater         = 4;
+	GreaterThanEq   = 5;
+	Range           = 6;
+  Knn             = 7;
+} 
+
+message QueryCallHist{ 
+  ComparisonOps	ComOp   = 1;
+  int32 RstCnt         = 2;
+}
+
+//CreateIndex, GetIndexInfo
+message IndexInfo{      
+  string    IndexID       = 1;
+  string    IndexName     = 2;
+  string    KeyCol        = 3;
+  string    FilePath      = 4;  //file index storage FilePath
+  int32     KeySize       = 5;  //file index key size (byte)
+  int32     BlockNum      = 6;
+  int32     CallCnt       = 7;
+  int32     KeyCnt        = 8;
+  int32     IndexDataCnt  = 9;  // (IndexDataCnt/KeyCnt) = key duplication ratio
+  string    Param         = 10;
+  repeated  QueryCallHist QCnt = 11;
+}
+
+//GetIndexList
+message IndexInfoRequest{     //updated(1004)
+  string    RequestMsg  = 1;  //message for index list
+  string    KeyCol  = 2;
+  string    Param   = 3;
+}
+
+message IndexList{
+  int32 IndexCnt   = 1;
+  repeated IndexInfo IdxList = 2;
+}
+
+message BcData_list {
+  string              TxId   		= 1;
+  string              ObuId     = 2;  //updated(1004)
+  string              key_col   = 3; 
+  PvdHistDataM        Pvd   		= 4; 
+	IdxMngrResponse     Response 	= 5;
+}
+
+message InsertDatatoIdx{
+	string                IndexID   = 1;
+	repeated BcData_list  BcList    = 2;  //updated(1004)
+	IdxMngrResponse       Response  = 3;
+  string                ColName   = 4;
+  float   x           = 5;
+  float   y           = 6;
+  uint32  GeoHash     = 7;
+  string  TxId        = 8;
+  string  OBU_ID      = 9; 
+  uint64  time        = 10;
+  string  FilePath    = 11;  //file index storage FilePath
+  int32   BlockNum    = 12;
+}
+
+message IdxMngrResponse {
+	int32	  ResponseCode      = 1;	// if 200 OK else Error 
+	string	ResponseMessage   = 2;
+	int64 	Duration          = 3;	// NanoSeconds
+	string 	IndexID           = 4;
+  IndexInfo IndexStatus     = 5;  //updated(1004)
+}
+
+message SearchRequestM{
+	string			IndexID   = 1;	//index id = used as a key
+	string			Key       = 2;
+	string			TxId      = 3;
+	string			Field     = 4;
+	string			Value     = 5;
+	string			Begin     = 6;
+	string			End       = 7;
+	ComparisonOps	ComOp   = 8;
+  float       x       = 9;
+  float       y       = 10;
+  int32       k       = 11;
+  float       range   = 12;
+  string      FilePath      = 13;  //file index storage FilePath
+  int32       KeySize       = 14;
+}
+message IndexValue{         //updated(1004)
+  string    TxId  = 1;
+  string    ObuId = 2;
+}
+
+message RstTxListM{
+	IndexInfo           idxInfo = 1;
+	string              Key     = 2;
+	repeated string IdxData = 3;    //updated(1004)
+}
+
+message QueryRequest{   //updated(1004)
+  ComparisonOps ComOp = 1;
+}
+
+message QueryInfo{      //updated(1004)
+  ComparisonOps	ComOp  = 1;
+  int32 RstSize        = 2;
+  int64 RunTime        = 3;
+  int32 RstMin         = 4;
+  int32 RstMax         = 5;
+  int32 RstMean        = 6;
+}
+
+message PvdHistDataM {
+  string Obu_id                 = 1;
+  string Collection_dt          = 2;
+  string Startvector_latitude   = 3;
+  string Startvector_longitude  = 4;
+  string Transmisstion          = 5;
+  int32  Speed                  = 6;
+  string Hazard_lights          = 7;
+  string Left_turn_signal_on    = 8;
+  string Right_turn_signal_on   = 9;
+  int32  Steering               = 10;
+  int32  Rpm                    = 11;
+  string Footbrake              = 12;
+  string Gear                   = 13;
+  int32  Accelator              = 14;
+  string Wipers                 = 15;
+  string Tire_warn_left_f       = 16;
+  string Tire_warn_left_r       = 17;
+  string Tire_warn_right_f      = 18;
+  string Tire_warn_right_r      = 19;
+  int32  Tire_psi_left_f        = 20;
+  int32  Tire_psi_left_r        = 21;
+  int32  Tire_psi_right_f       = 22;
+  int32  Tire_psi_right_r       = 23;
+  int32  Fuel_percent           = 24;
+  int32  Fuel_liter             = 25;
+  int32  Totaldist              = 26;
+  string Rsu_id                 = 27;
+  string Msg_id                 = 28;
+  int32  Startvector_heading    = 29;
+  string Address                = 30;
+}                                  
+
+

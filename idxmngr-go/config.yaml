@@ -1,0 +1,41 @@
+items:
+    - idxid: fileidx_sp
+      idxname: speed
+      keycol: Speed
+      filepath: speed_file_8.bf
+      blocknum: 200018
+      keysize: 8
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 2000061
+    - idxid: fileidx_ad
+      idxname: address
+      keycol: Address
+      filepath: address_file_16.bf
+      blocknum: 0
+      keysize: 16
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: spatialidx
+      idxname: spatialidx
+      keycol: StartvectorLongitude
+      filepath: ""
+      blocknum: 0
+      keysize: 0
+      address: localhost:50061
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: fileidx_dt
+      idxname: collectiondt
+      keycol: CollectionDt
+      filepath: dt_file.bf
+      blocknum: 300018
+      keysize: 17
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 3000061

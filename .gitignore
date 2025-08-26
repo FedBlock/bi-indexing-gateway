@@ -1,0 +1,83 @@
+# Go 관련 파일들
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go 빌드 디렉토리
+bin/
+dist/
+build/
+
+# Go 의존성
+vendor/
+
+# Go 워크스페이스 파일
+go.work
+
+# 로그 파일들
+*.log
+logs/
+
+# 환경 변수 파일들
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 설정 파일들 (필요에 따라 주석 해제)
+# config.yaml
+# config.yml
+# *.conf
+
+# 데이터베이스 파일들
+*.db
+*.sqlite
+*.sqlite3
+
+# 임시 파일들
+*.tmp
+*.temp
+*~
+.DS_Store
+Thumbs.db
+
+# IDE 관련 파일들
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 백업 파일들
+*.bak
+*.backup
+*.old
+
+# 압축 파일들
+*.zip
+*.tar.gz
+*.rar
+
+# 커버리지 파일들
+coverage.out
+coverage.html
+
+# 프로파일링 파일들
+*.prof
+*.pprof
+
+# 테스트 바이너리들
+*.test
+
+# 런타임 생성 파일들
+*.pid
+*.sock
+
+# 로컬 개발 환경 파일들
+local/
+dev/
