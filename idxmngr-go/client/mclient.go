@@ -1,29 +1,20 @@
 /*
- *
  * Copyright 2015 gRPC authors.
- *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
-// Package main implements a simple gRPC client that demonstrates how to use gRPC-Go libraries
-// to perform unary, client streaming, server streaming and full duplex RPCs.
-//
-// It interacts with the route guide service whose definition can be found in routeguide/route_guide.proto.
+// Package main implements a gRPC client for index management operations
 package main
 
 import (
-	//pvd "grpc-go/pvdapi/grpc-go/pvdapi"
 	mserver "idxmngr-go/manager"
 	idxmngr "idxmngr-go/mngrapi/protos"
 
@@ -35,7 +26,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -44,7 +34,6 @@ import (
 	"github.com/gocarina/gocsv"
 
 	"google.golang.org/grpc"
-	//"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
@@ -95,10 +84,12 @@ func makeKey(x, y float64) uint32 {
 }
 func funcName() string {
 	pc, _, _, _ := runtime.Caller(1)
-	nameFull := runtime.FuncForPC(pc).Name() // main.foo
-	nameEnd := filepath.Ext(nameFull)        // .foo
-	name := strings.TrimPrefix(nameEnd, ".") // foo
-	return name
+	nameFull := runtime.FuncForPC(pc).Name()
+	// main.foo -> foo 형태로 변환
+	if idx := strings.LastIndex(nameFull, "."); idx != -1 {
+		return nameFull[idx+1:]
+	}
+	return nameFull
 }
 
 type MngrController struct {
@@ -398,7 +389,6 @@ func GetIndexInfoM(client idxmngr.IndexManagerClient, request *idxmngr.IndexInfo
 	log.Println("Check Index with column: ", request.KeyCol)
 
 	CheckRST, _ := client.GetIndexInfo(context.Background(), request)
-
 	// resultData := &idxmngr.IdxMngrResponse{
 	// 	ResponseCode: CheckRST.ResponseCode,
 	// 	ResponseMessage: CheckRST.ResponseMessage,
@@ -620,86 +610,80 @@ func main() {
 	log.Println("======================")
 
 	switch *cmd {
-	//CREATE index
-	case "creates": //btree-speed
-		indexRequest := mserver.IndexInfo{
+	// ===== INDEX CREATION =====
+	// B-tree indexes
+	case "creates": // btree-speed
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:   "btridx_sp",
 			IdxName: "Mem_Speed",
 			KeyCol:  "Speed",
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
-	case "created": //btree-DT
-		indexRequest := mserver.IndexInfo{
+		})
+	case "created": // btree-DT
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:   "btridx_dt",
 			IdxName: "Mem_DT",
 			KeyCol:  "CollectionDt",
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
-	case "createsp": //spatial index
-		indexRequest := mserver.IndexInfo{
+		})
+	case "createsp": // spatial index
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:   "spatialidx",
 			IdxName: "Mem_Spatial",
 			KeyCol:  "StartvectorLongitude",
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
-	case "fcreates": //fileindex-speed
-		indexRequest := mserver.IndexInfo{
+		})
+
+	// File indexes
+	case "fcreates": // fileindex-speed
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "fileidx_sp",
 			IdxName:  "File_Speed",
 			KeyCol:   "Speed",
 			FilePath: "speed_file.bf",
 			KeySize:  5,
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
-	case "fcreated": //fileindex-DT
-		indexRequest := mserver.IndexInfo{
+		})
+	case "fcreated": // fileindex-DT
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "fileidx_dt",
 			IdxName:  "File_DT",
 			KeyCol:   "CollectionDt",
 			FilePath: "dt_file.bf",
 			KeySize:  17,
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
-	case "fcreateorg": //fileindex-organization
-		indexRequest := mserver.IndexInfo{
+		})
+	case "fcreateorg": // fileindex-organization
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "fileidx_org",
 			IdxName:  "File_Organization",
 			KeyCol:   "OrganizationName",
 			FilePath: "organization_file.bf",
 			KeySize:  32,
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
-	case "fcreateuniversalorg": //fileindex-universal-organization
-		indexRequest := mserver.IndexInfo{
+		})
+	case "fcreateuniversalorg": // fileindex-universal-organization
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "fileidx_universal_org",
 			IdxName:  "File_Universal_Organization",
 			KeyCol:   "IndexableData_OrganizationName",
 			FilePath: "universal_org_file.bf",
 			KeySize:  32,
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
+		})
 
 	// Organization-specific indexes
 	case "createorg_samsung": // Samsung Electronics
-		indexRequest := mserver.IndexInfo{
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "org_samsung",
 			IdxName:  "Organization_Samsung",
 			KeyCol:   "IndexableData_OrganizationName",
 			FilePath: "samsung.bf",
 			KeySize:  32,
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
+		})
 	case "createorg_lg": // LG Electronics
-		indexRequest := mserver.IndexInfo{
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "org_lg",
 			IdxName:  "Organization_LG",
 			KeyCol:   "IndexableData_OrganizationName",
 			FilePath: "lg.bf",
 			KeySize:  32,
-		}
-		CreateIndexRequestM(qe.MngrClient, indexRequest)
+		})
 
-	//INDEX INFO
+	// ===== INDEX INFORMATION =====
 	case "indexlist":
 		GetIndexListM(qe.MngrClient, &idxmngr.IndexInfoRequest{RequestMsg: "INDEX LIST PLEASE"})
 	case "indexCheck":
@@ -756,6 +740,20 @@ func main() {
 	case "search_lg": // LG Electronics data search
 		SearchOrganizationDataM(qe.MngrClient, "org_lg", "IndexableData_OrganizationName", "LG전자")
 
+	// Smart Contract Integration
+	case "contract_index": // Index real contract transaction
+		IndexContractTransaction(qe.MngrClient, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", "삼성전자")
+	case "contract_batch_index": // Index multiple contract transactions
+		IndexContractTransactions(qe.MngrClient, []string{
+			"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+			"0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234",
+		}, "삼성전자")
+	case "contract_search": // Search indexed contract transactions
+		SearchContractTransactions(qe.MngrClient, "org_samsung", "IndexableData_OrganizationName", "삼성전자")
+	case "js_test": // JavaScript 테스트용 데이터 삽입
+		PutJavaScriptTestData(qe.MngrClient, "org_samsung", "test_js_tx_1", "삼성전자")
+
 	case "spkNN":
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "spatialidx", Field: "StartvectorLongitude", X: 123, Y: 33, K: 8, ComOp: idxmngr.ComparisonOps_Knn})
 	case "spRange":
@@ -774,6 +772,9 @@ func main() {
 		log.Println("  insertdata_samsung, insertdata_lg")
 		log.Println("Organization-Specific Data Search:")
 		log.Println("  search_samsung, search_lg")
+		log.Println("Smart Contract Integration:")
+		log.Println("  contract_index, contract_batch_index, contract_search")
+		log.Println("  contract_real_tx, contract_webhook")
 	default:
 		log.Println("cmd example : -cmd=create, insert, exact, range")
 		log.Println("Organization Indexing:")
@@ -786,6 +787,9 @@ func main() {
 		log.Println("  insertdata_samsung, insertdata_lg")
 		log.Println("Organization-Specific Data Search:")
 		log.Println("  search_samsung, search_lg")
+		log.Println("Smart Contract Integration:")
+		log.Println("  contract_index, contract_batch_index, contract_search")
+		log.Println("  contract_real_tx, contract_webhook")
 		//TO-DO-6: case "index list 조회" (done)
 		//TO-DO-7: case "index 호출 횟수"
 		//TO-DO-8: case "query 수행이력 - 질의 결과 데이터 통계"
@@ -828,4 +832,202 @@ type PVD_CSV struct {
 	Rsu_id                string `csv:"RSU_ID" json:"rsu_id"`
 	Msg_id                string `csv:"MSG_ID" json:"msg_id"`
 	Startvector_heading   int    `csv:"STARTVECTOR_HEADING" json:"startvector_heading"`
+}
+
+// ===== SMART CONTRACT INTEGRATION FUNCTIONS =====
+
+// IndexContractTransaction indexes a single contract transaction
+func IndexContractTransaction(client idxmngr.IndexManagerClient, txHash string, orgName string) {
+	log.SetPrefix("[IndexContractTransaction] ")
+	
+	log.Printf("Indexing contract transaction: %s for organization: %s", txHash, orgName)
+	
+	// Create stream for InsertIndexRequest
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+	
+	stream, err := client.InsertIndexRequest(ctx)
+	if err != nil {
+		log.Printf("Failed to open stream: %v", err)
+		return
+	}
+	
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			log.Printf("Failed to close stream: %v", err)
+		}
+		response, err := stream.CloseAndRecv()
+		if err != nil {
+			log.Printf("Error closing stream: %v", err)
+		} else {
+			log.Printf("Successfully indexed contract transaction. Response: %v", response)
+		}
+	}()
+	
+	// Create BcDataList with IndexableData
+	bcData := &idxmngr.BcDataList{
+		TxId:          txHash,
+		IndexableData: &idxmngr.IndexableDataM{
+			TxId:            txHash,
+			OrganizationName: orgName,
+		},
+	}
+	
+	// Create InsertDatatoIdx with BcList
+	insertData := idxmngr.InsertDatatoIdx{
+		IndexID: "org_samsung",
+		BcList:  []*idxmngr.BcDataList{bcData},
+	}
+	
+	// Send data through stream
+	if err := stream.Send(&insertData); err != nil {
+		log.Printf("Failed to send data: %v", err)
+		return
+	}
+	
+	log.Printf("Contract transaction data sent successfully")
+}
+
+// IndexContractTransactions indexes multiple contract transactions
+func IndexContractTransactions(client idxmngr.IndexManagerClient, txHashes []string, orgName string) {
+	log.SetPrefix("[IndexContractTransactions] ")
+	
+	log.Printf("Indexing %d contract transactions for organization: %s", len(txHashes), orgName)
+	
+	// Create stream for InsertIndexRequest
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+	
+	stream, err := client.InsertIndexRequest(ctx)
+	if err != nil {
+		log.Printf("Failed to open stream: %v", err)
+		return
+	}
+	
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			log.Printf("Failed to close stream: %v", err)
+		}
+		response, err := stream.CloseAndRecv()
+		if err != nil {
+			log.Printf("Error closing stream: %v", err)
+		} else {
+			log.Printf("Successfully indexed %d contract transactions. Response: %v", len(txHashes), response)
+		}
+	}()
+	
+	// Send each transaction through stream
+	for i, txHash := range txHashes {
+		// Create BcDataList with IndexableData
+		bcData := &idxmngr.BcDataList{
+			TxId:          txHash,
+			IndexableData: &idxmngr.IndexableDataM{
+				TxId:            txHash,
+				OrganizationName: orgName,
+			},
+		}
+		
+		insertData := idxmngr.InsertDatatoIdx{
+			IndexID: "org_samsung",
+			BcList:  []*idxmngr.BcDataList{bcData},
+		}
+		
+		if err := stream.Send(&insertData); err != nil {
+			log.Printf("Failed to send transaction %d: %v", i+1, err)
+			continue
+		}
+		
+		if i%100 == 0 {
+			log.Printf("Sent transaction %d/%d", i+1, len(txHashes))
+		}
+	}
+	
+	log.Printf("All contract transaction data sent successfully")
+}
+
+// SearchContractTransactions searches for indexed contract transactions
+func SearchContractTransactions(client idxmngr.IndexManagerClient, indexID string, field string, value string) {
+	log.SetPrefix("[SearchContractTransactions] ")
+	
+	log.Printf("Searching for contract transactions in index: %s, field: %s, value: %s", indexID, field, value)
+	
+	// Create search request
+	searchRequest := &idxmngr.SearchRequestM{
+		IndexID: indexID,
+		Field:   field,
+		Value:   value,
+		ComOp:   idxmngr.ComparisonOps_Eq,
+	}
+	
+	// Search for transactions
+	results := IndexDatasByFieldM(client, searchRequest)
+	
+	if results == nil {
+		log.Println("No contract transactions found")
+		return
+	}
+	
+	log.Printf("Found %d contract transactions:", len(results))
+	for i, result := range results {
+		log.Printf("  [%d] TxId: %s", i+1, result.TxId)
+	}
+}
+
+// JavaScript 테스트용 데이터 삽입 함수
+func PutJavaScriptTestData(client idxmngr.IndexManagerClient, idxID string, txId string, orgName string) {
+	start := time.Now()
+	log.Printf("JavaScript 테스트 데이터 삽입 시작...")
+
+	// JavaScript와 동일한 데이터 구조 생성
+	bcData := &idxmngr.BcDataList{
+		TxId: txId,
+		IndexableData: &idxmngr.IndexableDataM{
+			TxId:            txId,
+			OrganizationName: orgName,
+		},
+	}
+
+	insertData := &idxmngr.InsertDatatoIdx{
+		IndexID: idxID,
+		BcList:  []*idxmngr.BcDataList{bcData},
+		ColName: "IndexableData_OrganizationName",
+		FilePath: "fileindex-go/samsung.bf",
+	}
+
+	log.Printf("삽입할 데이터 구조: %+v", insertData)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+
+	stream, err := client.InsertIndexRequest(ctx)
+	if err != nil {
+		log.Fatalf("Failed to open stream: %v", err)
+	}
+
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			log.Printf("Failed to close stream: %v", err)
+		}
+		response, err := stream.CloseAndRecv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				log.Printf("Stream closed by server: EOF received.")
+				return
+			}
+			st, ok := status.FromError(err)
+			if ok {
+				log.Printf("gRPC Error: %v, Code: %v", st.Message(), st.Code())
+			} else {
+				log.Printf("Error closing stream: %v", err)
+			}
+		} else {
+			log.Printf("Stream Closed Successfully. Response: %v", response)
+		}
+	}()
+
+	if err := stream.Send(insertData); err != nil {
+		log.Fatalf("Failed to send data: %v", err)
+	}
+
+	log.Printf("JavaScript 테스트 데이터 삽입 완료. 소요시간: %v", time.Since(start))
 }
