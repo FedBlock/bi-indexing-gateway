@@ -63,13 +63,9 @@ func funcName() string {
 }
 
 // 24.12.10 updated
-var indexToPortMap = map[string]string{
-	"btridx_sp":  "50051",
-	"btridx_dt":  "50051",
-	"fileidx_sp": "50053",
-	"fileidx_dt": "50053",
-	"fileidx_ad": "50053",
-	"spatialidx": "50061",
+// 모든 인덱스는 기본적으로 50053 포트 사용
+func getPortByIndexID(indexID string) string {
+	return "50053"  // 모든 인덱스가 50053 포트 사용
 }
 
 func ReadIndexConfig() {
@@ -164,10 +160,7 @@ func updateIndexConfig(idx IndexInfo) {
 // 24.12.10 updated
 func getServerAddress(indexID string) (string, error) {
 	log.SetPrefix("[" + funcName() + "] ")
-	port, exists := indexToPortMap[indexID]
-	if !exists {
-		return "", fmt.Errorf("no server configured for index ID: %s", indexID)
-	}
+	port := getPortByIndexID(indexID)
 	return fmt.Sprintf("localhost:%s", port), nil
 }
 
@@ -374,10 +367,26 @@ func (m *MServer) CreateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 
 	log.Println("Check index with ", idxinfo)
 
-	_, client, err := m.ConnectionPool.GetConnection(idxinfo.IndexID)
-	if err != nil {
-		log.Println("Invalid index ID")
-		return nil, err
+	// 인덱스 생성 시에는 기본 포트(50053) 사용
+	serverAddr := "localhost:50053"
+	var client idxserverapi.HLFDataIndexClient
+	
+	// 기존 인덱스가 있다면 연결 풀에서 가져오기
+	if _, existingClient, err := m.ConnectionPool.GetConnection(idxinfo.IndexID); err == nil {
+		client = existingClient
+	} else {
+		// 새 인덱스 생성 시에는 직접 연결
+		log.Printf("New index creation, connecting to: %s", serverAddr)
+		conn, err := grpc.Dial(serverAddr,
+			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
+			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(100*1024*1024)),
+			grpc.WithInsecure())
+		if err != nil {
+			log.Printf("Failed to connect to server %s: %v", serverAddr, err)
+			return nil, fmt.Errorf("failed to connect to server %s: %v", serverAddr, err)
+		}
+		defer conn.Close()
+		client = idxserverapi.NewHLFDataIndexClient(conn)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -437,7 +446,7 @@ func (m *MServer) CreateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 	}
 	MngrIndexList[indexRequest.IdxID] = indexRequest
 
-	updateIndexConfig(indexRequest)
+	insertIndexConfig(indexRequest)  // 새 인덱스 추가 (updateIndexConfig가 아님)
 
 	resultData := &mngr.IdxMngrResponse{
 		ResponseCode: 200,
@@ -571,7 +580,10 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 
 			count = count + len(txlist)
 
-			log.Println(txlist[0])
+			// 모든 데이터 로그 출력 (첫 번째만이 아닌)
+			for i, data := range txlist {
+				log.Printf("Data[%d]: TxId=%s, IndexableData=%v", i, data.TxId, data.IndexableData)
+			}
 
 			log.Println(idxID, idxCol, count, len(txlist))
 
@@ -716,12 +728,23 @@ func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, re
 
 	var bclist []*idxserverapi.BcDataInfo
 	for _, datas := range recvDatas.GetBcList() {
-		convertedPvd := convertPvdHistDataMToIdxserverApi(datas.Pvd)
-		bcData := &idxserverapi.BcDataInfo{
-			TxId: datas.TxId,
-			Pvd:  convertedPvd,
+		// PVD 데이터가 있으면 PVD 사용, IndexableData가 있으면 IndexableData 사용
+		var bcData *idxserverapi.BcDataInfo
+		if datas.Pvd != nil {
+			convertedPvd := convertPvdHistDataMToIdxserverApi(datas.Pvd)
+			bcData = &idxserverapi.BcDataInfo{
+				TxId: datas.TxId,
+				Pvd:  convertedPvd,
+			}
+		} else if datas.IndexableData != nil {
+			bcData = &idxserverapi.BcDataInfo{
+				TxId: datas.TxId,
+				IndexableData: convertIndexableDataMToIdxserverApi(datas.IndexableData),
+			}
 		}
-		bclist = append(bclist, bcData)
+		if bcData != nil {
+			bclist = append(bclist, bcData)
+		}
 	}
 	insList := &idxserverapi.InsertData{
 		ColIndex: recvDatas.IndexID,
@@ -782,6 +805,19 @@ func convertPvdHistDataMToIdxserverApi(data *mngr.PvdHistDataM) *idxserverapi.Pv
 		MsgId:                data.MsgId,
 		StartvectorHeading:   data.StartvectorHeading,
 		Address:              data.Address,
+		OrganizationName:     data.OrganizationName,
+	}
+}
+
+func convertIndexableDataMToIdxserverApi(data *mngr.IndexableDataM) *idxserverapi.IndexableData {
+	if data == nil {
+		return nil
+	}
+
+	return &idxserverapi.IndexableData{
+		TxId:            data.TxId,
+		OrganizationName: data.OrganizationName,
+		// 필요한 필드만 변환
 	}
 }
 

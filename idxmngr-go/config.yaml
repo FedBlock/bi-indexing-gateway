@@ -1,34 +1,4 @@
 items:
-    - idxid: fileidx_sp
-      idxname: speed
-      keycol: Speed
-      filepath: speed_file.bf
-      blocknum: 0
-      keysize: 5
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: fileidx_ad
-      idxname: address
-      keycol: Address
-      filepath: address_file_16.bf
-      blocknum: 0
-      keysize: 16
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: spatialidx
-      idxname: spatialidx
-      keycol: StartvectorLongitude
-      filepath: ""
-      blocknum: 0
-      keysize: 0
-      address: localhost:50061
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
     - idxid: fileidx_dt
       idxname: collectiondt
       keycol: CollectionDt
@@ -39,3 +9,23 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 3000061
+    - idxid: org_samsung
+      idxname: Organization_Samsung
+      keycol: IndexableData_OrganizationName
+      filepath: samsung.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: org_lg
+      idxname: Organization_LG
+      keycol: IndexableData_OrganizationName
+      filepath: lg.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

@@ -45,8 +45,9 @@ message IdxResponse {
 message BcDataInfo {
   string            TxId   		= 1;
   string            key_col   = 2; 
-  PvdHist_data      Pvd   		= 3; 
-	IdxResponse       Response 	= 4;
+  PvdHist_data      Pvd   		= 3;  // PVD 데이터
+  IndexableData     IndexableData = 4;  // 범용 데이터
+	IdxResponse       Response 	= 5;
 }
 
 message InsertData{
@@ -94,6 +95,27 @@ message RstTxList{
 	repeated string IdxData 	= 3;
 }
 
+// 범용적인 인덱싱 가능한 데이터 구조
+message IndexableData {
+     // 기본 식별자
+     string TxId                    = 1;
+     string ContractAddress         = 2;
+     string EventName              = 3;
+     
+     // 동적 필드들 (JSON 형태로 저장)
+     string DataJson               = 4;
+     
+     // 메타데이터
+     string Timestamp              = 5;
+     uint64 BlockNumber            = 6;
+     string OrganizationName       = 7;  // AccessManagement.sol의 organizationName
+     string Requester              = 8;  // AccessManagement.sol의 requester
+     string ResourceOwner          = 9;  // AccessManagement.sol의 resourceOwner
+     string Purpose                = 10; // AccessManagement.sol의 purpose
+     string Status                 = 11; // AccessManagement.sol의 status
+}
+
+// 기존 PVD 구조체 (하위 호환성 유지)
 message PvdHist_data {
      string Obu_id                 = 1;
      string Collection_dt          = 2;
@@ -125,6 +147,7 @@ message PvdHist_data {
      string Msg_id                 = 28;
      int32  Startvector_heading    = 29;
      string Address                = 30;
+     string OrganizationName       = 31;
 }                                  
 
 

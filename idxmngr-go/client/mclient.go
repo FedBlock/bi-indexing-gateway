@@ -409,6 +409,186 @@ func GetIndexInfoM(client idxmngr.IndexManagerClient, request *idxmngr.IndexInfo
 	return CheckRST
 }
 
+// IndexableData 더미 데이터 생성
+func generateIndexableDataDummy() []*idxmngr.IndexableDataM {
+	var dummyDataList []*idxmngr.IndexableDataM
+
+	// 삼성전자 관련 더미 데이터
+	for i := 0; i < 7; i++ {
+		dummyData := &idxmngr.IndexableDataM{
+			TxId:            fmt.Sprintf("samsung_tx_%d", i+1),
+			OrganizationName: "삼성전자",
+		}
+		dummyDataList = append(dummyDataList, dummyData)
+	}
+
+	return dummyDataList
+}
+
+// Organization-specific dummy data generation
+func generateOrganizationDummyData(orgName string) []*idxmngr.IndexableDataM {
+	var dummyDataList []*idxmngr.IndexableDataM
+
+	// 조직별 더미 데이터 생성 (각 조직당 5개씩)
+	for i := 0; i < 5; i++ {
+		dummyData := &idxmngr.IndexableDataM{
+			TxId:            fmt.Sprintf("%s_tx_%d", strings.ToLower(strings.Replace(orgName, "전자", "", -1)), i+1),
+			OrganizationName: orgName,
+		}
+		dummyDataList = append(dummyDataList, dummyData)
+	}
+
+	return dummyDataList
+}
+
+// IndexableData 삽입 함수
+func PutIndexableDataM(client idxmngr.IndexManagerClient, idxID string, idxCol string) {
+	start := time.Now()
+	log.Printf("IndexableData 삽입 시작...")
+
+	// 더미 데이터 생성
+	dummyDataList := generateIndexableDataDummy()
+
+	log.Printf("생성된 더미 데이터: %d개", len(dummyDataList))
+
+	// BcDataList로 변환
+	var bcDataList []*idxmngr.BcDataList
+	for _, data := range dummyDataList {
+		bcData := &idxmngr.BcDataList{
+			TxId:          data.TxId,  // IndexableData의 TxId 사용 (중복 제거)
+			IndexableData: data,
+		}
+		bcDataList = append(bcDataList, bcData)
+	}
+
+	insertData := &idxmngr.InsertDatatoIdx{
+		IndexID: idxID,
+		BcList:  bcDataList,
+		ColName: idxCol,
+		FilePath: "/home/blockchain/bi-index-migration/bi-index/fileindex-go/universal_org_file.bf",
+		// KeySize: 32, // This was removed due to proto definition
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+
+	stream, err := client.InsertIndexRequest(ctx)
+	if err != nil {
+		log.Fatalf("Failed to open stream: %v", err)
+	}
+
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			log.Printf("Failed to close stream: %v", err)
+		}
+		response, err := stream.CloseAndRecv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				log.Printf("Stream closed by server: EOF received.")
+				return
+			}
+			st, ok := status.FromError(err)
+			if ok {
+				log.Printf("gRPC Error: %v, Code: %v", st.Message(), st.Code())
+			} else {
+				log.Printf("Error closing stream: %v", err)
+			}
+		} else {
+			log.Printf("Stream Closed Successfully. Response: %v", response)
+		}
+	}()
+
+	if err := stream.Send(insertData); err != nil {
+		log.Fatalf("Failed to send data: %v", err)
+	}
+
+	log.Printf("IndexableData 삽입 완료. 총 %d개 데이터, 소요시간: %v", len(dummyDataList), time.Since(start))
+}
+
+// Organization-specific data insertion
+func PutOrganizationDataM(client idxmngr.IndexManagerClient, idxID string, idxCol string, orgName string) {
+	start := time.Now()
+	log.Printf("%s 데이터 삽입 시작...", orgName)
+
+	// 조직별 더미 데이터 생성
+	dummyDataList := generateOrganizationDummyData(orgName)
+
+	log.Printf("생성된 %s 더미 데이터: %d개", orgName, len(dummyDataList))
+
+	// BcDataList로 변환
+	var bcDataList []*idxmngr.BcDataList
+	for _, data := range dummyDataList {
+		bcData := &idxmngr.BcDataList{
+			TxId:          data.TxId,  // IndexableData의 TxId 사용 (중복 제거)
+			IndexableData: data,
+		}
+		bcDataList = append(bcDataList, bcData)
+	}
+
+	// 파일 경로 설정 (조직별)
+	filePath := fmt.Sprintf("fileindex-go/%s.bf", strings.ToLower(strings.Replace(orgName, "전자", "", -1)))
+
+	insertData := &idxmngr.InsertDatatoIdx{
+		IndexID: idxID,
+		BcList:  bcDataList,
+		ColName: idxCol,
+		FilePath: filePath,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+
+	stream, err := client.InsertIndexRequest(ctx)
+	if err != nil {
+		log.Fatalf("Failed to open stream: %v", err)
+	}
+
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			log.Printf("Failed to close stream: %v", err)
+		}
+		response, err := stream.CloseAndRecv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				log.Printf("Stream closed by server: EOF received.")
+				return
+			}
+			st, ok := status.FromError(err)
+			if ok {
+				log.Printf("gRPC Error: %v, Code: %v", st.Message(), st.Code())
+			} else {
+				log.Printf("Error closing stream: %v", err)
+			}
+		} else {
+			log.Printf("Stream Closed Successfully. Response: %v", response)
+		}
+	}()
+
+	if err := stream.Send(insertData); err != nil {
+		log.Fatalf("Failed to send data: %v", err)
+	}
+
+	log.Printf("%s 데이터 삽입 완료. 총 %d개 데이터, 소요시간: %v", orgName, len(dummyDataList), time.Since(start))
+}
+
+// Organization-specific data search
+func SearchOrganizationDataM(client idxmngr.IndexManagerClient, idxID string, field string, value string) {
+	log.Printf("%s 데이터 검색 시작...", value)
+
+	searchRequest := &idxmngr.SearchRequestM{
+		IndexID: idxID,
+		Field:   field,
+		Value:   value,
+		ComOp:   idxmngr.ComparisonOps_Eq,
+	}
+
+	// 기존의 IndexDatasByFieldM 함수 사용
+	result := IndexDatasByFieldM(client, searchRequest)
+	
+	log.Printf("검색 결과: %+v", result)
+	log.Printf("%s 데이터 검색 완료", value)
+}
+
 func main() {
 
 	qe := MngrController{}
@@ -480,6 +660,44 @@ func main() {
 			KeySize:  17,
 		}
 		CreateIndexRequestM(qe.MngrClient, indexRequest)
+	case "fcreateorg": //fileindex-organization
+		indexRequest := mserver.IndexInfo{
+			IdxID:    "fileidx_org",
+			IdxName:  "File_Organization",
+			KeyCol:   "OrganizationName",
+			FilePath: "organization_file.bf",
+			KeySize:  32,
+		}
+		CreateIndexRequestM(qe.MngrClient, indexRequest)
+	case "fcreateuniversalorg": //fileindex-universal-organization
+		indexRequest := mserver.IndexInfo{
+			IdxID:    "fileidx_universal_org",
+			IdxName:  "File_Universal_Organization",
+			KeyCol:   "IndexableData_OrganizationName",
+			FilePath: "universal_org_file.bf",
+			KeySize:  32,
+		}
+		CreateIndexRequestM(qe.MngrClient, indexRequest)
+
+	// Organization-specific indexes
+	case "createorg_samsung": // Samsung Electronics
+		indexRequest := mserver.IndexInfo{
+			IdxID:    "org_samsung",
+			IdxName:  "Organization_Samsung",
+			KeyCol:   "IndexableData_OrganizationName",
+			FilePath: "samsung.bf",
+			KeySize:  32,
+		}
+		CreateIndexRequestM(qe.MngrClient, indexRequest)
+	case "createorg_lg": // LG Electronics
+		indexRequest := mserver.IndexInfo{
+			IdxID:    "org_lg",
+			IdxName:  "Organization_LG",
+			KeyCol:   "IndexableData_OrganizationName",
+			FilePath: "lg.bf",
+			KeySize:  32,
+		}
+		CreateIndexRequestM(qe.MngrClient, indexRequest)
 
 	//INDEX INFO
 	case "indexlist":
@@ -492,12 +710,16 @@ func main() {
 		PutMultiDataM(qe.MngrClient, "fileidx_sp", "Speed")
 	case "finsertd": //fileindex-DT
 		PutMultiDataM(qe.MngrClient, "fileidx_dt", "CollectionDt")
-	case "inserts": //btree-speed
-		PutMultiDataM(qe.MngrClient, "btridx_sp", "Speed")
-	case "insertd": //btree-DT
-		PutMultiDataM(qe.MngrClient, "btridx_dt", "CollectionDt")
-	case "insertsp": //spatial index
-		PutMultiDataM(qe.MngrClient, "spatialidx", "StartvectorLongitude")
+	case "finsertorg": //fileindex-organization
+		PutMultiDataM(qe.MngrClient, "fileidx_org", "OrganizationName")
+	case "finsertuniversalorg": //fileindex-universal-organization
+		PutIndexableDataM(qe.MngrClient, "fileidx_universal_org", "IndexableData_OrganizationName")
+
+	// Organization-specific data insertion
+	case "insertdata_samsung": // Samsung Electronics data insertion
+		PutOrganizationDataM(qe.MngrClient, "org_samsung", "IndexableData_OrganizationName", "삼성전자")
+	case "insertdata_lg": // LG Electronics data insertion
+		PutOrganizationDataM(qe.MngrClient, "org_lg", "IndexableData_OrganizationName", "LG전자")
 
 	//Query
 	case "exacts": //btree-speed
@@ -518,6 +740,22 @@ func main() {
 	case "franged": //fileindex-DT
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_dt", Field: "CollectionDt", Begin: "20211001053430718", End: "20211001055430718", ComOp: idxmngr.ComparisonOps_Range})
 
+	case "fexactorg": //fileindex-organization
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_org", Field: "OrganizationName", Value: "삼성전자", ComOp: idxmngr.ComparisonOps_Eq})
+	case "frangorg": //fileindex-organization
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_org", Field: "OrganizationName", Begin: "A", End: "Z", ComOp: idxmngr.ComparisonOps_Range})
+
+	case "fexactuniversalorg": //fileindex-universal-organization
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_universal_org", Field: "IndexableData_OrganizationName", Value: "삼성전자", ComOp: idxmngr.ComparisonOps_Eq})
+	case "franguniversalorg": //fileindex-universal-organization
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_universal_org", Field: "IndexableData_OrganizationName", Begin: "A", End: "Z", ComOp: idxmngr.ComparisonOps_Range})
+
+	// Organization-specific data search
+	case "search_samsung": // Samsung Electronics data search
+		SearchOrganizationDataM(qe.MngrClient, "org_samsung", "IndexableData_OrganizationName", "삼성전자")
+	case "search_lg": // LG Electronics data search
+		SearchOrganizationDataM(qe.MngrClient, "org_lg", "IndexableData_OrganizationName", "LG전자")
+
 	case "spkNN":
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "spatialidx", Field: "StartvectorLongitude", X: 123, Y: 33, K: 8, ComOp: idxmngr.ComparisonOps_Knn})
 	case "spRange":
@@ -526,8 +764,28 @@ func main() {
 	//HELP
 	case "help":
 		log.Println("cmd example : -cmd=create, insert, exact, range")
+		log.Println("Organization Indexing:")
+		log.Println("  fcreateorg, finsertorg, fexactorg, frangorg")
+		log.Println("Universal Organization Indexing:")
+		log.Println("  fcreateuniversalorg, finsertuniversalorg, fexactuniversalorg, franguniversalorg")
+		log.Println("Organization-Specific Indexing:")
+		log.Println("  createorg_samsung, createorg_lg")
+		log.Println("Organization-Specific Data Insertion:")
+		log.Println("  insertdata_samsung, insertdata_lg")
+		log.Println("Organization-Specific Data Search:")
+		log.Println("  search_samsung, search_lg")
 	default:
 		log.Println("cmd example : -cmd=create, insert, exact, range")
+		log.Println("Organization Indexing:")
+		log.Println("  fcreateorg, finsertorg, fexactorg, frangorg")
+		log.Println("Universal Organization Indexing:")
+		log.Println("  fcreateuniversalorg, finsertuniversalorg, fexactuniversalorg, franguniversalorg")
+		log.Println("Organization-Specific Indexing:")
+		log.Println("  createorg_samsung, createorg_lg")
+		log.Println("Organization-Specific Data Insertion:")
+		log.Println("  insertdata_samsung, insertdata_lg")
+		log.Println("Organization-Specific Data Search:")
+		log.Println("  search_samsung, search_lg")
 		//TO-DO-6: case "index list 조회" (done)
 		//TO-DO-7: case "index 호출 횟수"
 		//TO-DO-8: case "query 수행이력 - 질의 결과 데이터 통계"

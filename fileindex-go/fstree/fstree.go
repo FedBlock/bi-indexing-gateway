@@ -30,6 +30,8 @@ type IndexServer struct {
 var DtTree *bptree.BpTree
 var SpeedTree *bptree.BpTree
 var AddrTree *bptree.BpTree
+var OrgTree *bptree.BpTree  // 추가
+var IndexableDataTree *bptree.BpTree  // 범용 데이터용 트리
 var idxTree *bptree.BpTree
 
 func funcName() string {
@@ -106,6 +108,12 @@ func (h IndexServer) CreateIndex(ctx context.Context, idxinfo *fsindex.CreateReq
 
 	case "Speed":
 		err = openOrCreateIndex(idxinfo.FilePath, keySize, &SpeedTree)
+
+	case "OrganizationName":
+		err = openOrCreateIndex(idxinfo.FilePath, keySize, &OrgTree)
+
+	case "IndexableData_OrganizationName":  // 범용 데이터용 OrganizationName 인덱스
+		err = openOrCreateIndex(idxinfo.FilePath, keySize, &IndexableDataTree)
 
 	default:
 		log.Printf("Unsupported key column: %s", idxinfo.KeyCol)
@@ -208,6 +216,32 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 				targetTree = &SpeedTree
 				key = stringToFixedBytes(strconv.Itoa(int(rec.Pvd.Speed)), keySize)
 				//log.Println("Speed Key: ", key)
+			case "OrganizationName":
+				if OrgTree == nil {
+					err := openOrCreateIndex(recvDatas.GetFilePath(), keySize, &OrgTree)
+					if err != nil {
+						log.Println("openOrCreateIndex Error for OrganizationName")
+						return err
+					}
+				}
+				targetTree = &OrgTree
+				key = stringToFixedBytes(rec.Pvd.OrganizationName, keySize)
+			case "IndexableData_OrganizationName":  // 범용 데이터용 OrganizationName 인덱싱
+				if IndexableDataTree == nil {
+					err := openOrCreateIndex(recvDatas.GetFilePath(), keySize, &IndexableDataTree)
+					if err != nil {
+						log.Println("openOrCreateIndex Error for IndexableData_OrganizationName")
+						return err
+					}
+				}
+				targetTree = &IndexableDataTree
+				// IndexableData에서 OrganizationName 추출
+				if rec.IndexableData != nil {
+					key = stringToFixedBytes(rec.IndexableData.OrganizationName, keySize)
+				} else {
+					log.Printf("IndexableData is nil at index: %d", idx)
+					continue
+				}
 			default:
 				log.Printf("Unsupported index column: %s", idxCol)
 				continue
@@ -270,26 +304,11 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 					txlist = append(txlist, string(value1))
 					returned_pointers = nextPointer
 				}
-				txlist_size := len(txlist)
-				log.Println("TxCount =", txlist_size)
-				log.Println("Execution Time = ", time.Since(start))
-
-				idxData := fsindex.RstTxList{
-					IdxData: txlist,
-					IndexID: req.IndexID,
-					Key:     req.Key,
-				}
-				return &idxData, nil
-			} else {
-				log.Println("Not Found !!!")
-				return nil, nil
 			}
-
 		} else if req.ComOp == fsindex.ComparisonOps_Eq {
-			log.Println(req.Value)
 			key := stringToFixedBytes(req.Value, keySize)
-			log.Println("Original query key: ", key)
 			returned_pointers, _ := AddrTree.Find(key)
+
 			if returned_pointers != nil {
 				for returned_pointers != nil {
 					_, value1, err1, nextPointer := returned_pointers()
@@ -303,24 +322,15 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 					txlist = append(txlist, string(value1))
 					returned_pointers = nextPointer
 				}
-				txlist_size := len(txlist)
-				log.Println("TxCount =", txlist_size)
-				log.Println("Execution Time = ", time.Since(start))
-
-				idxData := fsindex.RstTxList{
-					IdxData: txlist,
-					IndexID: req.IndexID,
-					Key:     req.Key,
-				}
-				return &idxData, nil
-			} else {
-				log.Println("Not Found !!!")
-				return nil, nil
 			}
-		} else {
-			log.Println("Not Found !!!")
-			return nil, nil
 		}
+
+		log.Printf("Address search completed in %v", time.Since(start))
+		return &fsindex.RstTxList{
+			IndexID: req.IndexID,
+			Key:     req.Key,
+			IdxData: txlist,
+		}, nil
 
 	case "CollectionDt":
 
@@ -499,6 +509,65 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 			log.Println("Not Found !!!")
 			return nil, nil
 		}
+	case "IndexableData_OrganizationName":  // IndexableData용 OrganizationName 검색
+		if IndexableDataTree == nil {
+			err := openOrCreateIndex(req.FilePath, 0, &IndexableDataTree)
+			if err != nil {
+				log.Println("failed to open index server")
+				return nil, fmt.Errorf("failed to open tree: %v", err)
+			}
+			log.SetPrefix("[" + funcName() + "] ")
+		}
+
+		start := time.Now()
+		txlist := []string{}
+
+		if req.ComOp == fsindex.ComparisonOps_Range {
+			begin := stringToFixedBytes(req.Begin, keySize)
+			end := stringToFixedBytes(req.End, keySize)
+
+			returned_pointers, _ := IndexableDataTree.Range(begin, end)
+
+			if returned_pointers != nil {
+				for returned_pointers != nil {
+					_, value1, err1, nextPointer := returned_pointers()
+					if err1 != nil {
+						log.Fatal("Error while fetching data:", err1)
+					}
+					if nextPointer == nil {
+						log.Println("End of pointer chain")
+						break
+					}
+					txlist = append(txlist, string(value1))
+					returned_pointers = nextPointer
+				}
+			}
+		} else if req.ComOp == fsindex.ComparisonOps_Eq {
+			key := stringToFixedBytes(req.Value, keySize)
+			returned_pointers, _ := IndexableDataTree.Find(key)
+
+			if returned_pointers != nil {
+				for returned_pointers != nil {
+					_, value1, err1, nextPointer := returned_pointers()
+					if err1 != nil {
+						log.Fatal("Error while fetching data:", err1)
+					}
+					if nextPointer == nil {
+						log.Println("End of pointer chain")
+						break
+					}
+					txlist = append(txlist, string(value1))
+					returned_pointers = nextPointer
+				}
+			}
+		}
+
+		log.Printf("IndexableData_OrganizationName search completed in %v", time.Since(start))
+		return &fsindex.RstTxList{
+			IndexID: req.IndexID,
+			Key:     req.Key,
+			IdxData: txlist,
+		}, nil
 	default:
 		log.Println("not indexed column !!!")
 		return nil, nil
