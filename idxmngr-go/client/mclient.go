@@ -337,12 +337,11 @@ func IndexDatasByFieldM(client idxmngr.IndexManagerClient, request *idxmngr.Sear
 	}
 
 	//time.Sleep(2000 * time.Millisecond)
-	txList := []*idxmngr.IndexValue{}
-	txList = append(txList, data.GetIdxData()...)
+	txList := data.GetIdxData()
 
 	//keyList := data.GetKey()
 	log.Println("Rst Tx Cnt :", len(txList))
-	for idx, txdata := range data.GetIdxData() {
+	for idx, txdata := range txList {
 		if len(txList) > 30 && idx%10 == 0 {
 			log.Println(idx, ", ", txdata)
 		}
@@ -460,7 +459,7 @@ func main() {
 			IdxName:  "File_Speed",
 			KeyCol:   "Speed",
 			FilePath: "speed_file.bf",
-			KeySize:  "5",
+			KeySize:  5,
 		}
 		CreateIndexRequestM(qe.MngrClient, indexRequest)
 	case "fcreated": //fileindex-DT
@@ -469,7 +468,7 @@ func main() {
 			IdxName:  "File_DT",
 			KeyCol:   "CollectionDt",
 			FilePath: "dt_file.bf",
-			KeySize:  "17",
+			KeySize:  17,
 		}
 		CreateIndexRequestM(qe.MngrClient, indexRequest)
 
