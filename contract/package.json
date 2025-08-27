@@ -1,0 +1,24 @@
+{
+  "name": "fileindex-hardhat-test",
+  "version": "1.0.0",
+  "description": "Hardhat test for fileindex-go",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js",
+    "generate-events": "hardhat run scripts/generate-events.js",
+    "transaction-indexing": "hardhat run scripts/transaction-with-indexing.js",
+    "full-test": "hardhat run scripts/contract-with-indexing.js"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.13.4",
+    "@grpc/proto-loader": "^0.8.0",
+    "dotenv": "^17.2.1",
+    "ethers": "^6.15.0"
+  }
+}
