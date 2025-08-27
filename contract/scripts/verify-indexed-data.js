@@ -1,5 +1,4 @@
-const grpc = require('@grpc/grpc-js');
-const protoLoader = require('@grpc/proto-loader');
+const IndexingClient = require('../../indexing-client-package/lib/indexing-client');
 
 /**
  * Samsung 인덱스 데이터 검증 스크립트
@@ -15,53 +14,22 @@ const protoLoader = require('@grpc/proto-loader');
  * node scripts/verify-indexed-data.js
  * 
  * @author AI Assistant
- * @version 1.0.0
+ * @version 2.0.0 (IndexingClient 패키지 사용)
  */
-
-// Protobuf 파일 경로
-const PROTO_PATH = '../idxmngr-go/protos/index_manager.proto';
-
-// gRPC 옵션 설정
-const options = {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true
-};
-
-// Protobuf 로드
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, options);
-const idxmngr = grpc.loadPackageDefinition(packageDefinition).idxmngrapi;
 
 /**
  * Samsung 데이터 검색 클래스
- * gRPC를 통해 idxmngr 서버에 연결하여 삼성전자 관련 인덱스 데이터를 검색합니다.
+ * IndexingClient를 사용하여 삼성전자 관련 인덱스 데이터를 검색합니다.
  */
 class SamsungDataSearcher {
   /**
    * @param {string} serverAddr - gRPC 서버 주소 (기본값: localhost:50052)
    */
   constructor(serverAddr = 'localhost:50052') {
-    this.serverAddr = serverAddr;
-    this.client = null;
-    this.connect();
-  }
-
-  /**
-   * gRPC 서버에 연결
-   * @private
-   */
-  connect() {
-    try {
-      this.client = new idxmngr.Index_manager(
-        this.serverAddr,
-        grpc.credentials.createInsecure()
-      );
-      console.log(`✅ Connected to idxmngr server at ${this.serverAddr}`);
-    } catch (error) {
-      console.error(`❌ Failed to connect to idxmngr server: ${error.message}`);
-    }
+    this.indexingClient = new IndexingClient({
+      serverAddr: serverAddr,
+      protoPath: '../idxmngr-go/protos/index_manager.proto' // 로컬 테스트용
+    });
   }
 
   /**
@@ -85,28 +53,21 @@ class SamsungDataSearcher {
       console.log('📤 Search request:');
       console.log(JSON.stringify(searchRequest, null, 2));
 
-      return new Promise((resolve, reject) => {
-        this.client.GetindexDataByFieldM(searchRequest, (error, response) => {
-          if (error) {
-            console.error(`❌ Samsung fexactorg search failed: ${error.message}`);
-            reject(error);
-          } else {
-            console.log(`✅ Samsung fexactorg search successful:`);
-            console.log(`📊 검색 결과 TxId 개수: ${response.IdxData ? response.IdxData.length : 0}`);
-            
-            if (response.IdxData && response.IdxData.length > 0) {
-              console.log('📋 검색된 TxId 목록:');
-              response.IdxData.forEach((txId, index) => {
-                console.log(`  [${index + 1}] ${txId}`);
-              });
-            } else {
-              console.log('📭 검색 결과가 없습니다.');
-            }
-            
-            resolve(response);
-          }
+      const response = await this.indexingClient.searchData(searchRequest);
+      
+      console.log(`✅ Samsung fexactorg search successful:`);
+      console.log(`📊 검색 결과 TxId 개수: ${response.IdxData ? response.IdxData.length : 0}`);
+      
+      if (response.IdxData && response.IdxData.length > 0) {
+        console.log('📋 검색된 TxId 목록:');
+        response.IdxData.forEach((txId, index) => {
+          console.log(`  [${index + 1}] ${txId}`);
         });
-      });
+      } else {
+        console.log('📭 검색 결과가 없습니다.');
+      }
+      
+      return response;
 
     } catch (error) {
       console.error(`❌ Samsung fexactorg test failed: ${error.message}`);
@@ -130,19 +91,13 @@ class SamsungDataSearcher {
         KeyCol: 'IndexableData'
       };
 
-      return new Promise((resolve, reject) => {
-        this.client.GetIndexInfo(request, (error, response) => {
-          if (error) {
-            console.error(`❌ Samsung GetIndexInfo failed: ${error.message}`);
-            reject(error);
-          } else {
-            console.log(`✅ Samsung Index info retrieved:`);
-            console.log(`   Response Code: ${response.ResponseCode}`);
-            console.log(`   Response Message: ${response.ResponseMessage}`);
-            resolve(response);
-          }
-        });
-      });
+      const response = await this.indexingClient.getIndexInfo(request);
+      
+      console.log(`✅ Samsung Index info retrieved:`);
+      console.log(`   Response Code: ${response.ResponseCode}`);
+      console.log(`   Response Message: ${response.ResponseMessage}`);
+      
+      return response;
 
     } catch (error) {
       console.error(`❌ Samsung Index info check failed: ${error.message}`);
@@ -151,12 +106,11 @@ class SamsungDataSearcher {
   }
 
   /**
-   * gRPC 연결 종료
-   * @private
+   * IndexingClient 연결 종료
    */
   close() {
-    if (this.client) {
-      this.client.close();
+    if (this.indexingClient) {
+      this.indexingClient.close();
       console.log('🔌 Connection closed');
     }
   }
@@ -169,6 +123,7 @@ class SamsungDataSearcher {
 async function main() {
   console.log("🔍 Samsung 인덱스 데이터 검증 시작...");
   console.log("📋 이 스크립트는 삼성전자 관련 블록체인 데이터가 인덱스에 제대로 저장되었는지 확인합니다.");
+  console.log("🆕 IndexingClient 패키지 사용 버전");
   
   const searcher = new SamsungDataSearcher();
   
@@ -201,6 +156,7 @@ async function main() {
       console.log(`✅ 성공: ${searchResult.IdxData.length}개의 트랜잭션이 인덱스에 저장되어 있습니다.`);
       console.log(`📊 첫 번째 TxId: ${searchResult.IdxData[0]}`);
       console.log(`🎯 검색 방식: IndexableData 컬럼에서 "삼성전자" 값으로 검색`);
+      console.log(`🆕 IndexingClient 패키지 사용으로 코드가 간소화되었습니다!`);
     } else {
       console.log(`❌ 실패: 인덱스에 삼성전자 관련 데이터가 없습니다.`);
     }
