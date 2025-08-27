@@ -1,78 +1,8 @@
 items:
-    - idxid: fileidx_dt
-      idxname: collectiondt
-      keycol: CollectionDt
-      filepath: dt_file.bf
-      blocknum: 300018
-      keysize: 17
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 3000061
-    - idxid: org_samsung
-      idxname: Organization_Samsung
-      keycol: IndexableData_OrganizationName
-      filepath: samsung.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: org_lg
-      idxname: Organization_LG
-      keycol: IndexableData_OrganizationName
-      filepath: lg.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: test_org_hyundai
-      idxname: Test_Organization_Hyundai
-      keycol: IndexableData_OrganizationName
-      filepath: hyundai.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: org_samsung
-      idxname: Organization_Samsung
-      keycol: IndexableData_OrganizationName
-      filepath: samsung.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: org_samsung
-      idxname: Organization_Samsung
-      keycol: IndexableData_OrganizationName
-      filepath: samsung.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: org_samsung
-      idxname: Organization_Samsung
-      keycol: IndexableData_OrganizationName
-      filepath: samsung.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: org_samsung
-      idxname: Organization_Samsung
-      keycol: IndexableData_OrganizationName
-      filepath: samsung.bf
+    - idxid: fileidx_universal_org
+      idxname: File_Universal_Organization
+      keycol: IndexableData
+      filepath: universal_org_file.bf
       blocknum: 0
       keysize: 32
       address: localhost:50053

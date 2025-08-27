@@ -68,6 +68,8 @@ func getPortByIndexID(indexID string) string {
 	return "50053"  // 모든 인덱스가 50053 포트 사용
 }
 
+
+
 func ReadIndexConfig() {
 	data, err := ioutil.ReadFile("./config.yaml")
 	if err != nil {
@@ -614,7 +616,6 @@ func (m *MServer) handleSpatialIndex(client idxserverapi.HLFDataIndexClient, rec
 		TxId:    recvDatas.TxId,
 		X:       recvDatas.X,
 		Y:       recvDatas.Y,
-		OBU_ID:  recvDatas.OBU_ID,
 		GeoHash: recvDatas.GeoHash,
 	}
 
@@ -678,7 +679,6 @@ func (m *MServer) handleSpatialIndexList(client idxserverapi.HLFDataIndexClient,
 			TxId:    datas.TxId,
 			X:       float32(longitude),
 			Y:       float32(latitude),
-			OBU_ID:  convertedPvd.ObuId,
 			GeoHash: gHash,
 		}
 
@@ -775,7 +775,6 @@ func convertPvdHistDataMToIdxserverApi(data *mngr.PvdHistDataM) *idxserverapi.Pv
 	}
 
 	return &idxserverapi.PvdHistData{
-		ObuId:                data.ObuId,
 		CollectionDt:         data.CollectionDt,
 		StartvectorLatitude:  data.StartvectorLatitude,
 		StartvectorLongitude: data.StartvectorLongitude,

@@ -210,7 +210,6 @@ func PutMultiDataM(client idxmngr.IndexManagerClient, idxID string, idxCol strin
 				TxId:    "dummy_tx_" + strconv.Itoa(idx),  // 더미 TxId 생성
 				X:       float32(conv_x),
 				Y:       float32(conv_y),
-				OBU_ID:  rec.Obu_id,
 				GeoHash: makeKey(conv_x, conv_y),
 			}
 
@@ -333,8 +332,7 @@ func IndexDatasByFieldM(client idxmngr.IndexManagerClient, request *idxmngr.Sear
 	// string 타입의 IdxData를 IndexValue 구조체로 변환
 	for _, txId := range data.GetIdxData() {
 		indexValue := &idxmngr.IndexValue{
-			TxId:  txId,
-			ObuId: "", // IdxData에는 TxId만 있으므로 ObuId는 빈 문자열로 설정
+			TxId: txId,
 		}
 		txList = append(txList, indexValue)
 	}
@@ -342,9 +340,7 @@ func IndexDatasByFieldM(client idxmngr.IndexManagerClient, request *idxmngr.Sear
 	//keyList := data.GetKey()
 	log.Println("Rst Tx Cnt :", len(txList))
 	for idx, txdata := range txList {
-		if len(txList) > 30 && idx%10 == 0 {
-			log.Println(idx, ", ", txdata)
-		}
+		log.Printf("[%d] TxId: %s", idx, txdata.TxId)
 	}
 	log.Println("Rst Tx Cnt :", len(txList))
 	log.Println("Execution Time = ", time.Since(start))
@@ -431,6 +427,30 @@ func generateOrganizationDummyData(orgName string) []*idxmngr.IndexableDataM {
 	return dummyDataList
 }
 
+// Wallet 더미 데이터 생성
+func generateWalletDummyData() []*idxmngr.IndexableDataM {
+	var dummyDataList []*idxmngr.IndexableDataM
+
+	// 지갑 주소 해시 더미 데이터 (실제로는 SHA256 등으로 해시화)
+	walletAddresses := []string{
+		"wallet_hash_0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+		"wallet_hash_0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+		"wallet_hash_0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234",
+		"wallet_hash_0x890abcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+		"wallet_hash_0xdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+	}
+
+	for i, walletHash := range walletAddresses {
+		dummyData := &idxmngr.IndexableDataM{
+			TxId:            fmt.Sprintf("wallet_tx_%d", i+1),
+			OrganizationName: walletHash, // 지갑 해시를 OrganizationName 필드에 저장
+		}
+		dummyDataList = append(dummyDataList, dummyData)
+	}
+
+	return dummyDataList
+}
+
 // IndexableData 삽입 함수
 func PutIndexableDataM(client idxmngr.IndexManagerClient, idxID string, idxCol string) {
 	start := time.Now()
@@ -493,6 +513,69 @@ func PutIndexableDataM(client idxmngr.IndexManagerClient, idxID string, idxCol s
 	}
 
 	log.Printf("IndexableData 삽입 완료. 총 %d개 데이터, 소요시간: %v", len(dummyDataList), time.Since(start))
+}
+
+// Wallet 데이터 삽입 함수
+func PutWalletDataM(client idxmngr.IndexManagerClient, idxID string, idxCol string) {
+	start := time.Now()
+	log.Printf("Wallet 데이터 삽입 시작...")
+
+	// 지갑 더미 데이터 생성
+	dummyDataList := generateWalletDummyData()
+
+	log.Printf("생성된 지갑 더미 데이터: %d개", len(dummyDataList))
+
+	// BcDataList로 변환
+	var bcDataList []*idxmngr.BcDataList
+	for _, data := range dummyDataList {
+		bcData := &idxmngr.BcDataList{
+			TxId:          data.TxId,
+			IndexableData: data,
+		}
+		bcDataList = append(bcDataList, bcData)
+	}
+
+	insertData := &idxmngr.InsertDatatoIdx{
+		IndexID: idxID,
+		BcList:  bcDataList,
+		ColName: idxCol,
+		FilePath: "/home/blockchain/bi-index-migration/bi-index/fileindex-go/wallet_addresses.bf",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+
+	stream, err := client.InsertIndexRequest(ctx)
+	if err != nil {
+		log.Fatalf("Failed to open stream: %v", err)
+	}
+
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			log.Printf("Failed to close stream: %v", err)
+		}
+		response, err := stream.CloseAndRecv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				log.Printf("Stream closed by server: EOF received.")
+				return
+			}
+			st, ok := status.FromError(err)
+			if ok {
+				log.Printf("gRPC Error: %v, Code: %v", st.Message(), st.Code())
+			} else {
+				log.Printf("Error closing stream: %v", err)
+			}
+		} else {
+			log.Printf("Stream Closed Successfully. Response: %v", response)
+		}
+	}()
+
+	if err := stream.Send(insertData); err != nil {
+		log.Fatalf("Failed to send data: %v", err)
+	}
+
+	log.Printf("Wallet 데이터 삽입 완료. 총 %d개 데이터, 소요시간: %v", len(dummyDataList), time.Since(start))
 }
 
 // Organization-specific data insertion
@@ -660,9 +743,43 @@ func main() {
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "fileidx_universal_org",
 			IdxName:  "File_Universal_Organization",
-			KeyCol:   "IndexableData_OrganizationName",
+			KeyCol:   "IndexableData",
 			FilePath: "universal_org_file.bf",
 			KeySize:  32,
+		})
+	case "fcreatewallet": // fileindex-wallet-address
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
+			IdxID:    "fileidx_wallet",
+			IdxName:  "File_Wallet_Address",
+			KeyCol:   "IndexableData",
+			FilePath: "wallet_addresses.bf",
+			KeySize:  64,
+		})
+
+	// 사용자별 Wallet 인덱스 생성
+	case "fcreatewallet_alice": // Alice의 지갑 인덱스
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
+			IdxID:    "wallet_user_alice",
+			IdxName:  "Wallet_User_Alice",
+			KeyCol:   "IndexableData",
+			FilePath: "wallet_alice.bf",
+			KeySize:  64,
+		})
+	case "fcreatewallet_bob": // Bob의 지갑 인덱스
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
+			IdxID:    "wallet_user_bob",
+			IdxName:  "Wallet_User_Bob",
+			KeyCol:   "IndexableData",
+			FilePath: "wallet_bob.bf",
+			KeySize:  64,
+		})
+	case "fcreatewallet_charlie": // Charlie의 지갑 인덱스
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
+			IdxID:    "wallet_user_charlie",
+			IdxName:  "Wallet_User_Charlie",
+			KeyCol:   "IndexableData",
+			FilePath: "wallet_charlie.bf",
+			KeySize:  64,
 		})
 
 	// Organization-specific indexes
@@ -670,7 +787,7 @@ func main() {
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "org_samsung",
 			IdxName:  "Organization_Samsung",
-			KeyCol:   "IndexableData_OrganizationName",
+			KeyCol:   "IndexableData",
 			FilePath: "samsung.bf",
 			KeySize:  32,
 		})
@@ -678,7 +795,7 @@ func main() {
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
 			IdxID:    "org_lg",
 			IdxName:  "Organization_LG",
-			KeyCol:   "IndexableData_OrganizationName",
+			KeyCol:   "IndexableData",
 			FilePath: "lg.bf",
 			KeySize:  32,
 		})
@@ -694,16 +811,26 @@ func main() {
 		PutMultiDataM(qe.MngrClient, "fileidx_sp", "Speed")
 	case "finsertd": //fileindex-DT
 		PutMultiDataM(qe.MngrClient, "fileidx_dt", "CollectionDt")
-	case "finsertorg": //fileindex-organization
+	case "finsertorg": //fileindex-IndexName
 		PutMultiDataM(qe.MngrClient, "fileidx_org", "OrganizationName")
 	case "finsertuniversalorg": //fileindex-universal-organization
-		PutIndexableDataM(qe.MngrClient, "fileidx_universal_org", "IndexableData_OrganizationName")
+		PutIndexableDataM(qe.MngrClient, "fileidx_universal_org", "IndexableData")
+	case "finsertwallet": //fileindex-wallet-address
+		PutWalletDataM(qe.MngrClient, "fileidx_wallet", "IndexableData")
+
+	// 사용자별 Wallet 데이터 삽입
+	case "finsertwallet_alice": // Alice의 지갑 데이터
+		PutUserWalletDataM(qe.MngrClient, "wallet_user_alice", "IndexableData", "Alice")
+	case "finsertwallet_bob": // Bob의 지갑 데이터
+		PutUserWalletDataM(qe.MngrClient, "wallet_user_bob", "IndexableData", "Bob")
+	case "finsertwallet_charlie": // Charlie의 지갑 데이터
+		PutUserWalletDataM(qe.MngrClient, "wallet_user_charlie", "IndexableData", "Charlie")
 
 	// Organization-specific data insertion
 	case "insertdata_samsung": // Samsung Electronics data insertion
-		PutOrganizationDataM(qe.MngrClient, "org_samsung", "IndexableData_OrganizationName", "삼성전자")
+		PutOrganizationDataM(qe.MngrClient, "org_samsung", "IndexableData", "삼성전자")
 	case "insertdata_lg": // LG Electronics data insertion
-		PutOrganizationDataM(qe.MngrClient, "org_lg", "IndexableData_OrganizationName", "LG전자")
+		PutOrganizationDataM(qe.MngrClient, "org_lg", "IndexableData", "LG전자")
 
 	//Query
 	case "exacts": //btree-speed
@@ -724,21 +851,34 @@ func main() {
 	case "franged": //fileindex-DT
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_dt", Field: "CollectionDt", Begin: "20211001053430718", End: "20211001055430718", ComOp: idxmngr.ComparisonOps_Range})
 
-	case "fexactorg": //fileindex-organization
-		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_org", Field: "OrganizationName", Value: "삼성전자", ComOp: idxmngr.ComparisonOps_Eq})
-	case "frangorg": //fileindex-organization
-		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_org", Field: "OrganizationName", Begin: "A", End: "Z", ComOp: idxmngr.ComparisonOps_Range})
+	case "fexactorg": //fileindex-organization (범용 인덱스 사용)
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_universal_org", Field: "IndexableData", Value: "삼성전자", ComOp: idxmngr.ComparisonOps_Eq})
+	case "frangorg": //fileindex-organization (범용 인덱스 사용)
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_universal_org", Field: "IndexableData", Begin: "A", End: "Z", ComOp: idxmngr.ComparisonOps_Range})
 
 	case "fexactuniversalorg": //fileindex-universal-organization
-		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_universal_org", Field: "IndexableData_OrganizationName", Value: "삼성전자", ComOp: idxmngr.ComparisonOps_Eq})
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_universal_org", Field: "IndexableData", Value: "삼성전자", ComOp: idxmngr.ComparisonOps_Eq})
 	case "franguniversalorg": //fileindex-universal-organization
-		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_universal_org", Field: "IndexableData_OrganizationName", Begin: "A", End: "Z", ComOp: idxmngr.ComparisonOps_Range})
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_universal_org", Field: "IndexableData", Begin: "A", End: "Z", ComOp: idxmngr.ComparisonOps_Range})
+
+	case "fexactwallet": //fileindex-wallet-address
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_wallet", Field: "IndexableData", Value: "wallet_hash_0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", ComOp: idxmngr.ComparisonOps_Eq})
+	case "frangwallet": //fileindex-wallet-address
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_wallet", Field: "IndexableData", Begin: "wallet_hash_0x", End: "wallet_hash_0xzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", ComOp: idxmngr.ComparisonOps_Range})
+
+	// 사용자별 Wallet 검색
+	case "fexactwallet_alice": // Alice의 지갑 검색
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "wallet_user_alice", Field: "IndexableData", Value: "alice_wallet_hash_001", ComOp: idxmngr.ComparisonOps_Eq})
+	case "fexactwallet_bob": // Bob의 지갑 검색
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "wallet_user_bob", Field: "IndexableData", Value: "bob_wallet_hash_001", ComOp: idxmngr.ComparisonOps_Eq})
+	case "fexactwallet_charlie": // Charlie의 지갑 검색
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "wallet_user_charlie", Field: "IndexableData", Value: "charlie_wallet_hash_001", ComOp: idxmngr.ComparisonOps_Eq})
 
 	// Organization-specific data search
 	case "search_samsung": // Samsung Electronics data search
-		SearchOrganizationDataM(qe.MngrClient, "org_samsung", "IndexableData_OrganizationName", "삼성전자")
+		SearchOrganizationDataM(qe.MngrClient, "org_samsung", "IndexableData", "삼성전자")
 	case "search_lg": // LG Electronics data search
-		SearchOrganizationDataM(qe.MngrClient, "org_lg", "IndexableData_OrganizationName", "LG전자")
+		SearchOrganizationDataM(qe.MngrClient, "org_lg", "IndexableData", "LG전자")
 
 	// Smart Contract Integration
 	case "contract_index": // Index real contract transaction
@@ -750,7 +890,7 @@ func main() {
 			"0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234",
 		}, "삼성전자")
 	case "contract_search": // Search indexed contract transactions
-		SearchContractTransactions(qe.MngrClient, "org_samsung", "IndexableData_OrganizationName", "삼성전자")
+		SearchContractTransactions(qe.MngrClient, "org_samsung", "IndexableData", "삼성전자")
 	case "js_test": // JavaScript 테스트용 데이터 삽입
 		PutJavaScriptTestData(qe.MngrClient, "org_samsung", "test_js_tx_1", "삼성전자")
 
@@ -803,7 +943,6 @@ func main() {
 }
 
 type PVD_CSV struct {
-	Obu_id                string `csv:"OBU_ID" json:"obu_id"`
 	Collection_dt         string `csv:"COLLECTION_DT" json:"collection_dt"`
 	Startvector_latitude  string `csv:"STARTVECTOR_LATITUDE" json:"startvector_latitude"`
 	Startvector_longitude string `csv:"STARTVECTOR_LONGITUDE" json:"startvector_longitude"`
@@ -990,7 +1129,7 @@ func PutJavaScriptTestData(client idxmngr.IndexManagerClient, idxID string, txId
 	insertData := &idxmngr.InsertDatatoIdx{
 		IndexID: idxID,
 		BcList:  []*idxmngr.BcDataList{bcData},
-		ColName: "IndexableData_OrganizationName",
+		ColName: "IndexableData",
 		FilePath: "fileindex-go/samsung.bf",
 	}
 
