@@ -142,7 +142,7 @@ class IdxmngrClient {
               OrganizationName: organizationName
             }
           }],
-          ColName: "IndexableData_OrganizationName",
+          ColName: "IndexableData",
           FilePath: `fileindex-go/${organizationName.toLowerCase().replace('전자', '')}.bf`
         };
 

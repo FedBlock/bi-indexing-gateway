@@ -1,8 +1,28 @@
 items:
-    - idxid: fileidx_universal_org
-      idxname: File_Universal_Organization
+    - idxid: samsung_001
+      idxname: Samsung Access Request Index
       keycol: IndexableData
-      filepath: universal_org_file.bf
+      filepath: /home/blockchain/bi-index-migration/bi-index/fileindex-go/samsung.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: lg_002
+      idxname: LG Access Request Index
+      keycol: IndexableData
+      filepath: /home/blockchain/bi-index-migration/bi-index/fileindex-go/lg.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: hyundai_003
+      idxname: Hyundai Access Request Index
+      keycol: IndexableData
+      filepath: /home/blockchain/bi-index-migration/bi-index/fileindex-go/hyundai.bf
       blocknum: 0
       keysize: 32
       address: localhost:50053

@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:universal-org": "node test-universal-org.js",
+    "test:all": "node test-universal-org.js",
+    "test:1-create": "node 1_create_index.js",
+    "test:2-insert": "node 2_insert_data.js",
+    "test:3-search": "node 3_search_data.js"
   },
   "keywords": [],
   "author": "",
