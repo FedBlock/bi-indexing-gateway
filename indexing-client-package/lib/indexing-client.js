@@ -52,6 +52,35 @@ class IndexingClient {
     }
   }
 
+/**
+   * 인덱스 생성
+   * @param {Object} indexInfo - 인덱스 정보
+   * @returns {Promise<Object>} 생성 결과
+   */
+  async createIndex(indexInfo) {
+    if (!this.isConnected) {
+      throw new Error('Client is not connected to server');
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        this.client.CreateIndexRequest(indexInfo, (error, response) => {
+          if (error) {
+            console.error(`❌ CreateIndex failed: ${error.message}`);
+            reject(error);
+          } else {
+            console.log(`✅ Index created: ${response.ResponseCode} - ${response.ResponseMessage}`);
+            resolve(response);
+          }
+        });
+        
+      } catch (error) {
+        console.error(`❌ CreateIndex request failed: ${error.message}`);
+        reject(error);
+      }
+    });
+  }
+
   /**
    * 인덱스에 데이터 삽입
    * @param {Object} indexData - 삽입할 인덱스 데이터

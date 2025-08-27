@@ -132,13 +132,12 @@ class IdxmngrClient {
           }
         });
 
-        // 데이터 준비 (Go 코드와 정확히 동일한 구조)
+        // 데이터 준비 (정리된 IndexableDataM 구조)
         const insertData = {
           IndexID: indexID,
           BcList: [{
             TxId: txId,
             IndexableData: {
-              TxId: txId,
               OrganizationName: organizationName
             }
           }],

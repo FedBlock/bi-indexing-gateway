@@ -165,24 +165,10 @@ message PvdHistDataM {
   string OrganizationName       = 30;  // 추가
 }
 
-// 범용적인 인덱싱 가능한 데이터 구조
+// 범용적인 인덱싱 가능한 데이터 구조 (정리됨)
 message IndexableDataM {
-     // 기본 식별자
-     string TxId                    = 1;
-     string ContractAddress         = 2;
-     string EventName              = 3;
-     
-     // 동적 필드들 (JSON 형태로 저장)
-     string DataJson               = 4;
-     
-     // 메타데이터
-     string Timestamp              = 5;
-     uint64 BlockNumber            = 6;
-     string OrganizationName       = 7;  // AccessManagement.sol의 organizationName
-     string Requester              = 8;  // AccessManagement.sol의 requester
-     string ResourceOwner          = 9;  // AccessManagement.sol의 resourceOwner
-     string Purpose                = 10; // AccessManagement.sol의 purpose
-     string Status                 = 11; // AccessManagement.sol의 status
+     // 인덱싱에 실제로 사용되는 key
+     string OrganizationName       = 1;  // 조직명 (삼성전자, LG전자 등)
 }                                  
 
 

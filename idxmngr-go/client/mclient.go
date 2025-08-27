@@ -395,14 +395,13 @@ func GetIndexInfoM(client idxmngr.IndexManagerClient, request *idxmngr.IndexInfo
 	return CheckRST
 }
 
-// IndexableData 더미 데이터 생성
+// IndexableData 더미 데이터 생성 (정리됨)
 func generateIndexableDataDummy() []*idxmngr.IndexableDataM {
 	var dummyDataList []*idxmngr.IndexableDataM
 
 	// 삼성전자 관련 더미 데이터
 	for i := 0; i < 7; i++ {
 		dummyData := &idxmngr.IndexableDataM{
-			TxId:            fmt.Sprintf("samsung_tx_%d", i+1),
 			OrganizationName: "삼성전자",
 		}
 		dummyDataList = append(dummyDataList, dummyData)
@@ -411,14 +410,13 @@ func generateIndexableDataDummy() []*idxmngr.IndexableDataM {
 	return dummyDataList
 }
 
-// Organization-specific dummy data generation
+// Organization-specific dummy data generation (정리됨)
 func generateOrganizationDummyData(orgName string) []*idxmngr.IndexableDataM {
 	var dummyDataList []*idxmngr.IndexableDataM
 
 	// 조직별 더미 데이터 생성 (각 조직당 5개씩)
 	for i := 0; i < 5; i++ {
 		dummyData := &idxmngr.IndexableDataM{
-			TxId:            fmt.Sprintf("%s_tx_%d", strings.ToLower(strings.Replace(orgName, "전자", "", -1)), i+1),
 			OrganizationName: orgName,
 		}
 		dummyDataList = append(dummyDataList, dummyData)

@@ -754,6 +754,12 @@ func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, re
 		KeySize:  MngrIndexList[recvDatas.IndexID].KeySize,
 	}
 
+	// KeySize 검증 추가
+	if insList.KeySize <= 0 {
+		log.Printf("Invalid KeySize: %d for IndexID: %s", insList.KeySize, recvDatas.IndexID)
+		return fmt.Errorf("invalid KeySize: %d for IndexID: %s", insList.KeySize, recvDatas.IndexID)
+	}
+
 	//log.Println(recvDatas.IndexID, recvDatas.ColName, insList.FilePath, insList.KeySize)
 
 	if err := stream.Send(insList); err != nil {
@@ -814,9 +820,8 @@ func convertIndexableDataMToIdxserverApi(data *mngr.IndexableDataM) *idxserverap
 	}
 
 	return &idxserverapi.IndexableData{
-		TxId:            data.TxId,
 		OrganizationName: data.OrganizationName,
-		// 필요한 필드만 변환
+		// OrganizationName만 변환 (정리된 구조)
 	}
 }
 
