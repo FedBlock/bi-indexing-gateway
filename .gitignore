@@ -82,8 +82,8 @@ coverage.html
 local/
 dev/
 
-# Contract 관련 파일들
-contract/
+# Contract 관련 파일들 (일부만 제외)
+# contract/  # 주석 처리하여 git에 추가 가능하도록 함
 contracts/
 artifacts/
 cache/
