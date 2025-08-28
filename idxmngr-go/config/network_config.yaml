@@ -17,8 +17,8 @@ networks:
   # Monad Network
   monad:
     network_name: "monad"
-    contract_address: "0xabcdef1234567890abcdef1234567890abcdef12"
-    file_index_path: "monad_speed.bf"
+    contract_address: "0x4D393E83C47AFFA1eE8eaB8eFCcBD0d2e1835F97"
+    file_index_path: "monad_abcdef12_speed.bf"
   
   # Fabric Network (체인코드 사용)
   fabric:

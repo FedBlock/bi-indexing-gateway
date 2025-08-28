@@ -1,9 +1,15 @@
 require("@nomicfoundation/hardhat-toolbox");
-// require("dotenv").config();  // .env 파일 로드
+require("dotenv").config();  // .env 파일 로드
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: "0.8.28",
+  
+  // 배포된 컨트랙트 주소들
+  contractAddresses: {
+    monadTest: "0x4D393E83C47AFFA1eE8eaB8eFCcBD0d2e1835F97"
+  },
+  
   networks: {
     hardhat: {
       chainId: 1337,
@@ -26,11 +32,11 @@ module.exports = {
         interval: 0
       }
     },
-    // monadTest: {
-    // url: "https://rpc.ankr.com/monad_testnet",  // MONAD TEST RPC
-    // chainId: 10143,  // MONAD TEST 체인 ID
-    // accounts: [process.env.PRIVATE_KEY]
-    // }
+    monadTest: {
+    url: "https://rpc.ankr.com/monad_testnet",  // MONAD TEST RPC
+    chainId: 10143,  // MONAD TEST 체인 ID
+    accounts: [process.env.PRIVATE_KEY]
+    }
   },
   mocha: {
     timeout: 40000

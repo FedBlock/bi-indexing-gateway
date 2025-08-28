@@ -79,3 +79,33 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: monad_abcdef12_speed
+      idxname: Monad Network - Samsung Speed Index
+      keycol: IndexableData
+      filepath: monad_abcdef12_speed.bf
+      blocknum: 0
+      keysize: 7
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: monad_abcdef12_speed
+      idxname: Monad Network - Samsung Speed Index
+      keycol: IndexableData
+      filepath: monad_abcdef12_speed.bf
+      blocknum: 0
+      keysize: 7
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: monad_abcdef12_speed
+      idxname: Monad Network - Samsung Speed Index
+      keycol: IndexableData
+      filepath: monad_abcdef12_speed.bf
+      blocknum: 0
+      keysize: 7
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
