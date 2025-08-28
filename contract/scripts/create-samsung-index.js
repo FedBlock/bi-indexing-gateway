@@ -10,7 +10,7 @@ async function main() {
   // IndexingClient 인스턴스 생성
   const indexingClient = new IndexingClient({
     serverAddr: 'localhost:50052',
-    protoPath: '../idxmngr-go/protos/index_manager.proto'
+    protoPath: '../../idxmngr-go/protos/index_manager.proto'
   });
 
   try {

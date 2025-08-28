@@ -49,3 +49,13 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: samsung_001
+      idxname: Samsung Access Request Index
+      keycol: IndexableData
+      filepath: /home/blockchain/bi-index-migration/bi-index/fileindex-go/samsung.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
