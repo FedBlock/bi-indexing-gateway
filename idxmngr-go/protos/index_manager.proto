@@ -84,6 +84,7 @@ message InsertDatatoIdx{
   uint64  time        = 10;
   string  FilePath    = 11;  //file index storage FilePath
   int32   BlockNum    = 12;
+  string  Network     = 13;  // 네트워크 구분 (fabric, hardhat, monad)
 }
 
 message IdxMngrResponse {

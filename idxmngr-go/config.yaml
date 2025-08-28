@@ -1,14 +1,4 @@
 items:
-    - idxid: samsung_001
-      idxname: Samsung Access Request Index
-      keycol: IndexableData
-      filepath: /home/blockchain/bi-index-migration/bi-index/fileindex-go/samsung.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
     - idxid: fileidx_sp
       idxname: File_Speed
       keycol: Speed
@@ -19,72 +9,72 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: fileidx_dt
-      idxname: File_DT
-      keycol: CollectionDt
-      filepath: dt_file.bf
-      blocknum: 0
-      keysize: 17
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: fileidx_universal_org
-      idxname: File_Universal_Organization
-      keycol: IndexableData
-      filepath: universal_org.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: fileidx_universal_org
-      idxname: File_Universal_Organization
-      keycol: IndexableData
-      filepath: universal_org_file.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: samsung_001
-      idxname: Samsung Access Request Index
-      keycol: IndexableData
-      filepath: /home/blockchain/bi-index-migration/bi-index/fileindex-go/samsung.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: fileidx_sp
-      idxname: File_Speed
+    - idxid: fabric_speed
+      idxname: File_Fabric_Speed
       keycol: Speed
-      filepath: speed_file.bf
+      filepath: fabric_speed.bf
       blocknum: 0
       keysize: 5
       address: localhost:50053
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: fileidx_sp
-      idxname: File_Speed
+    - idxid: hardhat_a513E6E4_speed
+      idxname: File_Hardhat_Speed
       keycol: Speed
-      filepath: speed_file.bf
+      filepath: hardhat_a513E6E4_speed.bf
       blocknum: 0
       keysize: 5
       address: localhost:50053
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: fileidx_sp
-      idxname: File_Speed
+    - idxid: sepolia_12345678_speed
+      idxname: File_Sepolia_Speed
       keycol: Speed
-      filepath: speed_file.bf
+      filepath: sepolia_12345678_speed.bf
       blocknum: 0
       keysize: 5
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: monad_abcdef12_speed
+      idxname: File_Monad_Speed
+      keycol: Speed
+      filepath: monad_abcdef12_speed.bf
+      blocknum: 0
+      keysize: 5
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: hardhat_a513E6E4_speed
+      idxname: Hardhat Network - Samsung Speed Index
+      keycol: IndexableData
+      filepath: hardhat_a513E6E4_speed.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: hardhat_a513E6E4_speed
+      idxname: Hardhat Network - Samsung Speed Index
+      keycol: IndexableData
+      filepath: hardhat_a513E6E4_speed.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: hardhat_a513E6E4_speed
+      idxname: Hardhat Network - Samsung Speed Index
+      keycol: IndexableData
+      filepath: hardhat_a513E6E4_speed.bf
+      blocknum: 0
+      keysize: 32
       address: localhost:50053
       callcnt: 0
       keycnt: 0

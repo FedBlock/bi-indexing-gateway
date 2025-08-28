@@ -630,12 +630,12 @@ func main() {
 		})
 
 	// File indexes
-	case "fcreates": // fileindex-speed
+	case "fcreates": // fileindex-speed (Fabric 네트워크용)
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
-			IdxID:    "fileidx_sp",
-			IdxName:  "File_Speed",
+			IdxID:    "fabric_speed",
+			IdxName:  "File_Fabric_Speed",
 			KeyCol:   "Speed",
-			FilePath: "speed_file.bf",
+			FilePath: "fabric_speed.bf",
 			KeySize:  5,
 		})
 	case "fcreated": // fileindex-DT
@@ -661,6 +661,32 @@ func main() {
 			KeyCol:   "IndexableData",
 			FilePath: "universal_org_file.bf",
 			KeySize:  32,
+		})
+
+	// 네트워크별 File Index 생성
+	case "fcreate_hardhat": // hardhat 네트워크용 File Index
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
+			IdxID:    "hardhat_a513E6E4_speed",
+			IdxName:  "File_Hardhat_Speed",
+			KeyCol:   "IndexableData", // IndexableData로 변경
+			FilePath: "hardhat_a513E6E4_speed.bf",
+			KeySize:  7, // "samsung" 문자열 길이에 맞춤
+		})
+	case "fcreate_sepolia": // sepolia 네트워크용 File Index
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
+			IdxID:    "sepolia_12345678_speed",
+			IdxName:  "File_Sepolia_Speed",
+			KeyCol:   "Speed",
+			FilePath: "sepolia_12345678_speed.bf",
+			KeySize:  5,
+		})
+	case "fcreate_monad": // monad 네트워크용 File Index
+		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
+			IdxID:    "monad_abcdef12_speed",
+			IdxName:  "File_Monad_Speed",
+			KeyCol:   "Speed",
+			FilePath: "monad_abcdef12_speed.bf",
+			KeySize:  5,
 		})
 
 	// TODO 사용자별 Wallet 인덱스 생성
@@ -696,6 +722,10 @@ func main() {
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_sp", Field: "Speed", Value: "85", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5}) //42
 	case "fexact0": //fileindex-speed (Speed = 0) - 새로 추가
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_sp", Field: "Speed", Value: "0", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5})
+	case "fabric_exact0": //fabric-speed (Speed = 0) - Fabric 네트워크용
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fabric_speed", Field: "Speed", Value: "0", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5})
+	case "hardhat_exact_samsung": //hardhat-IndexableData (OrganizationName = "samsung") - Hardhat 네트워크용
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "hardhat_a513E6E4_speed", Field: "IndexableData", Value: "samsung", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 7})
 	case "fexactd": //fileindex-20211001053430718
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_dt", Field: "CollectionDt", Value: "20241001001000385", ComOp: idxmngr.ComparisonOps_Eq})
 	case "franges": //fileindex-speed

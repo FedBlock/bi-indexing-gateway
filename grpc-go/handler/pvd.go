@@ -220,12 +220,13 @@ func (h PvdServer) sendIndexingRequest(pvdData *pvd.PvdHist, txID string) {
 	
 	// InsertDatatoIdx 구조체 생성
 	insertData := &idxmngr.InsertDatatoIdx{
-		IndexID:  "fileidx_sp", // Speed File 인덱스 ID
+		IndexID:  "fabric_speed", // Fabric 네트워크용 Speed File 인덱스 ID
 		BcList:   []*idxmngr.BcDataList{bcDataList},
 		ColName:  "Speed",
 		TxId:     txID,
 		OBU_ID:   pvdData.GetObuId(),
-		FilePath: "speed_file.bf",
+		FilePath: "fabric_speed.bf",
+		Network:  "fabric", // Fabric 네트워크 지정
 	}
 	
 	// idxmngr에 인덱싱 요청 전송

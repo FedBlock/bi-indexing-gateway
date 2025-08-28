@@ -39,6 +39,7 @@ type IdxController struct {
 type MServer struct {
 	mngr.UnimplementedIndexManagerServer
 	ConnectionPool *ConnectionPool
+	NetworkFactory *NetworkHandlerFactory
 }
 
 var MngrIndexList = map[string]IndexInfo{} //declaration with initiation
@@ -83,15 +84,8 @@ func ReadIndexConfig() {
 		log.Fatalf("YAML 데이터를 언마샬링할 수 없습니다: %v", err)
 	}
 
-	log.Printf("config.yaml에서 읽은 데이터:")
 	for _, idx := range list.Items {
-		log.Printf("  %s: %+v", idx.IdxID, idx)
 		MngrIndexList[idx.IdxID] = idx
-	}
-	
-	log.Printf("MngrIndexList에 저장된 데이터:")
-	for key, val := range MngrIndexList {
-		log.Printf("  %s: %+v", key, val)
 	}
 }
 
@@ -524,6 +518,8 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 	log.SetPrefix("[" + funcName() + "] ")
 
 	start := time.Now()
+	log.Printf("🚀 InsertIndexRequest 시작 - 클라이언트 연결됨")
+	
 	var idx = 0
 	isFirst := true
 	var cli idxserverapi.HLFDataIndexClient
@@ -531,19 +527,69 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 
 	for {
 		//Receive data from mclient
+		log.Printf("📥 데이터 수신 대기 중... (루프 %d)", idx+1)
 		recvDatas, r_err := stream.Recv()
 		if r_err == io.EOF {
-			log.Println("Index data inserted successfully")
+			log.Printf("✅ 스트림 종료 - 모든 데이터 수신 완료")
 			return stream.SendAndClose(&mngr.IdxMngrResponse{
 				ResponseMessage: "All data received",
 				Duration:        int64(time.Since(start)),
 			})
 		}
 		if r_err != nil {
-			log.Printf("InsertIndexRequest : Failed to receive data: %v", r_err)
+			log.Printf("❌ 데이터 수신 실패: %v", r_err)
 			return fmt.Errorf("failed to receive data: %v", r_err)
 		}
+		
+		log.Printf("📥 데이터 수신됨: IndexID=%s, Network=%s, ColName=%s", 
+			recvDatas.GetIndexID(), 
+			recvDatas.GetNetwork(), 
+			recvDatas.GetColName())
 
+		// =============================================================================
+		// 네트워크별 핸들러 처리 (새로 추가)
+		// =============================================================================
+		if m.NetworkFactory != nil {
+			// 네트워크 정보 추출
+			network := "fabric" // 기본값
+			if recvDatas.Network != "" {
+				network = recvDatas.Network
+			}
+			log.Printf("Processing data for network: %s", network)
+			
+			// 해당 네트워크 핸들러 가져오기
+			handler, err := m.NetworkFactory.GetHandler(network)
+			if err != nil {
+				log.Printf("Warning: Unsupported network %s, skipping network-specific processing", network)
+			} else {
+				// 네트워크별 인덱싱 처리
+				for _, bcData := range recvDatas.GetBcList() {
+					if bcData.Pvd != nil {
+						log.Printf("Processing PVD data for %s: OBU_ID=%s, Speed=%d", network, bcData.Pvd.ObuId, bcData.Pvd.Speed)
+						
+						// 핸들러에서 인덱싱 처리
+						if err := handler.ProcessIndexing(bcData.Pvd, bcData.TxId, recvDatas.GetColName()); err != nil {
+							log.Printf("Warning: Indexing failed for %s network: %v", network, err)
+							continue
+						}
+						log.Printf("Successfully processed indexing for %s network: %s", network, bcData.TxId)
+					} else if bcData.IndexableData != nil {
+						log.Printf("Processing IndexableData for %s: TxID=%s, ColName=%s", network, bcData.TxId, recvDatas.GetColName())
+						
+						// 핸들러에서 IndexableData 인덱싱 처리
+						if err := handler.ProcessIndexingIndexableData(bcData.IndexableData, bcData.TxId, recvDatas.GetColName()); err != nil {
+							log.Printf("Warning: IndexableData indexing failed for %s network: %v", network, err)
+							continue
+						}
+						log.Printf("Successfully processed IndexableData indexing for %s network: %s", network, bcData.TxId)
+					}
+				}
+			}
+		}
+		
+		// =============================================================================
+		// 기존 인덱싱 로직 (기존 코드)
+		// =============================================================================
 		idxID := recvDatas.GetIndexID()
 		idxCol := recvDatas.GetColName()
 

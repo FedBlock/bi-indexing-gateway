@@ -115,7 +115,7 @@ func main() {
 		grpc.MaxRecvMsgSize(100*1024*1024), // 100MB
 		grpc.MaxSendMsgSize(100*1024*1024), // 100MB
 	)
-	api.RegisterIndexManagerServer(mngrServer, &mg.MServer{ConnectionPool: pool})
+	api.RegisterIndexManagerServer(mngrServer, &mg.MServer{ConnectionPool: pool, NetworkFactory: mg.NewNetworkHandlerFactory()})
 
 	log.Println("Grpc Server will be started. Listening" + port)
 	if err := mngrServer.Serve(lis); err != nil {
