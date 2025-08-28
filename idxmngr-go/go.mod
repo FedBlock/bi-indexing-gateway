@@ -23,3 +23,5 @@ require (
 )
 
 replace fileindex-go => ../fileindex-go
+
+replace grpc-go => ../grpc-go

@@ -1,0 +1,1336 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"math"
+	"os"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	pvd "grpc-go/pvdapi/grpc-go/pvdapi"
+
+	"github.com/diegoholiveira/jsonlogic/v3"
+	"github.com/gocarina/gocsv"
+	"github.com/goccy/go-json"
+	"github.com/timtadh/fs2/bptree"
+	"github.com/timtadh/fs2/fmap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+var (
+	cmd                = flag.String("cmd", "help", "Inline test command")
+	tls                = flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
+	dtIndex            = flag.Bool("dtIndex", true, "Enable CollectionDt Index")
+	caFile             = flag.String("ca_file", "", "The file containing the CA root cert file")
+	serverAddr         = flag.String("addr", "localhost:19001", "The server address in the format of host:port")
+	serverHostOverride = flag.String("server_host_override", "x.test.example.com", "The server name used to verify the hostname returned by the TLS handshake")
+	multi_size         = flag.Int("multi_size", 1000, "multi data upload size")
+	useMem             = flag.Bool("useMem", true, "Memory based B+Tree")
+	start_block        = flag.Int("start_block", 10, "range start block ")
+	end_block          = flag.Int("end_block", 100, "range end block ")
+	num                = flag.Int("number", 10, "number ")
+)
+
+type PVD_CSV struct {
+	Obu_id                string `csv:"OBU_ID"`
+	Collection_dt         string `csv:"COLLECTION_DT"`
+	Startvector_latitude  string `csv:"STARTVECTOR_LATITUDE"`
+	Startvector_longitude string `csv:"STARTVECTOR_LONGITUDE"`
+	Transmisstion         string `csv:"TRANSMISSTION"`
+	Speed                 int    `csv:"SPEED"`
+	Hazard_lights         string `csv:"HAZARD_LIGHTS"`
+	Left_turn_signal_on   string `csv:"LEFT_TURN_SIGNAL_ON"`
+	Right_turn_signal_on  string `csv:"RIGHT_TURN_SIGNAL_ON"`
+	Steering              int    `csv:"STEERING"`
+	Rpm                   int    `csv:"RPM"`
+	Footbrake             string `csv:"FOOTBRAKE"`
+	Gear                  string `csv:"GEAR"`
+	Accelator             int    `csv:"ACCELATOR"`
+	Wipers                string `csv:"WIPERS"`
+	Tire_warn_left_f      string `csv:"TIRE_WARN_LEFT_F"`
+	Tire_warn_left_r      string `csv:"TIRE_WARN_LEFT_R"`
+	Tire_warn_right_f     string `csv:"TIRE_WARN_RIGHT_F"`
+	Tire_warn_right_r     string `csv:"TIRE_WARN_RIGHT_R"`
+	Tire_psi_left_f       int    `csv:"TIRE_PSI_LEFT_F"`
+	Tire_psi_left_r       int    `csv:"TIRE_PSI_LEFT_R"`
+	Tire_psi_right_f      int    `csv:"TIRE_PSI_RIGHT_F"`
+	Tire_psi_right_r      int    `csv:"TIRE_PSI_RIGHT_R"`
+	Fuel_percent          int    `csv:"FUEL_PERCENT"`
+	Fuel_liter            int    `csv:"FUEL_LITER"`
+	Totaldist             int    `csv:"TOTALDIST"`
+	Rsu_id                string `csv:"RSU_ID"`
+	Msg_id                string `csv:"MSG_ID"`
+	Startvector_heading   int    `csv:"STARTVECTOR_HEADING"`
+	K                     int    `csv:"K"`
+	RANGE                 int    `csv:"RANGE"`
+}
+
+var DtTree *bptree.BpTree
+
+type IndexData struct {
+	Obu_id string `json:"OBU_ID"`
+	TxID   string `json:"TxID"`
+}
+
+func queryData(client pvd.PvdClient, request *pvd.SinglePvd) {
+	log.Printf("Getting Data for key %s", request.GetPvd().GetObuId())
+	Data, err := client.GetData(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.GetData(_) = _, %v: ", client, err)
+	}
+
+	log.Printf("Result Pvd = %+v  \n", Data)
+	log.Println("Duration: ", time.Duration(Data.Response.Duration))
+}
+
+func createData(client pvd.PvdClient, request *pvd.SinglePvd) string {
+
+	log.Printf("CreateData ID : %s", request.GetPvd().GetObuId())
+	Data, err := client.PutData(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.PutData(_) = _, %v: ", client, err)
+	}
+
+	log.Printf("CreateData Data = %s   \n", Data.String())
+	log.Printf("CreateData TxID = %s   \n", Data.GetTxId())
+	log.Println("Duration: ", time.Duration(Data.GetDuration()))
+
+	return Data.GetTxId()
+}
+
+func queryAllBlock(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Println("Looking for All Blocks ")
+	start := time.Now()
+	stream, err := client.GetAllBlock(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	total := 0
+	for {
+		block, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+		result := []*pvd.BcData{}
+		result = block.GetBcList()
+
+		if (block.Index % 100) == 0 {
+			log.Println("BlockNum: ", block.Index, " - Tx Count : ", len(result))
+		}
+		total += len(result)
+	}
+
+	log.Println("Total Tx Count =  ", total)
+	log.Println("Execution Time = ", time.Since(start))
+
+}
+
+func queryRangeBlock(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Println("Looking for Range Blocks ")
+	start := time.Now()
+	stream, err := client.GetRangeBlock(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	total := 0
+	for {
+		block, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+		result := []*pvd.BcData{}
+		result = block.GetBcList()
+
+		if (block.Index % 100) == 0 {
+			log.Println("BlockNum: ", block.Index, " - Tx Count : ", len(result))
+		}
+		total += len(result)
+	}
+
+	log.Println("Total Tx Count =  ", total)
+	log.Println("Execution Time = ", time.Since(start))
+
+}
+
+func OldqueryAllBlock(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Println("Looking for Block Number : ", request.GetHeight())
+	info, err := client.GetChainInfo(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	log.Println("ChainInfo Height =  ", info.GetHeight())
+	blockHeight := info.GetHeight()
+
+	blockHeight = 1006
+
+	startBlock := int32(6)
+
+	total := 0
+
+	for startBlock < blockHeight {
+		request.Height = startBlock
+
+		block, err := client.GetBlock(context.Background(), request)
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+
+		total += len(block.GetBcList())
+
+		log.Printf("queryBlock Number = %d  ", startBlock)
+		/*
+			for _, data := range block.GetBcList() {
+				log.Printf("queryBlock Tx = %s   \n", data.GetTxId())
+				log.Printf("queryBlock PVD = %s   \n", data.GetPvd().String())
+			}
+		*/
+		startBlock++
+	}
+
+	log.Println("Total Tx Count =  ", total)
+}
+
+func queryBlock(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Println("Looking for Block Number : ", request.GetHeight())
+	block, err := client.GetBlock(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	for _, data := range block.GetBcList() {
+		log.Printf("queryBlock Tx = %s   \n", data.GetTxId())
+		log.Printf("queryBlock PVD = %s   \n", data.GetPvd().String())
+	}
+}
+
+func queryHistory(client pvd.PvdClient, request *pvd.SinglePvd) {
+	log.Printf("Getting History Datas for key %s", request.GetPvd().GetObuId())
+	recvDatas, err := client.GetHistoryData(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.GetData(_) = _, %v: ", client, err)
+	}
+
+	log.Printf("Recv History count :  %d", recvDatas.Index)
+	for idx, rec := range recvDatas.GetBcList() {
+		if (idx % 10) == 0 {
+			log.Printf("Recv Data[%d] Txid:  %s", idx, rec.GetPvd().String())
+		}
+	}
+}
+
+func queryInfo(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Println("Looking for ChainInfo Height ")
+	log.Printf("queryInfo =  %s", request.GetChaincode())
+	info, err := client.GetChainInfo(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+	log.Println("ChainInfo Height =  ", info.GetHeight())
+	log.Println("ChainInfo Nodes =  ", info.GetNodes())
+	log.Println("Duration: ", time.Duration(info.Response.Duration))
+}
+
+func queryDatas(client pvd.PvdClient, request *pvd.SinglePvd) {
+	log.Printf("Looking for features within %s", request.GetPvd().GetObuId())
+	Data, err := client.GetHistoryData(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	for _, bcdata := range Data.GetBcList() {
+		log.Printf("queryDatas Data = %s   \n", bcdata.String())
+	}
+	log.Println("Duration: ", time.Duration(Data.Response.Duration))
+}
+
+func queryDatasByTxid(client pvd.PvdClient, request *pvd.TxList) {
+	log.Printf("queryDatasByTxid  Start")
+
+	//log.Printf("queryDatasByTxid  list count : %d", len(request.GetTxId()))
+	start := time.Now()
+	stream, err := client.GetDataByTxID(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+	count := 0
+	markCnt := len(request.TxId)
+
+	if markCnt > 100 {
+		markCnt = markCnt / 100
+	}
+
+	for {
+		txdata, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+
+		if txdata.ResponseCode == 200 {
+			count++
+			if count%markCnt == 0 {
+				fmt.Printf(".")
+			}
+		} else {
+			log.Printf("Error txid: %s ", txdata.GetTxId())
+		}
+	}
+	fmt.Println(".")
+	log.Println("Recv TxData Count:  ", count)
+	log.Println("Execution Time = ", time.Since(start))
+}
+
+func queryDatasByTxList(client pvd.PvdClient, request *pvd.TxList) {
+	//start := time.Now()
+	stream, err := client.GetDataByTxList(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	for {
+		listData, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+
+		if listData.Response.ResponseCode == 200 {
+			log.Printf("txListDataSize: %d ", len(listData.GetListDatas()))
+			log.Println(listData.ListDatas[0])
+		} else {
+			log.Printf("Error %d ", listData.Response.ResponseCode)
+		}
+	}
+	//log.Println("Execution Time = ", time.Since(start))
+}
+
+func queryDatasByKeyTxids(client pvd.PvdClient, request *pvd.TxList) {
+	//log.Printf("queryDatasByKeyTxids  Start")
+	//start := time.Now()
+	recvDatas, err := client.GetDataByKeyTxID(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	log.Printf("Recv count :  %d", recvDatas.Index)
+	/*
+		for idx, rec := range recvDatas.GetBcList() {
+			log.Printf("Recv Data[%d] Txid:  %s", idx, rec.GetTxId())
+			log.Printf("Recv Data[%d] Pvd:  %s", idx, rec.GetPvd().String())
+		}
+	*/
+	//log.Println("Execution Time = ", time.Since(start))
+}
+
+func queryDatasByField(client pvd.PvdClient, request *pvd.FieldInfo) {
+	log.Printf("[grpc] queryDatasByField =  %s", request.String())
+	stream, err := client.GetDataByField(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+	for {
+		Data, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+		log.Println(Data)
+	}
+}
+
+func queryAllDatasByField(client pvd.PvdClient, request *pvd.FieldInfo) {
+	log.Printf("queryAllDatasByField =  %s", request.String())
+	start := time.Now()
+	stream, err := client.GetAllDataByField(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+	count := 0
+
+	for {
+		recvDatas, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				log.Printf("Recv Data Count:  %d ", count)
+				log.Println("Execution Time = ", time.Since(start))
+				break
+			}
+		}
+		log.Printf("Recv match count :  %d", recvDatas.Index)
+		/*
+			for idx, rec := range recvDatas.GetBcList() {
+				if (idx % 10) == 0 {
+					log.Printf("Recv Data[%d] Txid:  %s, PVD: %s ", idx, rec.GetTxId(), rec.GetPvd().String())
+				}
+			}
+		*/
+		count = count + int(recvDatas.Index)
+
+	}
+}
+
+func queryAllDatasByTime(client pvd.PvdClient, request *pvd.TimeInfo) {
+	log.Printf("queryAllDatasByTime =  %s", request.String())
+	start := time.Now()
+	stream, err := client.GetAllDataByTime(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+	count := 0
+
+	for {
+		recvDatas, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+		}
+		fmt.Printf(" %d,", recvDatas.Index)
+		/*
+			for idx, rec := range recvDatas.GetBcList() {
+				if (idx % 10) == 0 {
+					log.Printf("Recv Data[%d] Txid:  %s, PVD: %s ", idx, rec.GetTxId(), rec.GetPvd().String())
+				}
+			}
+		*/
+		count = count + int(recvDatas.Index)
+	}
+	fmt.Println()
+	log.Println("Macth Data Count = ", count)
+	log.Println("Execution Time = ", time.Since(start))
+}
+
+func getWorldState(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Printf("getWorldState =  %s", request.GetChannelName())
+	log.Printf("getWorldState =  %s", request.GetChaincode())
+	start := time.Now()
+	Data, err := client.GetWorldState(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	pvdlist := []*pvd.PvdHist{}
+	pvdlist = Data.GetPvdList()
+	for _, pvd := range pvdlist {
+		log.Printf("%s   \n", pvd.String())
+	}
+	log.Println(" WorldState Size = ", len(pvdlist))
+	log.Println(" Execution Time = ", time.Since(start))
+}
+
+func getWorldState1(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Printf("getWorldState =  %s", request.GetChaincode())
+	start := time.Now()
+	Data, err := client.GetWorldState(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	type wsDatas struct {
+		Wstates []PVD_CSV `json:"wstates"`
+	}
+	var pvdWs wsDatas
+
+	pvdlist := []*pvd.PvdHist{}
+	pvdlist = Data.GetPvdList()
+	for _, pvd := range pvdlist {
+		log.Println(pvd.String())
+
+		jstring, _ := json.Marshal(pvd)
+		log.Println(string(jstring))
+		pd1 := PVD_CSV{}
+		json.Unmarshal(jstring, &pd1)
+		log.Println(pd1)
+
+		pvdWs.Wstates = append(pvdWs.Wstates, pd1)
+
+	}
+	log.Println(" WorldState Size = ", len(pvdlist))
+	log.Println(" Execution Time = ", time.Since(start))
+
+	pvdWsJson, _ := json.Marshal(pvdWs)
+
+	log.Println("pvdWsJson  : ", string(pvdWsJson))
+
+	pvdWsData := strings.NewReader(string(pvdWsJson))
+
+	//log.Println("pvdWsData  : ", pvdWsData)
+
+	filter := string(`{
+        "filter": [ {"var": "wstates"},
+            {">=": [ {"var": ".Speed"}, 80]}
+        ]
+    }`)
+
+	logic := strings.NewReader(filter)
+
+	var result bytes.Buffer
+
+	err2 := jsonlogic.Apply(logic, pvdWsData, &result)
+	if err2 != nil {
+		log.Println(err2.Error())
+	} else {
+
+		//fmt.Println("result: ", result.String())
+	}
+}
+
+func getRichQuery(client pvd.PvdClient, request *pvd.QueryInfo) {
+	log.Printf("getRichQuery =  %s", request.GetChaincode())
+	start := time.Now()
+	Data, err := client.GetRichQuery(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	pvdlist := []*pvd.PvdHist{}
+	pvdlist = Data.GetPvdList()
+	for _, pvd := range pvdlist {
+		log.Printf("%s   \n", pvd.String())
+	}
+	log.Println(" RichQuery Size = ", len(pvdlist))
+	log.Println(" Execution Time = ", time.Since(start))
+}
+
+func getRichQueryHistory(client pvd.PvdClient, request *pvd.QueryInfo) {
+	log.Printf("getRichQueryHistory =  %s", request.GetChaincode())
+	start := time.Now()
+	stream, err := client.GetRichQueryHistory(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	for {
+		Data, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+		pvdlist := []*pvd.PvdHist{}
+		pvdlist = Data.GetPvdList()
+		log.Println(" RichQuery Size = ", len(pvdlist))
+	}
+
+	log.Println(" Execution Time = ", time.Since(start))
+}
+
+func putBulkData(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Printf("putBulkData =  %s", request.GetChaincode())
+	start := time.Now()
+	stream, err := client.PutBulkData(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	count := 0
+	err_count := 0
+
+	for {
+		Data, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+		if Data.ResponseCode == 200 {
+			count++
+		} else {
+			err_count++
+		}
+
+	}
+	log.Println(" Total Count = ", count+err_count, "Success:", count, "Error:", err_count)
+	log.Println("Execution Time = ", time.Since(start))
+}
+
+func putMultiData(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Printf("putMultiData =  %s, multi_size size= %d", request.GetChaincode(), *multi_size)
+
+	csvFile, err := os.OpenFile("pvd_hist.csv", os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		log.Println("failed to open csv data file")
+	}
+	defer csvFile.Close()
+
+	pvdList := []*PVD_CSV{}
+
+	if err := gocsv.UnmarshalFile(csvFile, &pvdList); err != nil { // Load clients from file
+		fmt.Println("failed to gocsv.UnmarshalFile")
+	}
+
+	t := time.Now()
+	fmt.Printf("[%s]UploadPVDRecord, List Size = %d\n", t.Format(time.RFC3339), len(pvdList))
+
+	var multiDatas []*pvd.MultiData
+	var lists []*pvd.BcData
+
+	for _, rec := range pvdList {
+		Value, _ := json.Marshal(rec)
+		data := pvd.PvdHist{}
+		json.Unmarshal(Value, &data)
+		txdata := pvd.BcData{
+			Pvd: &data,
+		}
+		lists = append(lists, &txdata)
+	}
+
+	list_size := len(lists)
+	next := 0
+
+	for idx := 0; idx < list_size; {
+		next = idx + *multi_size // default multi_size = 1000
+		if next > list_size {
+			next = list_size
+		}
+		multi := pvd.MultiData{
+			BcList: lists[idx:next],
+		}
+		multiDatas = append(multiDatas, &multi)
+		log.Println("start ", idx, "end ", next)
+		idx = next
+	}
+
+	msize := len(multiDatas)
+
+	log.Println("Raw Data Parsing Time = ", time.Since(t), "multi_size: ", msize)
+
+	start := time.Now()
+
+	stream, err := client.PutMultiData(context.Background())
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	recv_idx := 0
+
+	waitc := make(chan struct{})
+
+	var mutex = &sync.Mutex{}
+
+	/*
+		f, err := os.Create("txids.txt")
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer f.Close()
+
+		f2, err2 := os.Create("txdatas.txt")
+
+		if err2 != nil {
+			log.Fatal(err2)
+		}
+
+		defer f.Close()
+		defer f2.Close()
+	*/
+
+	go func() {
+		for {
+			recvDatas, err := stream.Recv()
+			if err != nil {
+				if err == io.EOF {
+					// read done.
+					close(waitc)
+					return
+				} else {
+					log.Fatalf("End to receive a datas : %s", time.Since(start))
+					//log.Fatalf("End to receive a datas : %v", err)
+				}
+			}
+			log.Printf("Recv Data[%d] Index:  %d", recv_idx, recvDatas.Index)
+			for idx, rec := range recvDatas.GetBcList() {
+				if *dtIndex == true {
+					newData := IndexData{Obu_id: rec.Pvd.ObuId, TxID: rec.TxId}
+					newValue, _ := json.Marshal(newData)
+					key := []byte(rec.Pvd.CollectionDt)
+					//fmt.Println(key, newValue)
+					err := DtTree.Add(key, newValue)
+					if err != nil {
+						fmt.Println("Index Add Error")
+						log.Fatal(err)
+					} else {
+						//fmt.Println("Index Add OK")
+					}
+
+					/*
+						kvi, err := DtTree.Find(key)
+						if err != nil {
+							fmt.Println("Index Find Error")
+							log.Fatal(err)
+						}
+
+						var key1 []byte
+						var value1 []byte
+						var err1 error
+
+						for key1, value1, err1, kvi = kvi(); kvi != nil; key1, value1, err1, kvi = kvi() {
+							fmt.Println(key1, value1)
+						}
+						if err1 != nil {
+							log.Fatal(err1)
+						}
+					*/
+
+				}
+				if idx == 0 {
+					log.Printf("Recv Data[%d] Txid:  %s", idx, rec.GetTxId())
+					/*
+						if idx == 19 {
+							_, err = f.WriteString(rec.GetTxId() + "\n")
+							_, err = f2.WriteString(rec.GetTxId() + "\n")
+							pvddata := fmt.Sprintln(rec.GetPvd())
+							_, err = f2.WriteString(pvddata)
+
+							if err != nil {
+								log.Fatal(err)
+							}
+						}
+					*/
+				}
+			}
+			recv_idx++
+			mutex.Unlock()
+		}
+	}()
+
+	for idx, datas := range multiDatas {
+		mutex.Lock()
+		if err := stream.Send(datas); err != nil {
+			log.Fatalf("Failed to send a datas: %v", err)
+		}
+		log.Println("Send Datas Index:  ", idx)
+	}
+	stream.CloseSend()
+	<-waitc
+	log.Println("Execution Time = ", time.Since(start))
+}
+
+func first[T, U any](val T, _ U) T {
+	return val
+}
+
+func putMultiData2(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Printf("putMultiData =  %s, multi_size size= %d", request.GetChaincode(), *multi_size)
+
+	csvFile, err := os.OpenFile("pvd_hist.csv", os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		log.Println("failed to open csv data file")
+	}
+	defer csvFile.Close()
+
+	pvdList := []*PVD_CSV{}
+
+	if err := gocsv.UnmarshalFile(csvFile, &pvdList); err != nil { // Load clients from file
+		fmt.Println("failed to gocsv.UnmarshalFile")
+	}
+
+	/*
+		fmt.Println(pvdList[1000])
+
+		jsonData, err := json.MarshalIndent(pvdList[1000], "", "  ")
+
+		fmt.Println(string(jsonData))
+	*/
+	var multiDatas []*pvd.MultiData
+	//var lists []*pvd.BcData
+	lists := make([]*pvd.BcData, len(pvdList))
+
+	var dataPool = sync.Pool{
+		New: func() interface{} { return new(pvd.PvdHist) },
+	}
+
+	var txPool = sync.Pool{
+		New: func() interface{} { return new(pvd.BcData) },
+	}
+
+	var data *pvd.PvdHist
+	var txdata *pvd.BcData
+
+	t := time.Now()
+	fmt.Printf("[%s]UploadPVDRecord, List Size = %d\n", t.Format(time.RFC3339), len(pvdList))
+
+	for i, rec := range pvdList {
+		data = dataPool.Get().(*pvd.PvdHist)
+		json.Unmarshal(first(json.Marshal(rec)), &data)
+		txdata = txPool.Get().(*pvd.BcData)
+		txdata.Pvd = data
+		lists[i] = txdata
+		dataPool.Put(data)
+		txPool.Put(txdata)
+	}
+
+	//log.Println("Raw Data Parsing Time = ", time.Since(t), "List_size: ", len(pvdList))
+	//fmt.Println(lists[1000])
+
+	list_size := len(lists)
+	next := 0
+
+	for idx := 0; idx < list_size; {
+		next = idx + *multi_size // default multi_size = 1000
+		if next > list_size {
+			next = list_size
+		}
+		multi := pvd.MultiData{
+			BcList: lists[idx:next],
+		}
+		multiDatas = append(multiDatas, &multi)
+		//log.Println("start ", idx, "end ", next)
+		idx = next
+	}
+
+	msize := len(multiDatas)
+
+	log.Println("Make Multi Data Time = ", time.Since(t), "multi_size: ", msize)
+
+	stream, err := client.PutMultiData(context.Background())
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	recv_idx := 0
+
+	waitc := make(chan struct{})
+
+	var mutex = &sync.Mutex{}
+
+	go func() {
+		for {
+			recvDatas, err := stream.Recv()
+			if err != nil {
+				if err == io.EOF {
+					// read done.
+					close(waitc)
+					return
+				} else {
+					//log.Fatalf("End to receive a datas : %s", time.Since(start))
+					log.Fatalf("End to receive a datas : %v", err)
+				}
+			}
+			log.Printf("Recv Data[%d] Index:  %d", recv_idx, recvDatas.Index)
+			for idx, rec := range recvDatas.GetBcList() {
+				if idx == 0 {
+					log.Printf("Recv Data[%d] Txid:  %s", idx, rec.GetTxId())
+				}
+			}
+			recv_idx++
+			mutex.Unlock()
+		}
+	}()
+
+	for idx, datas := range multiDatas {
+		mutex.Lock()
+		if err := stream.Send(datas); err != nil {
+			log.Fatalf("Failed to send a datas: %v", err)
+		}
+		log.Println("Send Datas Index:  ", idx)
+	}
+	stream.CloseSend()
+	<-waitc
+}
+
+func csvTest(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Printf("putMultiData =  %s, multi_size size= %d", request.GetChaincode(), *multi_size)
+
+	csvFile, err := os.OpenFile("pvd_hist.csv", os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		log.Println("failed to open csv data file")
+	}
+	defer csvFile.Close()
+
+	pvdList := []*PVD_CSV{}
+
+	if err := gocsv.UnmarshalFile(csvFile, &pvdList); err != nil { // Load clients from file
+		fmt.Println("failed to gocsv.UnmarshalFile")
+	}
+
+	t := time.Now()
+	fmt.Printf("[%s]UploadPVDRecord, List Size = %d\n", t.Format(time.RFC3339), len(pvdList))
+}
+
+func createIndex(filePath string, keySize int) *bptree.BpTree {
+
+	var bpTree *bptree.BpTree
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		bf, err := fmap.CreateBlockFile(filePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		bpTree, err = bptree.New(bf, keySize, -1)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("create B+ Tree Index =  %s, keySize = %d", filePath, keySize)
+	} else {
+		bf, err := fmap.OpenBlockFile(filePath)
+		if err != nil {
+			log.Fatal(err)
+			log.Fatalf("%s= _, %v", "Error Open Index File", err)
+		}
+		bpTree, err = bptree.Open(bf)
+		if err != nil {
+			log.Fatalf("%s= _, %v", "Error Open DtIndex", err)
+		}
+		log.Printf("Open B+ Tree Index =  %s, keySize = %d, Size = %d  \n", filePath, keySize, bpTree.Size())
+	}
+
+	return bpTree
+}
+
+func createDtIndex(filePath string, keySize int) {
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		bf, err := fmap.CreateBlockFile(filePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		DtTree, err = bptree.New(bf, keySize, -1)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("create DtIndex =  %s, keySize = %d", filePath, keySize)
+	} else {
+		bf, err := fmap.OpenBlockFile(filePath)
+		if err != nil {
+			log.Fatal(err)
+			log.Fatalf("%s= _, %v", "Error Open DtIndex File", err)
+		}
+		DtTree, err = bptree.Open(bf)
+		if err != nil {
+			log.Fatalf("%s= _, %v", "Error Open DtIndex", err)
+		}
+		log.Printf("Open DtIndex =  %s, keySize = %d, Size = %d  \n", filePath, keySize, DtTree.Size())
+	}
+}
+
+func reindexingDtIndex(client pvd.PvdClient, request *pvd.ChainInfo) {
+	log.Printf("reindexingDtIndex =  %s", request.GetChaincode())
+
+	start := time.Now()
+	stream, err := client.GetAllBlock(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	count := 1
+	total := 0
+
+	blockHeight := int32(0)
+
+	for {
+		Data, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+		}
+		txlist := []*pvd.BcData{}
+		txlist = Data.GetBcList()
+
+		blockNumber := Data.GetIndex()
+
+		if blockNumber > blockHeight {
+			blockHeight = blockNumber
+		}
+
+		//log.Println("BlockNumber: ", blockNumber, "count: ", count, " - Size : ", len(txlist))
+
+		for _, tx := range txlist {
+			newData := IndexData{Obu_id: tx.Pvd.ObuId, TxID: tx.TxId}
+			newValue, _ := json.Marshal(newData)
+			key := []byte(tx.Pvd.CollectionDt)
+			DtTree.Add(key, newValue)
+		}
+		total += len(txlist)
+		count++
+	}
+
+	blockHeight++
+
+	log.Println(" Total size: ", total)
+	log.Println(" BlockHeight : ", blockHeight)
+	log.Println(" Execution Time = ", time.Since(start))
+}
+
+func testAllDatasByField(client pvd.PvdClient, request *pvd.FieldInfo) {
+	log.Printf("testAllDatasByField =  %s", request.String())
+	start := time.Now()
+	stream, err := client.GetAllDataByField(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+	count := 0
+
+	txlist := []string{}
+	for {
+		recvDatas, err := stream.Recv() // pvd.MultiData
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+		}
+		log.Printf("Recv match count :  %d", recvDatas.Index)
+		for _, rec := range recvDatas.GetBcList() {
+			txlist = append(txlist, rec.GetTxId())
+			//log.Printf("Recv Data Txid:  %s, PVD: %s ", rec.GetTxId(), rec.GetPvd().String())
+		}
+		if recvDatas.Index > 0 {
+			count = count + int(recvDatas.Index)
+		}
+	}
+
+	log.Printf("Recv Data Count:  %d ", count)
+	log.Println("Execution Time = ", time.Since(start))
+
+	log.Printf("queryDatasByTxid Count:  %d ", len(txlist))
+	queryDatasByTxid(client, &pvd.TxList{TxId: txlist})
+}
+
+func testAllDatasByField2(client pvd.PvdClient, request *pvd.FieldInfo) {
+	log.Printf("testAllDatasByField2 =  %s", request.String())
+	start := time.Now()
+	stream, err := client.GetAllDataByField(context.Background(), request)
+	if err != nil {
+		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+	}
+
+	count := 0
+	var key string
+	isFirst := true
+	allTxList := []*pvd.TxList{}
+	testCnt := 0
+
+	for {
+		recvDatas, err := stream.Recv() // pvd.MultiData
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+		}
+		isFirst = true
+		txlist := []string{}
+		log.Printf("Recv match count :  %d", recvDatas.Index)
+		for _, rec := range recvDatas.GetBcList() {
+			txlist = append(txlist, rec.GetTxId())
+			if isFirst {
+				key = rec.Pvd.ObuId
+				isFirst = false
+			}
+		}
+		//if recvDatas.Index > 0 {
+		if len(txlist) > 0 {
+			count = count + int(recvDatas.Index)
+			//log.Printf("request tx list length:  %d ", len(txlist))
+
+			sort.Strings(txlist)
+			pvdTxList := pvd.TxList{Key: key, TxId: txlist}
+			allTxList = append(allTxList, &pvdTxList)
+			log.Printf("Receive Data key: %s, length: %d ", key, len(txlist))
+		}
+		testCnt++
+		if testCnt > 100 {
+			//break
+		}
+	}
+
+	log.Println("Execution Time = ", time.Since(start))
+
+	time.Sleep(time.Second)
+
+	start = time.Now()
+
+	concurrency := 32
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		step := i
+		go func() {
+			defer wg.Done()
+
+			for idx, txs := range allTxList {
+				if (idx % (concurrency)) == step {
+					log.Printf("Request Data key: %s, length: %d ", txs.Key, len(txs.TxId))
+
+					mData, err2 := client.GetDataByKeyTxID(context.Background(), txs)
+					if err2 != nil {
+						log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+					}
+
+					if mData != nil {
+						log.Printf("receive tx list length:  %d ", mData.GetIndex())
+					}
+					time.Sleep(time.Millisecond)
+					/*
+						for _, bcd := range Data.GetBcList() {
+							log.Printf("%s   \n", bcd.String())
+						}
+					*/
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	log.Printf("Recv Data Count:  %d ", count)
+	log.Println("Execution Time = ", time.Since(start))
+}
+
+// SplitSlice splits a slice into chunks of the specified size
+func SplitSlice(data []string, chunkSize int) [][]string {
+	var chunks [][]string
+	totalSize := len(data)
+	numChunks := int(math.Ceil(float64(totalSize) / float64(chunkSize)))
+
+	for i := 0; i < numChunks; i++ {
+		start := i * chunkSize
+		end := (i + 1) * chunkSize
+		if end > totalSize {
+			end = totalSize
+		}
+		chunks = append(chunks, data[start:end])
+	}
+
+	return chunks
+}
+
+func main() {
+	flag.Parse()
+	var opts []grpc.DialOption
+	kb := 1024
+	mb := 1024 * kb
+	maxMsgSize := 50 * mb
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize), grpc.MaxCallSendMsgSize(maxMsgSize)))
+	conn, err := grpc.Dial(*serverAddr, opts...)
+
+	if err != nil {
+		log.Fatalf("fail to dial: %v", err)
+	}
+	defer conn.Close()
+	client := pvd.NewPvdClient(conn)
+
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+
+	log.Println("cmd: ", *cmd)
+
+	log.Println("=================================================")
+
+	chainInfo := pvd.ChainInfo{ChannelName: "pvdchannel", Chaincode: "pvd"}
+	//createDtIndex("dt_file.bf", 17)
+	DtTree = createIndex("dt_file.bf", 17)
+
+	switch *cmd {
+	case "create":
+		data := pvd.PvdHist{ObuId: "OBU-461001c4", CollectionDt: "20221001001000198", StartvectorLatitude: "33.496063", StartvectorLongitude: "126.491677", Transmisstion: "-", Speed: 0, HazardLights: "OFF", LeftTurnSignalOn: "OFF", RightTurnSignalOn: "OFF", Steering: 0, Rpm: 0, Footbrake: "-", Gear: "0", Accelator: 0, Wipers: "작동", TireWarnLeftF: "-", TireWarnLeftR: "-", TireWarnRightF: "-", TireWarnRightR: "-", TirePsiLeftF: 0, TirePsiLeftR: 0, TirePsiRightF: 0, TirePsiRightR: 0, FuelPercent: 0, FuelLiter: 0, Totaldist: 0, RsuId: "", MsgId: "PVD-461001c4-20210930150956947", StartvectorHeading: 2468}
+		txid := createData(client, &pvd.SinglePvd{ChainInfo: &chainInfo, Pvd: &data})
+		log.Println("CreateData TxID = ", txid)
+	case "bulk":
+		putBulkData(client, &chainInfo)
+	case "csv":
+		csvTest(client, &chainInfo)
+	case "multi":
+		putMultiData(client, &chainInfo)
+	case "ws": // WorldState data
+		getWorldState(client, &chainInfo)
+	case "ws1": // WorldState data
+		getWorldState1(client, &chainInfo)
+	case "info":
+		queryInfo(client, &chainInfo)
+	case "allblock":
+		queryAllBlock(client, &chainInfo)
+	case "range":
+		chainInfo.Start = int32(*start_block)
+		chainInfo.End = int32(*end_block)
+		queryRangeBlock(client, &chainInfo)
+	case "data":
+		queryData(client, &pvd.SinglePvd{ChainInfo: &chainInfo, Pvd: &pvd.PvdHist{ObuId: "OBU-461001c4"}})
+	case "txids":
+		fileBytes, err := ioutil.ReadFile("txids.txt")
+		if err != nil {
+			fmt.Println(err)
+		} else {
+
+			txlist := strings.Split(string(fileBytes), "\n")
+			queryDatasByTxid(client, &pvd.TxList{TxId: txlist})
+		}
+	case "field":
+		//queryDatasByField(client, &pvd.FieldInfo{Field: "Speed", Value: "60", ComOp: pvd.ComparisonOperators_Equal})
+		//queryDatasByField(client, &pvd.FieldInfo{Field: "Wipers", Value: "작동", ComOp: pvd.ComparisonOperators_Equal})
+		queryDatasByField(client, &pvd.FieldInfo{Field: "Hazard_lights", Value: "ON", ComOp: pvd.ComparisonOperators_Equal})
+	case "allfield":
+		queryAllDatasByField(client, &pvd.FieldInfo{Field: "Speed", Value: "100", ComOp: pvd.ComparisonOperators_Equal})
+		//queryAllDatasByField(client, &pvd.FieldInfo{Field: "Wipers", Value: "작동", ComOp: pvd.ComparisonOperators_Equal})
+		//queryAllDatasByField(client, &pvd.FieldInfo{Field: "Hazard_lights", Value: "ON", ComOp: pvd.ComparisonOperators_Equal})
+	case "time":
+		queryAllDatasByTime(client, &pvd.TimeInfo{Start: "20190612130949000", End: "20190615130949000"})
+	case "test1":
+		testAllDatasByField(client, &pvd.FieldInfo{Field: "Speed", Value: "100", ComOp: pvd.ComparisonOperators_Equal})
+		//testAllDatasByField(client, &pvd.FieldInfo{Field: "Wipers", Value: "작동", ComOp: pvd.ComparisonOperators_Equal})
+		//testAllDatasByField(client, &pvd.FieldInfo{Field: "Hazard_lights", Value: "ON", ComOp: pvd.ComparisonOperators_Equal})
+	case "test2":
+		testAllDatasByField2(client, &pvd.FieldInfo{Field: "Hazard_lights", Value: "ON", ComOp: pvd.ComparisonOperators_Equal})
+	case "history":
+		queryDatas(client, &pvd.SinglePvd{ChainInfo: &chainInfo, Pvd: &pvd.PvdHist{ObuId: "OBU-46100624"}})
+	case "rich": // Rich Query for WorldState data
+		logic := string(`{
+          "filter": [ {"var": "wstates"},
+              {">=": [ {"var": ".SPEED"}, 60]}
+          ]
+      }`)
+		queryInfo := pvd.QueryInfo{ChannelName: "pvdchannel", Chaincode: "pvd", Filter: logic}
+		log.Println("queryInfo = ", queryInfo)
+		getRichQuery(client, &queryInfo)
+	case "rich2": // Rich Query for WorldState data
+		logic := string(`{
+          "filter": [ {"var": "wstates"},
+              {"and" : [
+              {"<": [ {"var": ".SPEED"}, 100]},
+              {">": [ {"var": ".SPEED"}, 60]}
+          ]}
+          ]
+      }`)
+		queryInfo := pvd.QueryInfo{ChannelName: "pvdchannel", Chaincode: "pvd", Filter: logic}
+		log.Println("queryInfo = ", queryInfo)
+		getRichQuery(client, &queryInfo)
+	case "rich3": // Rich Query for WorldState data
+		logic := string(`{
+          "filter": [ {"var": "wstates"},
+              {"and" : [
+              {"==": [ {"var": ".HAZARD_LIGHTS"}, "OFF"]},
+              {">": [ {"var": ".SPEED"}, 50]}
+          ]}
+          ]
+      }`)
+		queryInfo := pvd.QueryInfo{ChannelName: "pvdchannel", Chaincode: "pvd", Filter: logic}
+		log.Println("queryInfo = ", queryInfo)
+		getRichQuery(client, &queryInfo)
+
+	case "rich4": // Rich Query for History data
+		logic := string(`{
+          "filter": [ {"var": "history"},
+              {"and" : [
+              {"<": [ {"var": ".SPEED"}, 100]},
+              {">": [ {"var": ".SPEED"}, 60]}
+          ]}
+          ]
+      }`)
+		queryInfo := pvd.QueryInfo{ChannelName: "pvdchannel", Chaincode: "pvd", Filter: logic}
+		log.Println("queryInfo = ", queryInfo)
+		getRichQueryHistory(client, &queryInfo)
+
+	case "index":
+		begin := []byte("20190612154532000")
+		end := []byte("20190614000946000")
+
+		var txids []string
+
+		start := time.Now()
+		kvi, _ := DtTree.Range(begin, end)
+		//idx_size := kvi.Size()
+		//log.Println("Index Range Ruslt Size = ", idx_size)
+		log.Println("Index Range Execution Time = ", time.Since(start))
+
+		if kvi != nil {
+			log.Println("Found Range start = ", string(begin), "end =", string(end))
+
+			var idxValue IndexData
+			var value1 []byte
+			var err1 error
+			start = time.Now()
+			for _, value1, err1, kvi = kvi(); kvi != nil; _, value1, err1, kvi = kvi() {
+				json.Unmarshal(value1, &idxValue)
+				txids = append(txids, idxValue.TxID)
+			}
+			if err1 != nil {
+				log.Fatal(err1)
+			}
+			txlist_size := len(txids)
+			log.Println("Mapping Execution Time = ", time.Since(start))
+			log.Println("TxCount =", txlist_size)
+			log.Println("Execution Time = ", time.Since(start))
+
+			/*
+				chunkSize := 15000
+				chunks := SplitSlice(txids, chunkSize)
+
+				// Print the size of each chunk to verify
+				start = time.Now()
+				for i, chunk := range chunks {
+					fmt.Printf("Chunk %d size: %d\n", i, len(chunk))
+					queryDatasByTxList(client, &pvd.TxList{TxId: chunk})
+				}
+			*/
+
+			queryDatasByTxList(client, &pvd.TxList{TxId: txids})
+
+			/*
+				for key, values := range keyMap {
+					//fmt.Printf("Key: %s, Values: %v\n", key, values)
+					log.Println("Index Count: ", idx)
+					queryDatasByTxids(client, &pvd.TxList{Key: key, TxId: values})
+					idx++
+					//time.Sleep(time.Millisecond * 50)
+				}
+				log.Println("queryDatasByTxids Execution Time = ", time.Since(start))
+						start = time.Now()
+						for key, values := range multiMap {
+							//fmt.Printf("Key: %s, Values: %v\n", key, values)
+							log.Println("Index Count: ", idx)
+							queryDatasByTxids(client, &pvd.TxList{Key: key, TxId: values})
+							idx++
+							//time.Sleep(time.Millisecond * 25)
+						}
+						log.Println("queryDatasByTxids Execution Time = ", time.Since(start))
+					start = time.Now()
+					for key, values := range multiMap {
+						//fmt.Printf("Key: %s, Values: %v\n", key, values)
+						log.Println("Index Count: ", idx)
+						queryDatasByKeyTxids(client, &pvd.TxList{Key: key, TxId: values})
+						idx++
+					}
+					log.Println("queryDatasByKeyTxids Execution Time = ", elapsed)
+			*/
+			elapsed := time.Since(start)
+			log.Println("queryDatasByKeyTxids Execution TPS = ", float64(txlist_size)/elapsed.Seconds())
+
+		} else {
+			log.Println("Notfound Index Key Data")
+		}
+
+	case "help":
+		log.Println("cmd example : -cmd=all, create, data, block, txid, history, field, allfield, testfield, ws")
+	}
+
+	log.Println("=================================================")
+}

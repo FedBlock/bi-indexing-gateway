@@ -1,0 +1,95 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"net"
+	"os"
+
+	"grpc-go/configuration"
+	"grpc-go/handler"
+	"grpc-go/pvdapi/grpc-go/pvdapi"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/spf13/viper"
+	"google.golang.org/grpc"
+)
+
+func init() {
+	profile := initProfile()
+	setRuntimeConfig(profile)
+}
+
+func setRuntimeConfig(profile string) {
+	viper.AddConfigPath("./handler")
+	viper.SetConfigName(profile)
+	viper.SetConfigType("yaml")
+	err := viper.ReadInConfig()
+	if err != nil {
+		panic(err)
+	}
+	err = viper.Unmarshal(&configuration.RuntimeConf)
+	if err != nil {
+		panic(err)
+	}
+
+	nodes := len(configuration.RuntimeConf.Profile)
+	log.Println("Read ConnectProfile size = ", nodes)
+
+	for _, profile := range configuration.RuntimeConf.Profile {
+		//log.Printf("%s : %s", k, profile)
+		configuration.MyContracts = append(configuration.MyContracts, handler.ClientConnect(profile))
+	}
+
+	for _, profile := range configuration.RuntimeConf.Profile {
+		//log.Printf("%s : %s", k, profile)
+		profileCopy := profile
+		profileCopy.ChaincodeName = "qscc"
+		configuration.QsccContracts = append(configuration.QsccContracts, handler.ClientConnect(profileCopy))
+	}
+
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		fmt.Println("Config file changed:", e.Name)
+		var err error
+		err = viper.ReadInConfig()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		err = viper.Unmarshal(&configuration.RuntimeConf)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+	})
+	viper.WatchConfig()
+}
+
+func initProfile() string {
+	var profile string
+	profile = os.Getenv("GO_PROFILE")
+	if len(profile) <= 0 {
+		profile = "config"
+	}
+	fmt.Println("GOLANG_PROFILE: " + profile)
+	return profile
+}
+
+func main() {
+
+	lis, err := net.Listen("tcp", ":19001")
+	if err != nil {
+		log.Fatal("An error has occurred while retrieving on launch: ", err)
+	}
+
+	grpcServer := grpc.NewServer(grpc.MaxSendMsgSize(50*1024*1024), grpc.MaxRecvMsgSize(50*1024*1024))
+	//pvdapi.RegisterPvdServiceServer(grpcServer, &handler.PvdHandler{})
+	pvdapi.RegisterPvdServer(grpcServer, handler.NewPvdServer())
+
+	//log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
+	log.Println("Grpc Server will be start. Listen : 19001 ")
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatal("An error has occurred while retriving on launch: ", err)
+	}
+}

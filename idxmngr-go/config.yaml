@@ -59,3 +59,33 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: fileidx_sp
+      idxname: File_Speed
+      keycol: Speed
+      filepath: speed_file.bf
+      blocknum: 0
+      keysize: 5
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: fileidx_sp
+      idxname: File_Speed
+      keycol: Speed
+      filepath: speed_file.bf
+      blocknum: 0
+      keysize: 5
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: fileidx_sp
+      idxname: File_Speed
+      keycol: Speed
+      filepath: speed_file.bf
+      blocknum: 0
+      keysize: 5
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

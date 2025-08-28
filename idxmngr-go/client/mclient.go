@@ -663,7 +663,6 @@ func main() {
 			KeySize:  32,
 		})
 
-
 	// TODO 사용자별 Wallet 인덱스 생성
 	
 
@@ -693,8 +692,10 @@ func main() {
 	case "ranged": //btree-DT
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "btridx_dt", Field: "CollectionDt", Begin: "20211001053430718", End: "20211001055430718", ComOp: idxmngr.ComparisonOps_Range})
 
-	case "fexacts": //fileindex-speed
+	case "fexacts": //fileindex-speed (Speed = 85)
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_sp", Field: "Speed", Value: "85", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5}) //42
+	case "fexact0": //fileindex-speed (Speed = 0) - 새로 추가
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_sp", Field: "Speed", Value: "0", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5})
 	case "fexactd": //fileindex-20211001053430718
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_dt", Field: "CollectionDt", Value: "20241001001000385", ComOp: idxmngr.ComparisonOps_Eq})
 	case "franges": //fileindex-speed

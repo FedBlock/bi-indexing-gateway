@@ -1,0 +1,182 @@
+// pvd-hist package for Connect Manager 2022-09-22 
+// created by dmsul@etri.re.kr
+// Update 2022-11-03
+
+syntax = "proto3";
+
+package pvdapi;
+option go_package = "grpc-go/pvdapi"; // *.pb.go file create directory 
+
+service Pvd{
+  // get TX data(WorldStats) for SinglePvd.Pvd.Obu_id 
+  rpc getData(SinglePvd) returns (TxData);
+  // put SinglePvd.Pvd into BC return PvdRespone.TxId
+  rpc putData(SinglePvd) returns (PvdResponse);
+  // putBulkData deprecated user putMultiData
+  rpc putBulkData(ChainInfo) returns (stream TxData);   
+  // putMultiData is put raw data to BC
+  rpc putMultiData(stream MultiData) returns (stream MultiData);
+  // get History Datas for SinglePvd.Pvd.Obu_id 
+  rpc getHistoryData(SinglePvd) returns (MultiData);
+  // get TX datas for TxList.TxID[] 
+  rpc getDataByTxID(TxList) returns (stream TxData);
+  // get TX List datas for TxList.TxID[] 
+  rpc getDataByTxList(TxList) returns (stream TxListData);
+  // just test code not use 
+  rpc getDataByKeyTxID(TxList) returns (MultiData);
+  // getDataByField is find matching field for world states
+  rpc getDataByField(FieldInfo) returns (stream BcData);
+  // just test code not use 
+  rpc getAllDataByField(FieldInfo) returns (stream MultiData);
+  // just test code not use 
+  rpc getAllDataByTime(TimeInfo) returns (stream MultiData);
+  // just test code not use 
+  rpc getAllData(ChainInfo) returns (stream MultiData);
+  // get chain info Height
+  rpc getChainInfo(ChainInfo) returns (ChainInfo);
+  // get Block for ChainInfo.Height
+  rpc getBlock(ChainInfo) returns (MultiData);
+  // getAllBlock : ChianInfo.Height value is start block number 
+  // return MuliData.Index is block number
+  rpc getAllBlock(ChainInfo) returns (stream MultiData);
+  // getRangeBlock : ChianInfo.Start value is start block number 
+  // return MuliData.Index is block number
+  rpc getRangeBlock(ChainInfo) returns (stream MultiData);
+  // get current WorldStates
+  rpc getWorldState(ChainInfo) returns (MultiPvd);
+  // get KeyLists
+  rpc getKeyLists(ChainInfo) returns (MultiField);
+  // get rich query for WorldStates
+  rpc getRichQuery(QueryInfo) returns (MultiPvd);
+  // get rich query for History
+  rpc getRichQueryHistory(QueryInfo) returns (stream MultiPvd);
+}
+
+message ChainInfo{
+	string ChannelName 		= 1;
+	string Chaincode 		= 2;
+	int32  Height 			= 3;
+	int32  Start 			= 4;
+	int32  End 				= 5;
+	PvdResponse Response 	= 6;
+	repeated string Nodes  	= 7;
+}
+
+message QueryInfo{
+	string ChannelName 		= 1;
+	string Chaincode 		= 2;
+	string key 				= 3;
+	string filter 			= 4;
+	PvdResponse Response 	= 5;
+}
+
+message SinglePvd{
+	ChainInfo ChainInfo = 1;
+	PvdHist Pvd 		= 2;
+}
+
+enum ComparisonOperators {
+	Equal 				= 0;
+	NotEqual			= 1;
+	LessThan			= 2;
+	LessThanEqual		= 3;
+	GreaterThan			= 4;
+	GreaterThanEqual 	= 5;
+} 
+
+message FieldInfo{
+	ChainInfo ChainInfo 		= 1;
+	string Key 					= 2;
+	string TxId 				= 3;
+	string Field 				= 4;
+	string Value 				= 5;
+	ComparisonOperators ComOp 	= 6;
+}
+
+message TimeInfo{
+	ChainInfo ChainInfo 	= 1;
+	string Start 			= 2;
+	string End 				= 3;
+}
+
+message MultiField{
+	repeated FieldInfo FieldList 	= 1;
+}
+
+message MultiPvd{
+	ChainInfo ChainInfo 		= 1;
+	repeated PvdHist PvdList 	= 2;
+	PvdResponse Response 		= 3;
+}
+
+message TxList{
+	ChainInfo ChainInfo 	= 1;
+	string Key 				= 2;
+	repeated string TxId 	= 3;
+}
+
+message PvdResponse {
+	int32 Response_code 	= 1;	// if 200 OK else Error 
+	string Response_message = 2;
+	string TxId 			= 3;
+	int64 Duration  		= 4;	// NanoSeconds
+}
+
+message BcData {
+   	string  TxId   		= 1; 
+   	PvdHist Pvd   		= 2; 
+	PvdResponse Response 	= 3;
+}
+
+message MultiData{
+	int32 Index 			= 1;
+	repeated BcData BcList 	= 2;
+	PvdResponse Response 	= 3;
+}
+
+message TxData {
+	int32 Response_code 	= 1;
+   	string  TxId   			= 2; 
+   	PvdHist Pvd   			= 3; 
+	PvdResponse Response 	= 4;
+}
+
+message TxListData {
+	ChainInfo ChainInfo 		= 1;
+    repeated TxData ListDatas 	= 2; 
+	PvdResponse Response 		= 3;
+}
+
+message PvdHist {
+     string Obu_id                 = 1;
+     string Collection_dt          = 2;
+     string Startvector_latitude   = 3;
+     string Startvector_longitude  = 4;
+     string Transmisstion          = 5;
+     int32  Speed                  = 6;
+     string Hazard_lights          = 7;
+     string Left_turn_signal_on    = 8;
+     string Right_turn_signal_on   = 9;
+     int32  Steering               = 10;
+     int32  Rpm                    = 11;
+     string Footbrake              = 12;
+     string Gear                   = 13;
+     int32  Accelator              = 14;
+     string Wipers                 = 15;
+     string Tire_warn_left_f       = 16;
+     string Tire_warn_left_r       = 17;
+     string Tire_warn_right_f      = 18;
+     string Tire_warn_right_r      = 19;
+     int32  Tire_psi_left_f        = 20;
+     int32  Tire_psi_left_r        = 21;
+     int32  Tire_psi_right_f       = 22;
+     int32  Tire_psi_right_r       = 23;
+     int32  Fuel_percent           = 24;
+     int32  Fuel_liter             = 25;
+     int32  Totaldist              = 26;
+     string Rsu_id                 = 27;
+     string Msg_id                 = 28;
+     int32  Startvector_heading    = 29;
+}                                  
+
+

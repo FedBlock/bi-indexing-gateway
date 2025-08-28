@@ -1,0 +1,14 @@
+
+# create protobuf to go stub code
+make generate 
+
+# go module initialize
+go mod init grpc-go
+
+# grpc server run
+go run server/main.go
+
+# grpc client run
+go run client/client.go -cmd=help
+
+

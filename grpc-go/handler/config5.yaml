@@ -1,0 +1,46 @@
+profile:
+  - mspID: Org1MSP
+    cryptoPath: ../../pvd-network/organizations/peerOrganizations/org1.example.com
+    certPath: /users/User1@org1.example.com/msp/signcerts/User1@org1.example.com-cert.pem
+    keyPath: /users/User1@org1.example.com/msp/keystore/
+    tlsCertPath: /peers/peer0.org1.example.com/tls/ca.crt
+    peerEndpoint: localhost:7051
+    gatewayPeer: peer0.org1.example.com
+    channelName: pvdchannel
+    chaincodeName: pvd
+  - mspID: Org2MSP
+    cryptoPath: ../../pvd-network/organizations/peerOrganizations/org2.example.com
+    certPath: /users/User1@org2.example.com/msp/signcerts/User1@org2.example.com-cert.pem
+    keyPath: /users/User1@org2.example.com/msp/keystore/
+    tlsCertPath: /peers/peer0.org2.example.com/tls/ca.crt
+    peerEndpoint: localhost:9051
+    gatewayPeer: peer0.org2.example.com
+    channelName: pvdchannel
+    chaincodeName: pvd
+  - mspID: Org3MSP
+    cryptoPath: ../../pvd-network/organizations/peerOrganizations/org3.example.com
+    certPath: /users/User1@org3.example.com/msp/signcerts/User1@org3.example.com-cert.pem
+    keyPath: /users/User1@org3.example.com/msp/keystore/
+    tlsCertPath: /peers/peer0.org3.example.com/tls/ca.crt
+    peerEndpoint: localhost:11051
+    gatewayPeer: peer0.org3.example.com
+    channelName: pvdchannel
+    chaincodeName: pvd
+  - mspID: Org4MSP
+    cryptoPath: ../../pvd-network/organizations/peerOrganizations/org4.example.com
+    certPath: /users/User1@org4.example.com/msp/signcerts/User1@org4.example.com-cert.pem
+    keyPath: /users/User1@org4.example.com/msp/keystore/
+    tlsCertPath: /peers/peer0.org4.example.com/tls/ca.crt
+    peerEndpoint: localhost:13051
+    gatewayPeer: peer0.org4.example.com
+    channelName: pvdchannel
+    chaincodeName: pvd
+  - mspID: Org5MSP
+    cryptoPath: ../../pvd-network/organizations/peerOrganizations/org5.example.com
+    certPath: /users/User1@org5.example.com/msp/signcerts/User1@org5.example.com-cert.pem
+    keyPath: /users/User1@org5.example.com/msp/keystore/
+    tlsCertPath: /peers/peer0.org5.example.com/tls/ca.crt
+    peerEndpoint: localhost:15051
+    gatewayPeer: peer0.org5.example.com
+    channelName: pvdchannel
+    chaincodeName: pvd
