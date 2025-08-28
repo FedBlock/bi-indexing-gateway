@@ -82,7 +82,8 @@ func (h *FabricHandler) ValidateData(data *mngr.PvdHistDataM) error {
 
 // GetFileIndexPath - Fabric File Index 경로 반환
 func (h *FabricHandler) GetFileIndexPath(indexType string) string {
-	return h.config.FileIndexPath
+	// Fabric은 체인코드 사용하므로 간단한 경로
+	return fmt.Sprintf("%s_%s.bf", h.networkName, indexType)
 }
 
 // ProcessIndexing - Fabric 데이터 인덱싱 처리
@@ -172,7 +173,13 @@ func (h *EVMPublicNetworkHandler) ValidateData(data *mngr.PvdHistDataM) error {
 
 // GetFileIndexPath - EVM File Index 경로 반환
 func (h *EVMPublicNetworkHandler) GetFileIndexPath(indexType string) string {
-	return h.config.FileIndexPath
+	if h.config.ContractAddress != "" {
+		// 컨트랙트 주소 앞 8자리 추출 (0x 제외)
+		contractShort := h.config.ContractAddress[2:10] // 0x 이후 8자리
+		return fmt.Sprintf("%s_%s_%s.bf", h.networkName, contractShort, indexType)
+	}
+	// 컨트랙트 주소가 없는 경우 (Fabric과 동일)
+	return fmt.Sprintf("%s_%s.bf", h.networkName, indexType)
 }
 
 // ProcessIndexing - EVM 데이터 인덱싱 처리

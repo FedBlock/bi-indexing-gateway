@@ -1,111 +1,21 @@
-items:
-    - idxid: fileidx_sp
-      idxname: File_Speed
-      keycol: Speed
-      filepath: speed_file.bf
-      blocknum: 0
-      keysize: 5
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: fabric_speed
-      idxname: File_Fabric_Speed
-      keycol: Speed
-      filepath: fabric_speed.bf
-      blocknum: 0
-      keysize: 5
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: hardhat_a513E6E4_speed
-      idxname: File_Hardhat_Speed
-      keycol: Speed
-      filepath: hardhat_a513E6E4_speed.bf
-      blocknum: 0
-      keysize: 5
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: sepolia_12345678_speed
-      idxname: File_Sepolia_Speed
-      keycol: Speed
-      filepath: sepolia_12345678_speed.bf
-      blocknum: 0
-      keysize: 5
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: monad_abcdef12_speed
-      idxname: File_Monad_Speed
-      keycol: Speed
-      filepath: monad_abcdef12_speed.bf
-      blocknum: 0
-      keysize: 5
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: hardhat_a513E6E4_speed
-      idxname: Hardhat Network - Samsung Speed Index
-      keycol: IndexableData
-      filepath: hardhat_a513E6E4_speed.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: hardhat_a513E6E4_speed
-      idxname: Hardhat Network - Samsung Speed Index
-      keycol: IndexableData
-      filepath: hardhat_a513E6E4_speed.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: hardhat_a513E6E4_speed
-      idxname: Hardhat Network - Samsung Speed Index
-      keycol: IndexableData
-      filepath: hardhat_a513E6E4_speed.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: monad_abcdef12_speed
-      idxname: Monad Network - Samsung Speed Index
-      keycol: IndexableData
-      filepath: monad_abcdef12_speed.bf
-      blocknum: 0
-      keysize: 7
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: monad_abcdef12_speed
-      idxname: Monad Network - Samsung Speed Index
-      keycol: IndexableData
-      filepath: monad_abcdef12_speed.bf
-      blocknum: 0
-      keysize: 7
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: monad_abcdef12_speed
-      idxname: Monad Network - Samsung Speed Index
-      keycol: IndexableData
-      filepath: monad_abcdef12_speed.bf
-      blocknum: 0
-      keysize: 7
-      address: localhost:50053
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
+# idxmngr 기본 설정 파일
+# 이 파일은 idxmngr 서버가 시작할 때 필요합니다.
+
+# 서버 설정
+server:
+  port: 50052
+  host: "localhost"
+
+# 데이터베이스 설정
+database:
+  type: "file"
+  path: "./data"
+
+# 로깅 설정
+logging:
+  level: "info"
+  file: "./idxmngr.log"
+
+# 네트워크 설정 파일 경로
+network_config:
+  path: "./config/network_config.yaml"

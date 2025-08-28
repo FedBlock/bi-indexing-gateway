@@ -562,6 +562,13 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 			if err != nil {
 				log.Printf("Warning: Unsupported network %s, skipping network-specific processing", network)
 			} else {
+				// FilePath가 비어있으면 자동 생성
+				if recvDatas.GetFilePath() == "" {
+					autoFilePath := handler.GetFileIndexPath(recvDatas.GetColName())
+					recvDatas.FilePath = autoFilePath
+					log.Printf("Auto-generated FilePath: %s", autoFilePath)
+				}
+				
 				// 네트워크별 인덱싱 처리
 				for _, bcData := range recvDatas.GetBcList() {
 					if bcData.Pvd != nil {

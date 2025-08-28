@@ -1,32 +1,26 @@
 # Network Configuration File
-# 사용자가 직접 수정하여 네트워크별 설정을 관리할 수 있습니다.
+# 사용자는 contract_address만 수정하면 됩니다.
 
 networks:
   # Hardhat Network (로컬 테스트넷)
   hardhat:
     network_name: "hardhat"
     contract_address: "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
-    file_index_path: "hardhat_speed.bf"
-  
-  # Sepolia Testnet
-  sepolia:
-    network_name: "sepolia"
-    contract_address: "0x1234567890abcdef1234567890abcdef12345678"
-    file_index_path: "sepolia_speed.bf"
+    # file_index_path는 자동 생성됨: hardhat_a513E6E4_speed.bf
   
   # Monad Network
   monad:
     network_name: "monad"
     contract_address: "0x4D393E83C47AFFA1eE8eaB8eFCcBD0d2e1835F97"
-    file_index_path: "monad_abcdef12_speed.bf"
+    # file_index_path는 자동 생성됨: monad_4D393E83_speed.bf
   
   # Fabric Network (체인코드 사용)
   fabric:
     network_name: "fabric"
     contract_address: ""
-    file_index_path: "fabric_speed.bf"
+    # file_index_path는 자동 생성됨: fabric_speed.bf
 
 # 사용자 설정 가이드:
-# 1. contract_address: 각 네트워크에 배포된 컨트랙트 주소
-# 2. file_index_path: 해당 네트워크의 File Index 파일 경로
-# 3. 모든 필드는 필수 입력 사항입니다
+# 1. contract_address: 각 네트워크에 배포된 컨트랙트 주소만 수정
+# 2. file_index_path는 자동으로 생성되므로 수정하지 마세요
+# 3. network_name은 원하는 대로 변경 가능
