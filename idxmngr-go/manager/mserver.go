@@ -899,6 +899,8 @@ func (m *MServer) buildSearchRequest(req *mngr.SearchRequestM) (*idxserverapi.Se
 		K:        req.K,
 		Range:    req.Range,
 		Value:    req.Value,
+		Begin:    req.Begin,           // 범위 검색 시작 값 추가
+		End:      req.End,             // 범위 검색 끝 값 추가
 		KeySize:  indexInfo.KeySize,   // config.yaml에서 읽은 KeySize
 	}
 	log.Printf("Built request: %v", request)

@@ -445,10 +445,17 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 			begin := stringToFixedBytes(req.Begin, keySize)
 			end := stringToFixedBytes(req.End, keySize)
 
-			log.Println("query start from: ", req.Begin)
-			log.Println("query start end: ", req.End)
+			log.Println("=== Speed Range Search Debug ===")
+			log.Printf("Original range: Begin='%s', End='%s'", req.Begin, req.End)
+			log.Printf("Converted bytes: Begin=%v, End=%v", begin, end)
+			log.Printf("KeySize: %d", keySize)
+			log.Printf("Begin length: %d, End length: %d", len(begin), len(end))
 
-			returned_pointers, _ := SpeedTree.Range(begin, end)
+			returned_pointers, err := SpeedTree.Range(begin, end)
+			if err != nil {
+				log.Printf("SpeedTree.Range error: %v", err)
+			}
+			log.Printf("SpeedTree.Range returned: %v", returned_pointers)
 
 			if returned_pointers != nil {
 				for returned_pointers != nil {
@@ -536,7 +543,16 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 			begin := stringToFixedBytes(req.Begin, keySize)
 			end := stringToFixedBytes(req.End, keySize)
 
-			returned_pointers, _ := OrgTree.Range(begin, end)
+			log.Println("=== OrganizationName Range Search Debug ===")
+			log.Printf("Original range: Begin='%s', End='%s'", req.Begin, req.End)
+			log.Printf("Converted bytes: Begin=%v, End=%v", begin, end)
+			log.Printf("KeySize: %d", keySize)
+
+			returned_pointers, err := OrgTree.Range(begin, end)
+			if err != nil {
+				log.Printf("OrgTree.Range error: %v", err)
+			}
+			log.Printf("OrgTree.Range returned: %v", returned_pointers)
 
 			if returned_pointers != nil {
 				for returned_pointers != nil {
@@ -599,7 +615,17 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 			begin := stringToFixedBytes(req.Begin, keySize)
 			end := stringToFixedBytes(req.End, keySize)
 
-			returned_pointers, _ := tree.Range(begin, end)
+			log.Println("=== IndexableData Range Search Debug ===")
+			log.Printf("IndexID: %s", req.IndexID)
+			log.Printf("Original range: Begin='%s', End='%s'", req.Begin, req.End)
+			log.Printf("Converted bytes: Begin=%v, End=%v", begin, end)
+			log.Printf("KeySize: %d", keySize)
+
+			returned_pointers, err := tree.Range(begin, end)
+			if err != nil {
+				log.Printf("tree.Range error: %v", err)
+			}
+			log.Printf("tree.Range returned: %v", returned_pointers)
 
 			if returned_pointers != nil {
 				for returned_pointers != nil {

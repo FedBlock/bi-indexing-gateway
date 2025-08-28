@@ -31,7 +31,7 @@ items:
       indexdatacnt: 0
     - idxid: fileidx_universal_org
       idxname: File_Universal_Organization
-      keycol: OrganizationName
+      keycol: IndexableData
       filepath: universal_org.bf
       blocknum: 0
       keysize: 32
