@@ -9,3 +9,43 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: fileidx_sp
+      idxname: File_Speed
+      keycol: Speed
+      filepath: speed_file.bf
+      blocknum: 0
+      keysize: 5
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: fileidx_dt
+      idxname: File_DT
+      keycol: CollectionDt
+      filepath: dt_file.bf
+      blocknum: 0
+      keysize: 17
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: fileidx_universal_org
+      idxname: File_Universal_Organization
+      keycol: OrganizationName
+      filepath: universal_org.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: fileidx_universal_org
+      idxname: File_Universal_Organization
+      keycol: IndexableData
+      filepath: universal_org_file.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

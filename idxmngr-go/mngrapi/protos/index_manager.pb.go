@@ -465,9 +465,10 @@ type InsertDatatoIdx struct {
 	Y             float32                `protobuf:"fixed32,6,opt,name=y,proto3" json:"y,omitempty"`
 	GeoHash       uint32                 `protobuf:"varint,7,opt,name=GeoHash,proto3" json:"GeoHash,omitempty"`
 	TxId          string                 `protobuf:"bytes,8,opt,name=TxId,proto3" json:"TxId,omitempty"`
-	Time          uint64                 `protobuf:"varint,9,opt,name=time,proto3" json:"time,omitempty"`
-	FilePath      string                 `protobuf:"bytes,10,opt,name=FilePath,proto3" json:"FilePath,omitempty"` //file index storage FilePath
-	BlockNum      int32                  `protobuf:"varint,11,opt,name=BlockNum,proto3" json:"BlockNum,omitempty"`
+	OBU_ID        string                 `protobuf:"bytes,9,opt,name=OBU_ID,json=OBUID,proto3" json:"OBU_ID,omitempty"`
+	Time          uint64                 `protobuf:"varint,10,opt,name=time,proto3" json:"time,omitempty"`
+	FilePath      string                 `protobuf:"bytes,11,opt,name=FilePath,proto3" json:"FilePath,omitempty"` //file index storage FilePath
+	BlockNum      int32                  `protobuf:"varint,12,opt,name=BlockNum,proto3" json:"BlockNum,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -554,6 +555,13 @@ func (x *InsertDatatoIdx) GetGeoHash() uint32 {
 func (x *InsertDatatoIdx) GetTxId() string {
 	if x != nil {
 		return x.TxId
+	}
+	return ""
+}
+
+func (x *InsertDatatoIdx) GetOBU_ID() string {
+	if x != nil {
+		return x.OBU_ID
 	}
 	return ""
 }
@@ -1037,36 +1045,37 @@ func (x *QueryInfo) GetRstMean() int32 {
 
 type PvdHistDataM struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
-	CollectionDt         string                 `protobuf:"bytes,1,opt,name=Collection_dt,json=CollectionDt,proto3" json:"Collection_dt,omitempty"`
-	StartvectorLatitude  string                 `protobuf:"bytes,2,opt,name=Startvector_latitude,json=StartvectorLatitude,proto3" json:"Startvector_latitude,omitempty"`
-	StartvectorLongitude string                 `protobuf:"bytes,3,opt,name=Startvector_longitude,json=StartvectorLongitude,proto3" json:"Startvector_longitude,omitempty"`
-	Transmisstion        string                 `protobuf:"bytes,4,opt,name=Transmisstion,proto3" json:"Transmisstion,omitempty"`
-	Speed                int32                  `protobuf:"varint,5,opt,name=Speed,proto3" json:"Speed,omitempty"`
-	HazardLights         string                 `protobuf:"bytes,6,opt,name=Hazard_lights,json=HazardLights,proto3" json:"Hazard_lights,omitempty"`
-	LeftTurnSignalOn     string                 `protobuf:"bytes,7,opt,name=Left_turn_signal_on,json=LeftTurnSignalOn,proto3" json:"Left_turn_signal_on,omitempty"`
-	RightTurnSignalOn    string                 `protobuf:"bytes,8,opt,name=Right_turn_signal_on,json=RightTurnSignalOn,proto3" json:"Right_turn_signal_on,omitempty"`
-	Steering             int32                  `protobuf:"varint,9,opt,name=Steering,proto3" json:"Steering,omitempty"`
-	Rpm                  int32                  `protobuf:"varint,10,opt,name=Rpm,proto3" json:"Rpm,omitempty"`
-	Footbrake            string                 `protobuf:"bytes,11,opt,name=Footbrake,proto3" json:"Footbrake,omitempty"`
-	Gear                 string                 `protobuf:"bytes,12,opt,name=Gear,proto3" json:"Gear,omitempty"`
-	Accelator            int32                  `protobuf:"varint,13,opt,name=Accelator,proto3" json:"Accelator,omitempty"`
-	Wipers               string                 `protobuf:"bytes,14,opt,name=Wipers,proto3" json:"Wipers,omitempty"`
-	TireWarnLeftF        string                 `protobuf:"bytes,15,opt,name=Tire_warn_left_f,json=TireWarnLeftF,proto3" json:"Tire_warn_left_f,omitempty"`
-	TireWarnLeftR        string                 `protobuf:"bytes,16,opt,name=Tire_warn_left_r,json=TireWarnLeftR,proto3" json:"Tire_warn_left_r,omitempty"`
-	TireWarnRightF       string                 `protobuf:"bytes,17,opt,name=Tire_warn_right_f,json=TireWarnRightF,proto3" json:"Tire_warn_right_f,omitempty"`
-	TireWarnRightR       string                 `protobuf:"bytes,18,opt,name=Tire_warn_right_r,json=TireWarnRightR,proto3" json:"Tire_warn_right_r,omitempty"`
-	TirePsiLeftF         int32                  `protobuf:"varint,19,opt,name=Tire_psi_left_f,json=TirePsiLeftF,proto3" json:"Tire_psi_left_f,omitempty"`
-	TirePsiLeftR         int32                  `protobuf:"varint,20,opt,name=Tire_psi_left_r,json=TirePsiLeftR,proto3" json:"Tire_psi_left_r,omitempty"`
-	TirePsiRightF        int32                  `protobuf:"varint,21,opt,name=Tire_psi_right_f,json=TirePsiRightF,proto3" json:"Tire_psi_right_f,omitempty"`
-	TirePsiRightR        int32                  `protobuf:"varint,22,opt,name=Tire_psi_right_r,json=TirePsiRightR,proto3" json:"Tire_psi_right_r,omitempty"`
-	FuelPercent          int32                  `protobuf:"varint,23,opt,name=Fuel_percent,json=FuelPercent,proto3" json:"Fuel_percent,omitempty"`
-	FuelLiter            int32                  `protobuf:"varint,24,opt,name=Fuel_liter,json=FuelLiter,proto3" json:"Fuel_liter,omitempty"`
-	Totaldist            int32                  `protobuf:"varint,25,opt,name=Totaldist,proto3" json:"Totaldist,omitempty"`
-	RsuId                string                 `protobuf:"bytes,26,opt,name=Rsu_id,json=RsuId,proto3" json:"Rsu_id,omitempty"`
-	MsgId                string                 `protobuf:"bytes,27,opt,name=Msg_id,json=MsgId,proto3" json:"Msg_id,omitempty"`
-	StartvectorHeading   int32                  `protobuf:"varint,28,opt,name=Startvector_heading,json=StartvectorHeading,proto3" json:"Startvector_heading,omitempty"`
-	Address              string                 `protobuf:"bytes,29,opt,name=Address,proto3" json:"Address,omitempty"`
-	OrganizationName     string                 `protobuf:"bytes,30,opt,name=OrganizationName,proto3" json:"OrganizationName,omitempty"` // 추가
+	ObuId                string                 `protobuf:"bytes,1,opt,name=Obu_id,json=ObuId,proto3" json:"Obu_id,omitempty"`
+	CollectionDt         string                 `protobuf:"bytes,2,opt,name=Collection_dt,json=CollectionDt,proto3" json:"Collection_dt,omitempty"`
+	StartvectorLatitude  string                 `protobuf:"bytes,3,opt,name=Startvector_latitude,json=StartvectorLatitude,proto3" json:"Startvector_latitude,omitempty"`
+	StartvectorLongitude string                 `protobuf:"bytes,4,opt,name=Startvector_longitude,json=StartvectorLongitude,proto3" json:"Startvector_longitude,omitempty"`
+	Transmisstion        string                 `protobuf:"bytes,5,opt,name=Transmisstion,proto3" json:"Transmisstion,omitempty"`
+	Speed                int32                  `protobuf:"varint,6,opt,name=Speed,proto3" json:"Speed,omitempty"`
+	HazardLights         string                 `protobuf:"bytes,7,opt,name=Hazard_lights,json=HazardLights,proto3" json:"Hazard_lights,omitempty"`
+	LeftTurnSignalOn     string                 `protobuf:"bytes,8,opt,name=Left_turn_signal_on,json=LeftTurnSignalOn,proto3" json:"Left_turn_signal_on,omitempty"`
+	RightTurnSignalOn    string                 `protobuf:"bytes,9,opt,name=Right_turn_signal_on,json=RightTurnSignalOn,proto3" json:"Right_turn_signal_on,omitempty"`
+	Steering             int32                  `protobuf:"varint,10,opt,name=Steering,proto3" json:"Steering,omitempty"`
+	Rpm                  int32                  `protobuf:"varint,11,opt,name=Rpm,proto3" json:"Rpm,omitempty"`
+	Footbrake            string                 `protobuf:"bytes,12,opt,name=Footbrake,proto3" json:"Footbrake,omitempty"`
+	Gear                 string                 `protobuf:"bytes,13,opt,name=Gear,proto3" json:"Gear,omitempty"`
+	Accelator            int32                  `protobuf:"varint,14,opt,name=Accelator,proto3" json:"Accelator,omitempty"`
+	Wipers               string                 `protobuf:"bytes,15,opt,name=Wipers,proto3" json:"Wipers,omitempty"`
+	TireWarnLeftF        string                 `protobuf:"bytes,16,opt,name=Tire_warn_left_f,json=TireWarnLeftF,proto3" json:"Tire_warn_left_f,omitempty"`
+	TireWarnLeftR        string                 `protobuf:"bytes,17,opt,name=Tire_warn_left_r,json=TireWarnLeftR,proto3" json:"Tire_warn_left_r,omitempty"`
+	TireWarnRightF       string                 `protobuf:"bytes,18,opt,name=Tire_warn_right_f,json=TireWarnRightF,proto3" json:"Tire_warn_right_f,omitempty"`
+	TireWarnRightR       string                 `protobuf:"bytes,19,opt,name=Tire_warn_right_r,json=TireWarnRightR,proto3" json:"Tire_warn_right_r,omitempty"`
+	TirePsiLeftF         int32                  `protobuf:"varint,20,opt,name=Tire_psi_left_f,json=TirePsiLeftF,proto3" json:"Tire_psi_left_f,omitempty"`
+	TirePsiLeftR         int32                  `protobuf:"varint,21,opt,name=Tire_psi_left_r,json=TirePsiLeftR,proto3" json:"Tire_psi_left_r,omitempty"`
+	TirePsiRightF        int32                  `protobuf:"varint,22,opt,name=Tire_psi_right_f,json=TirePsiRightF,proto3" json:"Tire_psi_right_f,omitempty"`
+	TirePsiRightR        int32                  `protobuf:"varint,23,opt,name=Tire_psi_right_r,json=TirePsiRightR,proto3" json:"Tire_psi_right_r,omitempty"`
+	FuelPercent          int32                  `protobuf:"varint,24,opt,name=Fuel_percent,json=FuelPercent,proto3" json:"Fuel_percent,omitempty"`
+	FuelLiter            int32                  `protobuf:"varint,25,opt,name=Fuel_liter,json=FuelLiter,proto3" json:"Fuel_liter,omitempty"`
+	Totaldist            int32                  `protobuf:"varint,26,opt,name=Totaldist,proto3" json:"Totaldist,omitempty"`
+	RsuId                string                 `protobuf:"bytes,27,opt,name=Rsu_id,json=RsuId,proto3" json:"Rsu_id,omitempty"`
+	MsgId                string                 `protobuf:"bytes,28,opt,name=Msg_id,json=MsgId,proto3" json:"Msg_id,omitempty"`
+	StartvectorHeading   int32                  `protobuf:"varint,29,opt,name=Startvector_heading,json=StartvectorHeading,proto3" json:"Startvector_heading,omitempty"`
+	Address              string                 `protobuf:"bytes,30,opt,name=Address,proto3" json:"Address,omitempty"`
+	OrganizationName     string                 `protobuf:"bytes,31,opt,name=OrganizationName,proto3" json:"OrganizationName,omitempty"` // 추가
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1099,6 +1108,13 @@ func (x *PvdHistDataM) ProtoReflect() protoreflect.Message {
 // Deprecated: Use PvdHistDataM.ProtoReflect.Descriptor instead.
 func (*PvdHistDataM) Descriptor() ([]byte, []int) {
 	return file_protos_index_manager_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *PvdHistDataM) GetObuId() string {
+	if x != nil {
+		return x.ObuId
+	}
+	return ""
 }
 
 func (x *PvdHistDataM) GetCollectionDt() string {
@@ -1393,7 +1409,7 @@ const file_protos_index_manager_proto_rawDesc = "" +
 	"\akey_col\x18\x02 \x01(\tR\x06keyCol\x12*\n" +
 	"\x03Pvd\x18\x03 \x01(\v2\x18.idxmngrapi.PvdHistDataMR\x03Pvd\x12@\n" +
 	"\rIndexableData\x18\x04 \x01(\v2\x1a.idxmngrapi.IndexableDataMR\rIndexableData\x127\n" +
-	"\bResponse\x18\x05 \x01(\v2\x1b.idxmngrapi.IdxMngrResponseR\bResponse\"\xc5\x02\n" +
+	"\bResponse\x18\x05 \x01(\v2\x1b.idxmngrapi.IdxMngrResponseR\bResponse\"\xdc\x02\n" +
 	"\x0fInsertDatatoIdx\x12\x18\n" +
 	"\aIndexID\x18\x01 \x01(\tR\aIndexID\x12/\n" +
 	"\x06BcList\x18\x02 \x03(\v2\x17.idxmngrapi.BcData_listR\x06BcList\x127\n" +
@@ -1402,11 +1418,12 @@ const file_protos_index_manager_proto_rawDesc = "" +
 	"\x01x\x18\x05 \x01(\x02R\x01x\x12\f\n" +
 	"\x01y\x18\x06 \x01(\x02R\x01y\x12\x18\n" +
 	"\aGeoHash\x18\a \x01(\rR\aGeoHash\x12\x12\n" +
-	"\x04TxId\x18\b \x01(\tR\x04TxId\x12\x12\n" +
-	"\x04time\x18\t \x01(\x04R\x04time\x12\x1a\n" +
-	"\bFilePath\x18\n" +
-	" \x01(\tR\bFilePath\x12\x1a\n" +
-	"\bBlockNum\x18\v \x01(\x05R\bBlockNum\"\xce\x01\n" +
+	"\x04TxId\x18\b \x01(\tR\x04TxId\x12\x15\n" +
+	"\x06OBU_ID\x18\t \x01(\tR\x05OBUID\x12\x12\n" +
+	"\x04time\x18\n" +
+	" \x01(\x04R\x04time\x12\x1a\n" +
+	"\bFilePath\x18\v \x01(\tR\bFilePath\x12\x1a\n" +
+	"\bBlockNum\x18\f \x01(\x05R\bBlockNum\"\xce\x01\n" +
 	"\x0fIdxMngrResponse\x12\"\n" +
 	"\fResponseCode\x18\x01 \x01(\x05R\fResponseCode\x12(\n" +
 	"\x0fResponseMessage\x18\x02 \x01(\tR\x0fResponseMessage\x12\x1a\n" +
@@ -1445,40 +1462,41 @@ const file_protos_index_manager_proto_rawDesc = "" +
 	"\aRunTime\x18\x03 \x01(\x03R\aRunTime\x12\x16\n" +
 	"\x06RstMin\x18\x04 \x01(\x05R\x06RstMin\x12\x16\n" +
 	"\x06RstMax\x18\x05 \x01(\x05R\x06RstMax\x12\x18\n" +
-	"\aRstMean\x18\x06 \x01(\x05R\aRstMean\"\xbf\b\n" +
-	"\fPvdHistDataM\x12#\n" +
-	"\rCollection_dt\x18\x01 \x01(\tR\fCollectionDt\x121\n" +
-	"\x14Startvector_latitude\x18\x02 \x01(\tR\x13StartvectorLatitude\x123\n" +
-	"\x15Startvector_longitude\x18\x03 \x01(\tR\x14StartvectorLongitude\x12$\n" +
-	"\rTransmisstion\x18\x04 \x01(\tR\rTransmisstion\x12\x14\n" +
-	"\x05Speed\x18\x05 \x01(\x05R\x05Speed\x12#\n" +
-	"\rHazard_lights\x18\x06 \x01(\tR\fHazardLights\x12-\n" +
-	"\x13Left_turn_signal_on\x18\a \x01(\tR\x10LeftTurnSignalOn\x12/\n" +
-	"\x14Right_turn_signal_on\x18\b \x01(\tR\x11RightTurnSignalOn\x12\x1a\n" +
-	"\bSteering\x18\t \x01(\x05R\bSteering\x12\x10\n" +
-	"\x03Rpm\x18\n" +
-	" \x01(\x05R\x03Rpm\x12\x1c\n" +
-	"\tFootbrake\x18\v \x01(\tR\tFootbrake\x12\x12\n" +
-	"\x04Gear\x18\f \x01(\tR\x04Gear\x12\x1c\n" +
-	"\tAccelator\x18\r \x01(\x05R\tAccelator\x12\x16\n" +
-	"\x06Wipers\x18\x0e \x01(\tR\x06Wipers\x12'\n" +
-	"\x10Tire_warn_left_f\x18\x0f \x01(\tR\rTireWarnLeftF\x12'\n" +
-	"\x10Tire_warn_left_r\x18\x10 \x01(\tR\rTireWarnLeftR\x12)\n" +
-	"\x11Tire_warn_right_f\x18\x11 \x01(\tR\x0eTireWarnRightF\x12)\n" +
-	"\x11Tire_warn_right_r\x18\x12 \x01(\tR\x0eTireWarnRightR\x12%\n" +
-	"\x0fTire_psi_left_f\x18\x13 \x01(\x05R\fTirePsiLeftF\x12%\n" +
-	"\x0fTire_psi_left_r\x18\x14 \x01(\x05R\fTirePsiLeftR\x12'\n" +
-	"\x10Tire_psi_right_f\x18\x15 \x01(\x05R\rTirePsiRightF\x12'\n" +
-	"\x10Tire_psi_right_r\x18\x16 \x01(\x05R\rTirePsiRightR\x12!\n" +
-	"\fFuel_percent\x18\x17 \x01(\x05R\vFuelPercent\x12\x1d\n" +
+	"\aRstMean\x18\x06 \x01(\x05R\aRstMean\"\xd6\b\n" +
+	"\fPvdHistDataM\x12\x15\n" +
+	"\x06Obu_id\x18\x01 \x01(\tR\x05ObuId\x12#\n" +
+	"\rCollection_dt\x18\x02 \x01(\tR\fCollectionDt\x121\n" +
+	"\x14Startvector_latitude\x18\x03 \x01(\tR\x13StartvectorLatitude\x123\n" +
+	"\x15Startvector_longitude\x18\x04 \x01(\tR\x14StartvectorLongitude\x12$\n" +
+	"\rTransmisstion\x18\x05 \x01(\tR\rTransmisstion\x12\x14\n" +
+	"\x05Speed\x18\x06 \x01(\x05R\x05Speed\x12#\n" +
+	"\rHazard_lights\x18\a \x01(\tR\fHazardLights\x12-\n" +
+	"\x13Left_turn_signal_on\x18\b \x01(\tR\x10LeftTurnSignalOn\x12/\n" +
+	"\x14Right_turn_signal_on\x18\t \x01(\tR\x11RightTurnSignalOn\x12\x1a\n" +
+	"\bSteering\x18\n" +
+	" \x01(\x05R\bSteering\x12\x10\n" +
+	"\x03Rpm\x18\v \x01(\x05R\x03Rpm\x12\x1c\n" +
+	"\tFootbrake\x18\f \x01(\tR\tFootbrake\x12\x12\n" +
+	"\x04Gear\x18\r \x01(\tR\x04Gear\x12\x1c\n" +
+	"\tAccelator\x18\x0e \x01(\x05R\tAccelator\x12\x16\n" +
+	"\x06Wipers\x18\x0f \x01(\tR\x06Wipers\x12'\n" +
+	"\x10Tire_warn_left_f\x18\x10 \x01(\tR\rTireWarnLeftF\x12'\n" +
+	"\x10Tire_warn_left_r\x18\x11 \x01(\tR\rTireWarnLeftR\x12)\n" +
+	"\x11Tire_warn_right_f\x18\x12 \x01(\tR\x0eTireWarnRightF\x12)\n" +
+	"\x11Tire_warn_right_r\x18\x13 \x01(\tR\x0eTireWarnRightR\x12%\n" +
+	"\x0fTire_psi_left_f\x18\x14 \x01(\x05R\fTirePsiLeftF\x12%\n" +
+	"\x0fTire_psi_left_r\x18\x15 \x01(\x05R\fTirePsiLeftR\x12'\n" +
+	"\x10Tire_psi_right_f\x18\x16 \x01(\x05R\rTirePsiRightF\x12'\n" +
+	"\x10Tire_psi_right_r\x18\x17 \x01(\x05R\rTirePsiRightR\x12!\n" +
+	"\fFuel_percent\x18\x18 \x01(\x05R\vFuelPercent\x12\x1d\n" +
 	"\n" +
-	"Fuel_liter\x18\x18 \x01(\x05R\tFuelLiter\x12\x1c\n" +
-	"\tTotaldist\x18\x19 \x01(\x05R\tTotaldist\x12\x15\n" +
-	"\x06Rsu_id\x18\x1a \x01(\tR\x05RsuId\x12\x15\n" +
-	"\x06Msg_id\x18\x1b \x01(\tR\x05MsgId\x12/\n" +
-	"\x13Startvector_heading\x18\x1c \x01(\x05R\x12StartvectorHeading\x12\x18\n" +
-	"\aAddress\x18\x1d \x01(\tR\aAddress\x12*\n" +
-	"\x10OrganizationName\x18\x1e \x01(\tR\x10OrganizationName\"<\n" +
+	"Fuel_liter\x18\x19 \x01(\x05R\tFuelLiter\x12\x1c\n" +
+	"\tTotaldist\x18\x1a \x01(\x05R\tTotaldist\x12\x15\n" +
+	"\x06Rsu_id\x18\x1b \x01(\tR\x05RsuId\x12\x15\n" +
+	"\x06Msg_id\x18\x1c \x01(\tR\x05MsgId\x12/\n" +
+	"\x13Startvector_heading\x18\x1d \x01(\x05R\x12StartvectorHeading\x12\x18\n" +
+	"\aAddress\x18\x1e \x01(\tR\aAddress\x12*\n" +
+	"\x10OrganizationName\x18\x1f \x01(\tR\x10OrganizationName\"<\n" +
 	"\x0eIndexableDataM\x12*\n" +
 	"\x10OrganizationName\x18\x01 \x01(\tR\x10OrganizationName*p\n" +
 	"\rComparisonOps\x12\x06\n" +

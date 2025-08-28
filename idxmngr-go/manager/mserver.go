@@ -616,6 +616,7 @@ func (m *MServer) handleSpatialIndex(client idxserverapi.HLFDataIndexClient, rec
 		TxId:    recvDatas.TxId,
 		X:       recvDatas.X,
 		Y:       recvDatas.Y,
+		OBU_ID:  recvDatas.OBU_ID,
 		GeoHash: recvDatas.GeoHash,
 	}
 
@@ -712,7 +713,7 @@ func (m *MServer) handleSpatialIndexList(client idxserverapi.HLFDataIndexClient,
 func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, recvDatas *mngr.InsertDatatoIdx) error {
 	log.SetPrefix("[" + funcName() + "] ")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	stream, err := client.InsertIndex(ctx)
@@ -781,6 +782,7 @@ func convertPvdHistDataMToIdxserverApi(data *mngr.PvdHistDataM) *idxserverapi.Pv
 	}
 
 	return &idxserverapi.PvdHistData{
+		ObuId:                data.GetObuId(),
 		CollectionDt:         data.CollectionDt,
 		StartvectorLatitude:  data.StartvectorLatitude,
 		StartvectorLongitude: data.StartvectorLongitude,

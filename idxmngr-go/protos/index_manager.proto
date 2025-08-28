@@ -80,9 +80,10 @@ message InsertDatatoIdx{
   float   y           = 6;
   uint32  GeoHash     = 7;
   string  TxId        = 8;
-  uint64  time        = 9;
-  string  FilePath    = 10;  //file index storage FilePath
-  int32   BlockNum    = 11;
+  string  OBU_ID      = 9;
+  uint64  time        = 10;
+  string  FilePath    = 11;  //file index storage FilePath
+  int32   BlockNum    = 12;
 }
 
 message IdxMngrResponse {
@@ -133,36 +134,37 @@ message QueryInfo{      //updated(1004)
 }
 
 message PvdHistDataM {
-  string Collection_dt          = 1;
-  string Startvector_latitude   = 2;
-  string Startvector_longitude  = 3;
-  string Transmisstion          = 4;
-  int32  Speed                  = 5;
-  string Hazard_lights          = 6;
-  string Left_turn_signal_on    = 7;
-  string Right_turn_signal_on   = 8;
-  int32  Steering               = 9;
-  int32  Rpm                    = 10;
-  string Footbrake              = 11;
-  string Gear                   = 12;
-  int32  Accelator              = 13;
-  string Wipers                 = 14;
-  string Tire_warn_left_f       = 15;
-  string Tire_warn_left_r       = 16;
-  string Tire_warn_right_f      = 17;
-  string Tire_warn_right_r      = 18;
-  int32  Tire_psi_left_f        = 19;
-  int32  Tire_psi_left_r        = 20;
-  int32  Tire_psi_right_f       = 21;
-  int32  Tire_psi_right_r       = 22;
-  int32  Fuel_percent           = 23;
-  int32  Fuel_liter             = 24;
-  int32  Totaldist              = 25;
-  string Rsu_id                 = 26;
-  string Msg_id                 = 27;
-  int32  Startvector_heading    = 28;
-  string Address                = 29;
-  string OrganizationName       = 30;  // 추가
+  string Obu_id                 = 1;
+  string Collection_dt          = 2;
+  string Startvector_latitude   = 3;
+  string Startvector_longitude  = 4;
+  string Transmisstion          = 5;
+  int32  Speed                  = 6;
+  string Hazard_lights          = 7;
+  string Left_turn_signal_on    = 8;
+  string Right_turn_signal_on   = 9;
+  int32  Steering               = 10;
+  int32  Rpm                    = 11;
+  string Footbrake              = 12;
+  string Gear                   = 13;
+  int32  Accelator              = 14;
+  string Wipers                 = 15;
+  string Tire_warn_left_f       = 16;
+  string Tire_warn_left_r       = 17;
+  string Tire_warn_right_f      = 18;
+  string Tire_warn_right_r      = 19;
+  int32  Tire_psi_left_f        = 20;
+  int32  Tire_psi_left_r        = 21;
+  int32  Tire_psi_right_f       = 22;
+  int32  Tire_psi_right_r       = 23;
+  int32  Fuel_percent           = 24;
+  int32  Fuel_liter             = 25;
+  int32  Totaldist              = 26;
+  string Rsu_id                 = 27;
+  string Msg_id                 = 28;
+  int32  Startvector_heading    = 29;
+  string Address                = 30;
+  string OrganizationName       = 31;  // 추가
 }
 
 // 범용적인 인덱싱 가능한 데이터 구조 (정리됨)
