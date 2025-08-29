@@ -225,7 +225,7 @@ func (h PvdServer) sendIndexingRequest(pvdData *pvd.PvdHist, txID string) {
 		ColName:  "Speed",
 		TxId:     txID,
 		OBU_ID:   pvdData.GetObuId(),
-		FilePath: "fabric_speed.bf",
+		FilePath: "data/fabric/speed.bf",
 		Network:  "fabric", // Fabric 네트워크 지정
 	}
 	

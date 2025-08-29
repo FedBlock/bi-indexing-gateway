@@ -9,7 +9,7 @@ class MonadSamsungDataSearcher {
   constructor(serverAddr = 'localhost:50052') {
     this.indexingClient = new IndexingClient({
       serverAddr: serverAddr,
-      protoPath: '../idxmngr-go/protos/index_manager.proto'
+      protoPath: '../../idxmngr-go/protos/index_manager.proto'
     });
   }
 
@@ -83,7 +83,7 @@ class MonadSamsungDataSearcher {
     console.log('\n🔍 Monad Samsung 인덱스 정보 확인...');
     
     const request = { 
-      IndexID: 'monad_abcdef12_speed',
+      IndexID: '002_speed',
       KeyCol: 'IndexableData'
     };
 
@@ -115,7 +115,7 @@ async function main() {
     
     console.log(`\n📋 검증할 데이터:`);
     console.log(`   Organization: samsung`);
-    console.log(`   IndexID: monad_abcdef12_speed`);
+    console.log(`   IndexID: 002_speed`);
     console.log(`   Network: monad`);
     
     // 1. Monad Samsung 인덱스 정보 확인
@@ -169,3 +169,4 @@ if (require.main === module) {
 }
 
 module.exports = MonadSamsungDataSearcher;
+

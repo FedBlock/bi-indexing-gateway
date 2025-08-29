@@ -86,7 +86,7 @@ create_index() {
         index_id="fabric_speed"
         key_col="Speed"
         key_size="5"
-        file_path="fabric_speed.bf"
+        file_path="data/fabric/speed.bf"
     else
         # EVM 네트워크: contract_address의 앞 8자리 사용
         contract_short=$(echo $contract_address | cut -c3-10)

@@ -7,7 +7,8 @@ module.exports = {
   
   // 배포된 컨트랙트 주소들
   contractAddresses: {
-    monadTest: "0x4D393E83C47AFFA1eE8eaB8eFCcBD0d2e1835F97"
+    hardhat: "0x5FbDB2315678afecb367f032d93F642f64180aa3", // Hardhat 로컬
+    monadTest: "0x4D393E83C47AFFA1eE8eaB8eFCcBD0d2e1835F97", // Monad 테스트넷
   },
   
   networks: {
@@ -32,10 +33,10 @@ module.exports = {
         interval: 0
       }
     },
-    monadTest: {
+    monad: {
     url: "https://rpc.ankr.com/monad_testnet",  // MONAD TEST RPC
     chainId: 10143,  // MONAD TEST 체인 ID
-    accounts: [process.env.PRIVATE_KEY]
+    accounts: ["d67ceaf47fbb661f7746872e539db56b2d4c9e402e52df4a4c88de22e9904ea8"]
     }
   },
   mocha: {

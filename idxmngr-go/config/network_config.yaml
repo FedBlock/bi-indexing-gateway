@@ -6,19 +6,19 @@ networks:
   hardhat:
     network_name: "hardhat"
     contract_address: "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
-    # file_index_path는 자동 생성됨: hardhat_a513E6E4_speed.bf
+    # file_index_path는 자동 생성됨: data/hardhat/speed.bf
   
   # Monad Network
   monad:
     network_name: "monad"
     contract_address: "0x4D393E83C47AFFA1eE8eaB8eFCcBD0d2e1835F97"
-    # file_index_path는 자동 생성됨: monad_4D393E83_speed.bf
+    # file_index_path는 자동 생성됨: data/monad/speed.bf
   
   # Fabric Network (체인코드 사용)
   fabric:
     network_name: "fabric"
     contract_address: ""
-    # file_index_path는 자동 생성됨: fabric_speed.bf
+    # file_index_path는 자동 생성됨: data/fabric/speed.bf
 
 # 사용자 설정 가이드:
 # 1. contract_address: 각 네트워크에 배포된 컨트랙트 주소만 수정

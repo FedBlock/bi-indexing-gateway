@@ -9,7 +9,7 @@ class SamsungDataSearcher {
   constructor(serverAddr = 'localhost:50052') {
     this.indexingClient = new IndexingClient({
       serverAddr: serverAddr,
-      protoPath: '../idxmngr-go/protos/index_manager.proto'
+      protoPath: '../../idxmngr-go/protos/index_manager.proto'
     });
   }
 
@@ -84,7 +84,7 @@ class SamsungDataSearcher {
     console.log('\n🔍 Hardhat 삼성 인덱스 정보 확인...');
     
     const request = { 
-      IndexID: 'hardhat_a513E6E4_speed',
+      IndexID: '001_speed',
       KeyCol: 'IndexableData'
     };
 
@@ -116,7 +116,7 @@ async function main() {
     
     console.log(`\n📋 검증할 데이터:`);
     console.log(`   Organization: samsung`);
-    console.log(`   IndexID: hardhat_a513E6E4_speed`);
+    console.log(`   IndexID: 001_speed`);
     
     // 1. 삼성 인덱스 정보 확인
     console.log(`\n${'='.repeat(50)}`);

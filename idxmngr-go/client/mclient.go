@@ -632,10 +632,10 @@ func main() {
 	// File indexes
 	case "fcreates": // fileindex-speed (Fabric 네트워크용)
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
-			IdxID:    "fabric_speed",
+			IdxID:    "fabric_003_speed",
 			IdxName:  "File_Fabric_Speed",
 			KeyCol:   "Speed",
-			FilePath: "fabric_speed.bf",
+			FilePath: "data/fabric/speed.bf",
 			KeySize:  5,
 		})
 	case "fcreated": // fileindex-DT
@@ -666,10 +666,10 @@ func main() {
 	// 네트워크별 File Index 생성
 	case "fcreate_hardhat": // hardhat 네트워크용 File Index
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
-			IdxID:    "hardhat_a513E6E4_speed",
+			IdxID:    "hardhat_001_speed",
 			IdxName:  "File_Hardhat_Speed",
 			KeyCol:   "IndexableData", // IndexableData로 변경
-			FilePath: "hardhat_a513E6E4_speed.bf",
+			FilePath: "data/hardhat/speed.bf",
 			KeySize:  7, // "samsung" 문자열 길이에 맞춤
 		})
 	case "fcreate_sepolia": // sepolia 네트워크용 File Index
@@ -682,10 +682,10 @@ func main() {
 		})
 	case "fcreate_monad": // monad 네트워크용 File Index
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
-			IdxID:    "monad_abcdef12_speed",
+			IdxID:    "monad_002_speed",
 			IdxName:  "File_Monad_Speed",
 			KeyCol:   "Speed",
-			FilePath: "monad_abcdef12_speed.bf",
+			FilePath: "data/monad/speed.bf",
 			KeySize:  5,
 		})
 
@@ -725,7 +725,7 @@ func main() {
 	case "fabric_exact0": //fabric-speed (Speed = 0) - Fabric 네트워크용
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fabric_speed", Field: "Speed", Value: "0", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5})
 	case "hardhat_exact_samsung": //hardhat-IndexableData (OrganizationName = "samsung") - Hardhat 네트워크용
-		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "hardhat_a513E6E4_speed", Field: "IndexableData", Value: "samsung", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 7})
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "hardhat_001_speed", Field: "IndexableData", Value: "samsung", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 7})
 	case "fexactd": //fileindex-20211001053430718
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_dt", Field: "CollectionDt", Value: "20241001001000385", ComOp: idxmngr.ComparisonOps_Eq})
 	case "franges": //fileindex-speed
