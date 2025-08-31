@@ -31,6 +31,7 @@ var DtTree *bptree.BpTree
 var SpeedTree *bptree.BpTree
 var AddrTree *bptree.BpTree
 var OrgTree *bptree.BpTree  // 추가
+var UserTree *bptree.BpTree  // 사용자 ID용 트리 추가
 var IndexableDataTrees map[string]*bptree.BpTree  // 인덱스별로 독립적인 트리
 var idxTree *bptree.BpTree
 
@@ -186,6 +187,15 @@ func (h IndexServer) CreateIndex(ctx context.Context, idxinfo *fsindex.CreateReq
 	case "OrganizationName":
 		err = openOrCreateIndex(idxinfo.FilePath, keySize, &OrgTree)
 
+	case "UserId":  // 사용자 ID용 인덱스
+		// 동적으로 인덱스별 트리 생성 (IndexableData와 동일한 방식)
+		var tree *bptree.BpTree
+		err = openOrCreateIndex(idxinfo.FilePath, keySize, &tree)
+		if err == nil {
+			IndexableDataTrees[idxinfo.IndexID] = tree
+			log.Printf("UserId 트리 생성 완료: %s -> %s", idxinfo.IndexID, idxinfo.FilePath)
+		}
+
 	case "IndexableData":  // 범용 데이터용 인덱스
 		// 동적으로 인덱스별 트리 생성
 		var tree *bptree.BpTree
@@ -194,6 +204,12 @@ func (h IndexServer) CreateIndex(ctx context.Context, idxinfo *fsindex.CreateReq
 			IndexableDataTrees[idxinfo.IndexID] = tree
 			log.Printf("IndexableData 트리 생성 완료: %s -> %s", idxinfo.IndexID, idxinfo.FilePath)
 		}
+
+	case "BidirectionalIndex":  // 양방향 인덱싱용 인덱스
+		// 양방향 인덱싱은 별도 인덱스 생성 없이 기존 인덱스들을 활용
+		// 실제 인덱스 생성은 create-user-specific-indexes.js에서 처리
+		log.Printf("양방향 인덱싱 인덱스 생성: %s", idxinfo.IndexID)
+		log.Printf("참고: 조직별과 사용자별 인덱스는 별도로 생성해야 합니다")
 
 	default:
 		log.Printf("Unsupported key column: %s", idxinfo.KeyCol)
@@ -306,27 +322,113 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 				}
 				targetTree = &OrgTree
 				key = stringToFixedBytes(rec.Pvd.OrganizationName, keySize)
-			case "IndexableData":  // 범용 데이터용 인덱싱
-				// 동적으로 해당 인덱스의 트리 사용
+			case "UserId":  // 사용자 ID용 인덱싱
+				// 동적으로 해당 인덱스의 트리 사용 (IndexableData와 동일한 방식)
 				indexID := recvDatas.GetColIndex()
+				log.Printf("UserId 인덱싱 - IndexID: %s, IndexableDataTrees 크기: %d", indexID, len(IndexableDataTrees))
+				// IndexableDataTrees의 키들을 로그로 출력
+				keys := make([]string, 0, len(IndexableDataTrees))
+				for k := range IndexableDataTrees {
+					keys = append(keys, k)
+				}
+				log.Printf("IndexableDataTrees 키들: %v", keys)
+				
 				tree, exists := IndexableDataTrees[indexID]
 				if !exists {
-					log.Printf("IndexableData 트리를 찾을 수 없음: %s", indexID)
+					log.Printf("UserId 트리를 찾을 수 없음: %s", indexID)
 					continue
 				}
+				if tree == nil {
+					log.Printf("UserId 트리가 nil임: %s", indexID)
+					continue
+				}
+				log.Printf("UserId 트리 찾음: %s", indexID)
 				targetTree = &tree
-				// IndexableData에서 DynamicFields의 organizationName 추출
+				// IndexableData에서 DynamicFields의 userId 추출
 				if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
-					if orgName, exists := rec.IndexableData.DynamicFields["organizationName"]; exists {
-						key = stringToFixedBytes(orgName, keySize)
+					if userId, exists := rec.IndexableData.DynamicFields["userId"]; exists {
+						key = stringToFixedBytes(userId, keySize)
 					} else {
-						log.Printf("organizationName not found in DynamicFields at index: %d", idx)
+						log.Printf("userId not found in DynamicFields at index: %d", idx)
 						continue
 					}
 				} else {
 					log.Printf("IndexableData or DynamicFields is nil at index: %d", idx)
 					continue
 				}
+				case "IndexableData":  // 범용 데이터용 인덱싱
+		// 동적으로 해당 인덱스의 트리 사용
+		indexID := recvDatas.GetColIndex()
+		log.Printf("IndexableData 인덱싱 - IndexID: %s, IndexableDataTrees 크기: %d", indexID, len(IndexableDataTrees))
+		
+		tree, exists := IndexableDataTrees[indexID]
+		if !exists {
+			log.Printf("IndexableData 트리를 찾을 수 없음: %s", indexID)
+			continue
+		}
+		if tree == nil {
+			log.Printf("IndexableData 트리가 nil임: %s", indexID)
+			continue
+		}
+		log.Printf("IndexableData 트리 찾음: %s", indexID)
+		targetTree = &tree
+		// IndexableData에서 DynamicFields의 organizationName 추출
+		if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
+			if orgName, exists := rec.IndexableData.DynamicFields["organizationName"]; exists {
+				key = stringToFixedBytes(orgName, keySize)
+			} else {
+				log.Printf("organizationName not found in DynamicFields at index: %d", idx)
+				continue
+			}
+		} else {
+			log.Printf("IndexableData or DynamicFields is nil at index: %d", idx)
+			continue
+		}
+
+	case "BidirectionalIndex":  // 양방향 인덱싱
+		// 조직 인덱스와 사용자 인덱스에 동시 저장
+		if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
+			// 1. 조직 인덱스에 저장 - 동적으로 찾기
+			if orgName, exists := rec.IndexableData.DynamicFields["organizationName"]; exists {
+				// 기존에 생성된 조직 인덱스 찾기
+				for indexID, tree := range IndexableDataTrees {
+					if strings.Contains(indexID, orgName) && tree != nil {
+						orgKey := stringToFixedBytes(orgName, keySize)
+						if err := tree.Add(orgKey, []byte(rec.TxId)); err != nil {
+							log.Printf("조직 인덱스 저장 실패: %s -> %v", indexID, err)
+						} else {
+							log.Printf("✅ 조직 인덱스 저장 성공: %s -> %s", orgName, rec.TxId)
+						}
+						break
+					}
+				}
+			}
+			
+			// 2. 사용자 인덱스에 저장 - 동적으로 찾기
+			if userId, exists := rec.IndexableData.DynamicFields["userId"]; exists {
+				// 기존에 생성된 사용자 인덱스 찾기
+				for indexID, tree := range IndexableDataTrees {
+					if strings.Contains(indexID, "user_") && tree != nil {
+						// 해당 사용자의 인덱스인지 확인 (간단한 방식)
+						if strings.Contains(indexID, userId[:8]) {
+							userKey := stringToFixedBytes(userId, keySize)
+							if err := tree.Add(userKey, []byte(rec.TxId)); err != nil {
+								log.Printf("사용자 인덱스 저장 실패: %s -> %v", indexID, err)
+							} else {
+								log.Printf("✅ 사용자 인덱스 저장 성공: %s -> %s", userId, rec.TxId)
+							}
+							break
+						}
+					}
+				}
+			}
+			
+			// 양방향 인덱싱 완료 후 continue
+			continue
+		} else {
+			log.Printf("IndexableData or DynamicFields is nil at index: %d", idx)
+			continue
+		}
 			default:
 				log.Printf("Unsupported index column: %s", idxCol)
 				continue
@@ -338,6 +440,13 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 				log.Printf("Invalid data at index: %d", idx)
 				continue
 			}
+			
+			// targetTree가 nil인지 확인
+			if targetTree == nil || *targetTree == nil {
+				log.Printf("targetTree is nil at index: %d, idxCol: %s", idx, idxCol)
+				continue
+			}
+			
 			if err := (*targetTree).Add(key, newValue); err != nil {
 				log.Printf("Failed to add to tree: %v", err)
 				return status.Errorf(codes.Internal, "Failed to add data: %v", err)
@@ -664,6 +773,77 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 		}
 
 		log.Printf("OrganizationName search completed in %v", time.Since(start))
+		return &fsindex.RstTxList{
+			IndexID: req.IndexID,
+			Key:     req.Key,
+			IdxData: txlist,
+		}, nil
+
+	case "UserId":  // UserId 검색
+		// 동적으로 해당 인덱스의 트리 사용 (IndexableData와 동일한 방식)
+		indexID := req.IndexID
+		tree, exists := IndexableDataTrees[indexID]
+		if !exists {
+			log.Printf("UserId 트리를 찾을 수 없음: %s", indexID)
+			return &fsindex.RstTxList{
+				IndexID: req.IndexID,
+				Key:     req.Key,
+				IdxData: []string{},
+			}, nil
+		}
+
+		start := time.Now()
+		txlist := []string{}
+
+		if req.ComOp == fsindex.ComparisonOps_Range {
+			begin := stringToFixedBytes(req.Begin, keySize)
+			end := stringToFixedBytes(req.End, keySize)
+
+			log.Println("=== UserId Range Search Debug ===")
+			log.Printf("IndexID: %s", req.IndexID)
+			log.Printf("Original range: Begin='%s', End='%s'", req.Begin, req.End)
+			log.Printf("Converted bytes: Begin=%v, End=%v", begin, end)
+			log.Printf("KeySize: %d", keySize)
+
+			returned_pointers, err := tree.Range(begin, end)
+			if err != nil {
+				log.Printf("tree.Range error: %v", err)
+			}
+			log.Printf("tree.Range returned: %v", returned_pointers)
+
+			if returned_pointers != nil {
+				for returned_pointers != nil {
+					_, value1, err1, nextPointer := returned_pointers()
+					if err1 != nil {
+						log.Fatal("Error while fetching data:", err1)
+					}
+					if nextPointer == nil {
+						break
+					}
+					txlist = append(txlist, string(value1))
+					returned_pointers = nextPointer
+				}
+			}
+		} else if req.ComOp == fsindex.ComparisonOps_Eq {
+			key := stringToFixedBytes(req.Value, keySize)
+			returned_pointers, _ := tree.Find(key)
+
+			if returned_pointers != nil {
+				for returned_pointers != nil {
+					_, value1, err1, nextPointer := returned_pointers()
+					if err1 != nil {
+						log.Fatal("Error while fetching data:", err1)
+					}
+					if nextPointer == nil {
+						break
+					}
+					txlist = append(txlist, string(value1))
+					returned_pointers = nextPointer
+				}
+			}
+		}
+
+		log.Printf("UserId search completed in %v", time.Since(start))
 		return &fsindex.RstTxList{
 			IndexID: req.IndexID,
 			Key:     req.Key,
