@@ -179,3 +179,183 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: samsung_d8321319_001
+      idxname: SAMSUNG Organization Index (0x70997970...)
+      keycol: IndexableData
+      filepath: data/hardhat/samsung_d8321319_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: lg_575a3a49_001
+      idxname: LG Organization Index (0x3C44CdDd...)
+      keycol: IndexableData
+      filepath: data/hardhat/lg_575a3a49_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_eb5d27fd_001
+      idxname: User 0x90F79bf6... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_eb5d27fd_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_519b178b_001
+      idxname: User 0x15d34AAf... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_519b178b_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_21bc2424_001
+      idxname: User 0x9965507D... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_21bc2424_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_d3ab44fb_001
+      idxname: User 0x976EA740... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_d3ab44fb_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: samsung_d8321319_001
+      idxname: SAMSUNG Organization Index (0x70997970...)
+      keycol: IndexableData
+      filepath: data/hardhat/samsung_d8321319_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: lg_575a3a49_001
+      idxname: LG Organization Index (0x3C44CdDd...)
+      keycol: IndexableData
+      filepath: data/hardhat/lg_575a3a49_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_eb5d27fd_001
+      idxname: User 0x90F79bf6... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_eb5d27fd_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_519b178b_001
+      idxname: User 0x15d34AAf... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_519b178b_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_21bc2424_001
+      idxname: User 0x9965507D... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_21bc2424_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_d3ab44fb_001
+      idxname: User 0x976EA740... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_d3ab44fb_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: samsung_d8321319_001
+      idxname: SAMSUNG Organization Index (0x70997970...)
+      keycol: IndexableData
+      filepath: data/hardhat/samsung_d8321319_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: lg_575a3a49_001
+      idxname: LG Organization Index (0x3C44CdDd...)
+      keycol: IndexableData
+      filepath: data/hardhat/lg_575a3a49_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_eb5d27fd_001
+      idxname: User 0x90F79bf6... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_eb5d27fd_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_519b178b_001
+      idxname: User 0x15d34AAf... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_519b178b_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_21bc2424_001
+      idxname: User 0x9965507D... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_21bc2424_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_d3ab44fb_001
+      idxname: User 0x976EA740... Personal Index
+      keycol: IndexableData
+      filepath: data/hardhat/user_d3ab44fb_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
