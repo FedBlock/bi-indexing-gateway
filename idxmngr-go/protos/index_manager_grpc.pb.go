@@ -6,7 +6,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v3.12.4
-// source: index_manager.proto
+// source: protos/index_manager.proto
 
 package mngrapi
 
@@ -347,5 +347,5 @@ var IndexManager_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "index_manager.proto",
+	Metadata: "protos/index_manager.proto",
 }

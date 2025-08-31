@@ -8,51 +8,27 @@ const IndexingClient = require('../../indexing-client-package/lib/indexing-clien
  * 예시: npx hardhat run insert-bulk-data.js --network hardhat
  */
 
-// 네트워크별 설정 정보 (새로 생성한 인덱스 ID 사용)
+// hardhat 네트워크 설정 정보
 function getNetworkConfig(network) {
-  const configs = {
-    hardhat: {
-      IndexID: 'hardhat_1756621655134_samsung', // 새로 생성한 인덱스 ID
-      KeyCol: 'IndexableData',
-      FilePath: 'data/hardhat/samsung_1756621655134.bf',
-      Network: 'hardhat',
-      DataType: 'IndexableData'
-    },
-    monad: {
-      IndexID: 'monad_1756621048516_samsung',
-      KeyCol: 'IndexableData',
-      FilePath: 'data/monad/samsung_1756621048516.bf',
-      Network: 'monad',
-      DataType: 'IndexableData'
-    },
-    fabric: {
-      IndexID: 'fabric_1756621048516_samsung',
-      KeyCol: 'Speed',
-      FilePath: 'data/fabric/samsung_1756621048516.bf',
-      Network: 'fabric',
-      DataType: 'PVD'
-    }
-  };
+  // hardhat만 지원
+  if (network !== 'hardhat') {
+    throw new Error('현재 hardhat 네트워크만 지원됩니다.');
+  }
   
-  return configs[network];
+  return {
+    IndexID: 'samsung_001',  // 조직별 인덱스 ID
+    KeyCol: 'IndexableData',
+    FilePath: 'data/hardhat/samsung_001.bf',  // 타임스탬프 제거
+    Network: 'hardhat',
+    DataType: 'IndexableData'
+  };
 }
 
-// Hardhat 환경에서 네트워크 정보 가져오기
+// hardhat 네트워크 정보 가져오기
 function getNetworkInfo() {
-  const hardhatNetwork = process.env.HARDHAT_NETWORK || 'hardhat';
-  
-  let network;
-  if (hardhatNetwork === 'monad') {
-    network = 'monad';
-  } else if (hardhatNetwork === 'sepolia') {
-    network = 'sepolia';
-  } else if (hardhatNetwork === 'hardhat') {
-    network = 'hardhat';
-  } else {
-    console.log('❌ 지원하지 않는 Hardhat 네트워크:', hardhatNetwork);
-    console.log('   지원하는 네트워크: hardhat, monad, sepolia');
-    process.exit(1);
-  }
+  // hardhat만 지원
+  const network = 'hardhat';
+  const hardhatNetwork = 'hardhat';
   
   console.log(`\n🌐 Hardhat 네트워크: ${hardhatNetwork}`);
   console.log(`📋 자동 설정: network=${network}`);
@@ -60,6 +36,8 @@ function getNetworkInfo() {
   
   return { network, hardhatNetwork };
 }
+
+
 
 // 데이터 크기 계산 함수
 function calculateKeySize(data, keyCol) {
@@ -151,7 +129,7 @@ async function insertBulkData(network, config) {
     
     console.log(`🚀 100개 트랜잭션 시작...`);
     
-    for (let i = 1; i <= 100; i++) {
+    for (let i = 1; i <= 30; i++) {
       const purpose = `${basePurpose} #${i}`;
       const organizationName = `${baseOrganization}_${i.toString().padStart(3, '0')}`;
       
@@ -172,7 +150,9 @@ async function insertBulkData(network, config) {
           block: receipt.blockNumber,
           gas: receipt.gasUsed,
           organization: organizationName,
-          purpose: purpose
+          purpose: purpose,
+          receipt: receipt,
+          resourceOwner: resourceOwner
         };
         
         transactions.push(txInfo);
@@ -241,21 +221,44 @@ async function insertBulkData(network, config) {
           
           console.log(`     ✅ 새 트랜잭션 확인됨`);
           
+          // 디버깅: 데이터 구조 확인
+          console.log(`   📋 데이터 확인:`, {
+            organization: tx.organization,
+            purpose: tx.purpose,
+            resourceOwner: tx.resourceOwner
+          });
+          
           // 2. 단건 데이터 삽입
           const insertRequest = {
             IndexID: config.IndexID,
             BcList: [{
               TxId: tx.hash,
               KeyCol: config.KeyCol,
-              IndexableData: tx.organization
+              IndexableData: {
+                TxId: tx.hash,
+                ContractAddress: await accessManagement.getAddress(),
+                EventName: "saveRequest",
+                Timestamp: new Date().toISOString(),
+                BlockNumber: tx.receipt.blockNumber,
+                DynamicFields: {
+                  "organizationName": tx.organization,
+                  "purpose": tx.purpose,
+                  "resourceOwner": tx.resourceOwner
+                },
+                SchemaVersion: "1.0"
+              }
             }],
             ColName: config.KeyCol,
+            ColIndex: config.IndexID,  // 핵심: ColIndex 필드 추가!
             TxId: tx.hash,
             FilePath: config.FilePath,
             Network: config.Network
           };
 
           console.log(`   📤 IndexingClient로 단건 데이터 전송 중...`);
+          
+          // 디버깅: 전송할 데이터 구조 확인
+          console.log(`   📤 전송할 IndexableData:`, JSON.stringify(insertRequest.BcList[0].IndexableData, null, 2));
           
           // 데이터 삽입
           await indexingClient.insertData(insertRequest);
@@ -267,6 +270,9 @@ async function insertBulkData(network, config) {
             organization: tx.organization,
             hash: tx.hash
           });
+          
+          // 성공 후 즉시 다음 트랜잭션으로 진행
+          console.log(`   🚀 다음 트랜잭션으로 진행...`);
           
         } catch (error) {
           console.log(`   ❌ 트랜잭션 ${txNumber} 인덱싱 실패: ${error.message}`);
@@ -295,6 +301,9 @@ async function insertBulkData(network, config) {
       console.log(`✅ 성공: ${successfulTransactions.length}개`);
       console.log(`❌ 실패: ${failedTransactions.length}개`);
       console.log(`📋 총 처리: ${transactions.length}개`);
+      
+      // 서버에서 자동으로 config.yaml의 blocknum을 업데이트합니다
+      console.log(`\n📝 서버에서 자동으로 config.yaml의 blocknum을 업데이트합니다.`);
       
       if (failedTransactions.length > 0) {
         console.log(`\n❌ 실패한 트랜잭션 목록:`);

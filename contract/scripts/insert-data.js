@@ -9,6 +9,7 @@
  */
 
 const { ethers } = require('hardhat');
+const path = require('path');
 const IndexingClient = require('../../indexing-client-package/lib/indexing-client');
 
 // 명령행 인자 파싱 (Hardhat이 --network 자동 처리)
@@ -178,7 +179,7 @@ async function insertEVMData(network, config) {
     
     const indexingClient = new IndexingClient({
       serverAddr: 'localhost:50052',
-      protoPath: '../../idxmngr-go/protos/index_manager.proto'
+      protoPath: path.join(process.cwd(), '../idxmngr-go/protos/index_manager.proto')
     });
 
     try {
@@ -267,7 +268,7 @@ async function insertFabricData(network, config) {
     
     const indexingClient = new IndexingClient({
       serverAddr: 'localhost:50052',
-      protoPath: '../../idxmngr-go/protos/index_manager.proto'
+      protoPath: path.join(process.cwd(), '../idxmngr-go/protos/index_manager.proto')
     });
 
     try {

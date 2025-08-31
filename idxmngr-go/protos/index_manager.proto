@@ -168,10 +168,22 @@ message PvdHistDataM {
   string OrganizationName       = 31;  // 추가
 }
 
-// 범용적인 인덱싱 가능한 데이터 구조 (정리됨)
+// 범용적인 인덱싱 가능한 데이터 구조 (DynamicFields 사용)
 message IndexableDataM {
-     // 인덱싱에 실제로 사용되는 key
-     string OrganizationName       = 1;  // 조직명 (삼성전자, LG전자 등)
+     // 기본 식별자 (고정)
+     string TxId                    = 1;
+     string ContractAddress         = 2;
+     string EventName              = 3;
+     
+     // 메타데이터 (고정)
+     string Timestamp              = 4;
+     uint64 BlockNumber            = 5;
+     
+     // 동적 필드들 (유연하게 확장 가능)
+     map<string, string> DynamicFields = 6;  // 키-값 쌍으로 유동적 데이터
+     
+     // 스키마 버전 관리
+     string SchemaVersion          = 7;  // 데이터 구조 버전 관리
 }                                  
 
 

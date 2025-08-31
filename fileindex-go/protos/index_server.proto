@@ -94,24 +94,22 @@ message RstTxList{
 	repeated string IdxData 	= 3;
 }
 
-// 범용적인 인덱싱 가능한 데이터 구조
+// 범용적인 인덱싱 가능한 데이터 구조 (DynamicFields 사용)
 message IndexableData {
-     // 기본 식별자
+     // 기본 식별자 (고정)
      string TxId                    = 1;
      string ContractAddress         = 2;
      string EventName              = 3;
      
-     // 동적 필드들 (JSON 형태로 저장)
-     string DataJson               = 4;
+     // 메타데이터 (고정)
+     string Timestamp              = 4;
+     uint64 BlockNumber            = 5;
      
-     // 메타데이터
-     string Timestamp              = 5;
-     uint64 BlockNumber            = 6;
-     string OrganizationName       = 7;  // AccessManagement.sol의 organizationName
-     string Requester              = 8;  // AccessManagement.sol의 requester
-     string ResourceOwner          = 9;  // AccessManagement.sol의 resourceOwner
-     string Purpose                = 10; // AccessManagement.sol의 purpose
-     string Status                 = 11; // AccessManagement.sol의 status
+     // 동적 필드들 (유연하게 확장 가능)
+     map<string, string> DynamicFields = 6;  // 키-값 쌍으로 유동적 데이터
+     
+     // 스키마 버전 관리
+     string SchemaVersion          = 7;  // 데이터 구조 버전 관리
 }
 
 // 기존 PVD 구조체 (하위 호환성 유지)

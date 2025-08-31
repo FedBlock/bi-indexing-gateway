@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const path = require('path');
 const IndexingClient = require('../../indexing-client-package/lib/indexing-client');
 
 /**
@@ -14,7 +15,7 @@ class UnifiedDataSearcher {
   constructor(serverAddr = 'localhost:50052') {
     this.indexingClient = new IndexingClient({
       serverAddr: serverAddr,
-      protoPath: '../../idxmngr-go/protos/index_manager.proto'
+      protoPath: path.join(process.cwd(), '../idxmngr-go/protos/index_manager.proto')
     });
   }
 

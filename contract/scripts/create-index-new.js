@@ -14,16 +14,16 @@ const IndexingClient = require('../../indexing-client-package/lib/indexing-clien
 // 명령행 인자 파싱
 function parseArgs() {
   const args = process.argv.slice(2);
-  const cmdIndex = args.indexOf('--cmd');
+  const networkIndex = args.indexOf('--network');
   
-  if (cmdIndex === -1 || cmdIndex + 1 >= args.length) {
-    console.log('❌ 사용법: node create-index-new.js --cmd [network]');
+  if (networkIndex === -1 || networkIndex + 1 >= args.length) {
+    console.log('❌ 사용법: node create-index-new.js --network [network]');
     console.log('   지원하는 네트워크: hardhat, monad, fabric');
-    console.log('   예시: node create-index-new.js --cmd hardhat');
+    console.log('   예시: node create-index-new.js --network hardhat');
     process.exit(1);
   }
   
-  const network = args[cmdIndex + 1].toLowerCase();
+  const network = args[networkIndex + 1].toLowerCase();
   
   if (!['hardhat', 'monad', 'fabric'].includes(network)) {
     console.log('❌ 지원하지 않는 네트워크:', network);
@@ -37,37 +37,21 @@ function parseArgs() {
   return { network };
 }
 
-// 네트워크별 새로운 인덱스 정보 생성
+// hardhat 네트워크용 조직 인덱스 정보 생성
 function getIndexInfo(network) {
-  const timestamp = Date.now();
-  const baseInfo = {
-    hardhat: {
-      IndexID: `hardhat_${timestamp}_samsung`,
-      IndexName: `Hardhat Network - Samsung Index ${timestamp}`,
-      KeyCol: 'IndexableData',
-      FilePath: `data/hardhat/samsung_${timestamp}.bf`,
-      KeySize: 32,
-      Network: 'hardhat'
-    },
-    monad: {
-      IndexID: `monad_${timestamp}_samsung`,
-      IndexName: `Monad Network - Samsung Index ${timestamp}`,
-      KeyCol: 'IndexableData',
-      FilePath: `data/monad/samsung_${timestamp}.bf`,
-      KeySize: 32,
-      Network: 'monad'
-    },
-    fabric: {
-      IndexID: `fabric_${timestamp}_samsung`,
-      IndexName: `Fabric Network - Samsung Index ${timestamp}`,
-      KeyCol: 'IndexableData',
-      FilePath: `data/fabric/samsung_${timestamp}.bf`,
-      KeySize: 32,
-      Network: 'fabric'
-    }
-  };
+  // hardhat만 지원
+  if (network !== 'hardhat') {
+    throw new Error('현재 hardhat 네트워크만 지원됩니다.');
+  }
   
-  return baseInfo[network];
+  return {
+    IndexID: `samsung_001`,  // Hardhat = samsung_001
+    IndexName: `Hardhat Network - Samsung Index`,
+    KeyCol: 'IndexableData',
+    FilePath: `data/hardhat/samsung_001.bf`,  // 타임스탬프 제거
+    KeySize: 64,
+    Network: 'hardhat'
+  };
 }
 
 // 인덱스 생성

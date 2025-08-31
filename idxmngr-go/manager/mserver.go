@@ -74,19 +74,30 @@ func getPortByIndexID(indexID string) string {
 func ReadIndexConfig() {
 	data, err := ioutil.ReadFile("./config.yaml")
 	if err != nil {
-		log.Fatalf("YAML 파일을 읽을 수 없습니다: %v", err)
+		// 파일이 없거나 읽을 수 없는 경우 로그만 출력하고 계속 진행
+		log.Printf("config.yaml 파일을 읽을 수 없습니다 (처음 시작 시 정상): %v", err)
+		return
+	}
+
+	// 파일이 비어있는 경우 처리
+	if len(data) == 0 {
+		log.Printf("config.yaml 파일이 비어있습니다 (처음 시작 시 정상)")
+		return
 	}
 
 	// YAML 데이터 언마샬링
 	var list Config
 	err = yaml.Unmarshal(data, &list)
 	if err != nil {
-		log.Fatalf("YAML 데이터를 언마샬링할 수 없습니다: %v", err)
+		log.Printf("YAML 데이터를 언마샬링할 수 없습니다: %v", err)
+		return
 	}
 
 	for _, idx := range list.Items {
 		MngrIndexList[idx.IdxID] = idx
 	}
+	
+	log.Printf("config.yaml에서 %d개의 인덱스 설정을 로드했습니다", len(list.Items))
 }
 
 func insertIndexConfig(idx IndexInfo) {
@@ -669,7 +680,6 @@ func (m *MServer) handleSpatialIndex(client idxserverapi.HLFDataIndexClient, rec
 		TxId:    recvDatas.TxId,
 		X:       recvDatas.X,
 		Y:       recvDatas.Y,
-		OBU_ID:  recvDatas.OBU_ID,
 		GeoHash: recvDatas.GeoHash,
 	}
 
@@ -762,6 +772,56 @@ func (m *MServer) handleSpatialIndexList(client idxserverapi.HLFDataIndexClient,
 	return nil
 }
 
+// config.yaml 업데이트 함수
+func updateConfigYamlBlockNum(indexID string, blockNumber int32) error {
+	configPath := "./config.yaml"
+	
+	// config.yaml 읽기
+	data, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		log.Printf("config.yaml 파일을 읽을 수 없습니다: %v", err)
+		return err
+	}
+	
+	// YAML 데이터 언마샬링
+	var config Config
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		log.Printf("YAML 데이터를 언마샬링할 수 없습니다: %v", err)
+		return err
+	}
+	
+	// 해당 인덱스 찾기
+	for i, item := range config.Items {
+		if item.IdxID == indexID {
+			oldBlockNum := item.BlockNum
+			config.Items[i].BlockNum = blockNumber
+			
+			log.Printf("📝 config.yaml 업데이트: IndexID=%s, BlockNum: %d → %d", 
+				indexID, oldBlockNum, blockNumber)
+			
+			// config.yaml에 저장
+			newData, err := yaml.Marshal(&config)
+			if err != nil {
+				log.Printf("YAML 데이터를 마샬링할 수 없습니다: %v", err)
+				return err
+			}
+			
+			err = ioutil.WriteFile(configPath, newData, 0644)
+			if err != nil {
+				log.Printf("config.yaml 파일에 저장할 수 없습니다: %v", err)
+				return err
+			}
+			
+			log.Printf("✅ config.yaml 업데이트 완료: IndexID=%s, BlockNum=%d", indexID, blockNumber)
+			return nil
+		}
+	}
+	
+	log.Printf("⚠️  인덱스 %s를 config.yaml에서 찾을 수 없습니다", indexID)
+	return fmt.Errorf("index %s not found in config.yaml", indexID)
+}
+
 // Handle standard index data
 func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, recvDatas *mngr.InsertDatatoIdx) error {
 	log.SetPrefix("[" + funcName() + "] ")
@@ -825,6 +885,23 @@ func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, re
 	if err != nil {
 		return fmt.Errorf("failed to receive response from standard index server: %v", err)
 	}
+	
+	// 인덱싱 성공 후 config.yaml의 blocknum 업데이트
+	if len(recvDatas.GetBcList()) > 0 {
+		// IndexableData에서 BlockNumber 추출
+		for _, bcData := range recvDatas.GetBcList() {
+			if bcData.IndexableData != nil && bcData.IndexableData.BlockNumber > 0 {
+				// config.yaml 업데이트 (uint64를 int32로 변환)
+				blockNum := int32(bcData.IndexableData.BlockNumber)
+				if updateErr := updateConfigYamlBlockNum(recvDatas.GetIndexID(), blockNum); updateErr != nil {
+					log.Printf("⚠️  config.yaml 업데이트 실패: %v", updateErr)
+					// 업데이트 실패는 인덱싱 실패로 처리하지 않음
+				}
+				break // 첫 번째 유효한 BlockNumber만 사용
+			}
+		}
+	}
+	
 	//log.Printf("Standard index response: %s", resp.GetResponseMessage())
 	return nil
 }
@@ -835,7 +912,6 @@ func convertPvdHistDataMToIdxserverApi(data *mngr.PvdHistDataM) *idxserverapi.Pv
 	}
 
 	return &idxserverapi.PvdHistData{
-		ObuId:                data.GetObuId(),
 		CollectionDt:         data.CollectionDt,
 		StartvectorLatitude:  data.StartvectorLatitude,
 		StartvectorLongitude: data.StartvectorLongitude,
@@ -865,7 +941,6 @@ func convertPvdHistDataMToIdxserverApi(data *mngr.PvdHistDataM) *idxserverapi.Pv
 		MsgId:                data.MsgId,
 		StartvectorHeading:   data.StartvectorHeading,
 		Address:              data.Address,
-		OrganizationName:     data.OrganizationName,
 	}
 }
 
@@ -875,8 +950,13 @@ func convertIndexableDataMToIdxserverApi(data *mngr.IndexableDataM) *idxserverap
 	}
 
 	return &idxserverapi.IndexableData{
-		OrganizationName: data.OrganizationName,
-		// OrganizationName만 변환 (정리된 구조)
+		TxId:           data.GetTxId(),
+		ContractAddress: data.GetContractAddress(),
+		EventName:      data.GetEventName(),
+		Timestamp:      data.GetTimestamp(),
+		BlockNumber:    data.GetBlockNumber(),
+		DynamicFields:  data.GetDynamicFields(),
+		SchemaVersion:  data.GetSchemaVersion(),
 	}
 }
 

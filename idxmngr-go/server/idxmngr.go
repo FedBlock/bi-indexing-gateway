@@ -103,7 +103,7 @@ func main() {
 	//grpc server setting
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
-		// 	log.Fatal("An error has occurred while retrieving on launch: ", err)
+		log.Fatal("An error has occurred while retrieving on launch: ", err)
 	}
 
 	mngrServer := grpc.NewServer(

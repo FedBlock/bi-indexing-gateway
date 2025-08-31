@@ -22,31 +22,18 @@ class BulkDataVerifier {
    * 네트워크별 설정 정보 (새로 생성한 인덱스 ID 사용)
    */
   getNetworkConfig(network) {
-    const configs = {
-          hardhat: {
-      IndexID: 'hardhat_1756621655134_samsung', // 새로 생성한 인덱스 ID
+    // hardhat만 지원
+    if (network !== 'hardhat') {
+      throw new Error('현재 hardhat 네트워크만 지원됩니다.');
+    }
+    
+    return {
+      IndexID: 'samsung_001',
       IndexName: 'Hardhat Network - Samsung Index',
       KeyCol: 'IndexableData',
-      FilePath: 'data/hardhat/samsung_1756621655134.bf',
+      FilePath: 'data/hardhat/samsung_001.bf',
       Network: 'hardhat'
-    },
-      monad: {
-        IndexID: 'monad_1756621048516_samsung',
-        IndexName: 'Monad Network - Samsung Index',
-        KeyCol: 'IndexableData',
-        FilePath: 'data/monad/samsung_1756621048516.bf',
-        Network: 'monad'
-      },
-      fabric: {
-        IndexID: 'fabric_1756621048516_samsung',
-        IndexName: 'Fabric Network - Samsung Index',
-        KeyCol: 'IndexableData',
-        FilePath: 'data/fabric/samsung_1756621048516.bf',
-        Network: 'fabric'
-      }
     };
-    
-    return configs[network];
   }
 
   /**

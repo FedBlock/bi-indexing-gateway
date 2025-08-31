@@ -8,6 +8,7 @@
  *       node create-index.js --cmd fabric
  */
 
+const path = require('path');
 const IndexingClient = require('../../indexing-client-package/lib/indexing-client');
 
 // 명령행 인자 파싱
@@ -85,7 +86,7 @@ async function createIndex(network) {
   // IndexingClient 인스턴스 생성
   const indexingClient = new IndexingClient({
     serverAddr: 'localhost:50052',
-    protoPath: '../../idxmngr-go/protos/index_manager.proto'
+    protoPath: path.join(process.cwd(), '../idxmngr-go/protos/index_manager.proto')
   });
 
   try {

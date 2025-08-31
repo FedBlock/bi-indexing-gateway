@@ -36,6 +36,76 @@ var idxTree *bptree.BpTree
 
 func init() {
 	IndexableDataTrees = make(map[string]*bptree.BpTree)
+	
+	// 서버 시작 시 기존 인덱스 자동 로드
+	go LoadExistingIndexes()
+}
+
+// LoadExistingIndexes 서버 시작 시 기존 인덱스 파일들을 자동으로 로드
+func LoadExistingIndexes() {
+	log.SetPrefix("[LoadExistingIndexes] ")
+	
+	// 잠시 대기 (서버가 완전히 시작될 때까지)
+	time.Sleep(2 * time.Second)
+	
+	log.Println("기존 인덱스 파일들을 자동으로 로드 시작...")
+	
+	// config.yaml 파일 읽기
+	configPath := "../idxmngr-go/config.yaml"
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		log.Printf("config.yaml 파일을 찾을 수 없습니다: %s", configPath)
+		return
+	}
+	
+	// YAML 파일 읽기 (간단한 파싱)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		log.Printf("config.yaml 파일을 읽을 수 없습니다: %v", err)
+		return
+	}
+	
+	lines := strings.Split(string(data), "\n")
+	var currentIndexID, currentKeyCol, currentFilePath string
+	var currentKeySize int
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		if strings.HasPrefix(line, "- idxid:") {
+			currentIndexID = strings.TrimSpace(strings.TrimPrefix(line, "- idxid:"))
+		} else if strings.HasPrefix(line, "keycol:") {
+			currentKeyCol = strings.TrimSpace(strings.TrimPrefix(line, "keycol:"))
+		} else if strings.HasPrefix(line, "filepath:") {
+			currentFilePath = strings.TrimSpace(strings.TrimPrefix(line, "filepath:"))
+		} else if strings.HasPrefix(line, "keysize:") {
+			keySizeStr := strings.TrimSpace(strings.TrimPrefix(line, "keysize:"))
+			if keySize, err := strconv.Atoi(keySizeStr); err == nil {
+				currentKeySize = keySize
+			}
+		}
+		
+		// 하나의 인덱스 정보가 완성되면 로드
+		if currentIndexID != "" && currentKeyCol != "" && currentFilePath != "" && currentKeySize > 0 {
+			if currentKeyCol == "IndexableData" {
+				// IndexableData 트리 로드
+				var tree *bptree.BpTree
+				if err := openOrCreateIndex(currentFilePath, currentKeySize, &tree); err == nil {
+					IndexableDataTrees[currentIndexID] = tree
+					log.Printf("✅ IndexableData 트리 자동 로드 완료: %s -> %s", currentIndexID, currentFilePath)
+				} else {
+					log.Printf("❌ IndexableData 트리 자동 로드 실패: %s -> %v", currentIndexID, err)
+				}
+			}
+			
+			// 다음 인덱스를 위해 초기화
+			currentIndexID = ""
+			currentKeyCol = ""
+			currentFilePath = ""
+			currentKeySize = 0
+		}
+	}
+	
+	log.Printf("기존 인덱스 자동 로드 완료: %d개 IndexableData 트리 로드됨", len(IndexableDataTrees))
 }
 
 func funcName() string {
@@ -245,11 +315,16 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 					continue
 				}
 				targetTree = &tree
-				// IndexableData에서 OrganizationName 추출
-				if rec.IndexableData != nil {
-					key = stringToFixedBytes(rec.IndexableData.OrganizationName, keySize)
+				// IndexableData에서 DynamicFields의 organizationName 추출
+				if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
+					if orgName, exists := rec.IndexableData.DynamicFields["organizationName"]; exists {
+						key = stringToFixedBytes(orgName, keySize)
+					} else {
+						log.Printf("organizationName not found in DynamicFields at index: %d", idx)
+						continue
+					}
 				} else {
-					log.Printf("IndexableData is nil at index: %d", idx)
+					log.Printf("IndexableData or DynamicFields is nil at index: %d", idx)
 					continue
 				}
 			default:
