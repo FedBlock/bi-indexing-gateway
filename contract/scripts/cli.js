@@ -7,6 +7,7 @@ const fs = require('fs');
 const yaml = require('js-yaml');
 const IndexingClient = require('../../indexing-client-package/lib/indexing-client');
 const hre = require('hardhat');
+const { runLargeScaleTest } = require('./large-scale-test');
 
 // 공통 경로 설정
 const PROTO_PATH = path.join(process.cwd(), '../../idxmngr-go/protos/index_manager.proto');
@@ -108,12 +109,12 @@ async function searchData(network, dataType, searchValue) {
         break;
         
       case 'user':
-        // 사용자 검색도 DynamicFields에서 userId로 검색
-        const shortHash = hashWalletAddress(searchValue);  // 🔥 value → searchValue
+        // 사용자 검색도 IndexableData에서 지갑 주소로 검색
+        const shortHash = hashWalletAddress(searchValue);
         indexID = `user_${shortHash}_001`;
-        field = 'DynamicFields';  // 🔥 UserId → DynamicFields
-        // 🔥 userId:지갑주소 형태로 검색
-        searchValue = `userId:${searchValue}`;
+        field = 'IndexableData';  // 🔥 DynamicFields → IndexableData
+        // 🔥 지갑 주소 그대로 검색
+        searchValue = searchValue;  // 원본 지갑 주소 사용
         filePath = `data/${network}/user_${shortHash}_001.bf`;
         break;
         
@@ -687,6 +688,7 @@ function showHelp() {
   create-user-indexes      - 사용자별 인덱스들 생성
   search                   - 데이터 검색 (조직/사용자 주소로 검색)
   request-data             - 데이터 요청 및 양방향 인덱싱 (핵심!)
+  large-scale-test         - 대규모 건강 데이터 테스트 (100개 요청)
   check-config             - config.yaml 확인
   check-network-config     - network_config.yaml 확인
   update-network           - 네트워크 설정 업데이트
@@ -705,6 +707,7 @@ function showHelp() {
   node cli.js -cmd=search -type=organization -value=0x2630ffE517DFC9b0112317a2EC0AB4cE2a59CEb8 -network=monad
   node cli.js -cmd=search -type=user -value=0xa5cc9D9F1f68546060852f7c685B99f0cD532229 -network=monad
   node cli.js -cmd=request-data -network=hardhat
+  node cli.js -cmd=large-scale-test
   node cli.js -cmd=check-config
   node cli.js -cmd=check-network-config
   node cli.js -cmd=update-network -network=hardhat -contract=0x1234...
@@ -742,10 +745,13 @@ async function main() {
         await searchData(network, type, value);
         break;
         
-      // ===== 데이터 요청 및 양방향 인덱싱 =====
-      case 'request-data':
-        await testBidirectionalIndexing(network);
-        break;
+             // ===== 데이터 요청 및 양방향 인덱싱 =====
+       case 'request-data':
+         await testBidirectionalIndexing(network);
+         break;
+       case 'large-scale-test':
+         await runLargeScaleTest();
+         break;
         
       // ===== config.yaml 확인 =====
       case 'check-config':
