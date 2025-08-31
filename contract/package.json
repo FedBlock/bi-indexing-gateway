@@ -9,7 +9,16 @@
     "deploy": "hardhat run scripts/deploy.js",
     "generate-events": "hardhat run scripts/generate-events.js",
     "transaction-indexing": "hardhat run scripts/transaction-with-indexing.js",
-    "full-test": "hardhat run scripts/contract-with-indexing.js"
+    "full-test": "hardhat run scripts/contract-with-indexing.js",
+    "cli": "node scripts/cli.js",
+    "deploy:hardhat": "node scripts/cli.js -cmd=deploy -network=hardhat",
+    "deploy:monad": "node scripts/cli.js -cmd=deploy -network=monad",
+    "workflow:hardhat": "node scripts/cli.js -cmd=workflow -network=hardhat",
+    "workflow:monad": "node scripts/cli.js -cmd=workflow -network=monad",
+    "create-org:hardhat": "node scripts/cli.js -cmd=create-org -network=hardhat",
+    "create-org:monad": "node scripts/cli.js -cmd=create-org -network=monad",
+    "store-org:hardhat": "node scripts/cli.js -cmd=store-org -network=hardhat",
+    "store-org:monad": "node scripts/cli.js -cmd=store-org -network=monad"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",

@@ -1,9 +1,9 @@
 items:
-    - idxid: samsung_001
-      idxname: Samsung Organization Index
+    - idxid: samsung_d8321319_001
+      idxname: Samsung Organization Index (0x70997970...)
       keycol: IndexableData
-      filepath: data/hardhat/samsung_001.bf
-      blocknum: 40
+      filepath: data/hardhat/samsung_d8321319_001.bf
+      blocknum: 5
       keysize: 64
       address: localhost:50053
       callcnt: 0
@@ -13,7 +13,7 @@ items:
       idxname: User 0x70997970... Personal Index
       keycol: UserId
       filepath: data/hardhat/user_d8321319_001.bf
-      blocknum: 37
+      blocknum: 2
       keysize: 64
       address: localhost:50053
       callcnt: 0
@@ -23,7 +23,7 @@ items:
       idxname: User 0x3C44CdDd... Personal Index
       keycol: UserId
       filepath: data/hardhat/user_575a3a49_001.bf
-      blocknum: 38
+      blocknum: 3
       keysize: 64
       address: localhost:50053
       callcnt: 0
@@ -33,7 +33,7 @@ items:
       idxname: User 0x90F79bf6... Personal Index
       keycol: UserId
       filepath: data/hardhat/user_eb5d27fd_001.bf
-      blocknum: 39
+      blocknum: 4
       keysize: 64
       address: localhost:50053
       callcnt: 0
@@ -43,7 +43,17 @@ items:
       idxname: User 0x15d34AAf... Personal Index
       keycol: UserId
       filepath: data/hardhat/user_519b178b_001.bf
-      blocknum: 40
+      blocknum: 5
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user_21bc2424_001
+      idxname: User 0x9965507D... Personal Index
+      keycol: UserId
+      filepath: data/hardhat/user_21bc2424_001.bf
+      blocknum: 0
       keysize: 64
       address: localhost:50053
       callcnt: 0
