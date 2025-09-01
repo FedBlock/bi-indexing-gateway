@@ -94,27 +94,101 @@ async function deployContract(network) {
 
 
 
+// PVD 데이터 저장 함수
+async function putPvdData(network, obuId) {
+  try {
+    console.log(`📝 ${network} 네트워크에 PVD 데이터 저장 중...`);
+    
+    if (network === 'fabric') {
+      console.log('🔗 Fabric 네트워크 - PVD 서버 연결 중...');
+      
+      // PVD 클라이언트 사용
+      const pvdClient = new PvdClient('localhost:19001');
+      await pvdClient.connect();
+      console.log('✅ PVD 서버 연결 성공');
+      
+      // PVD 데이터 생성 (고유한 OBU_ID 사용)
+      const csvPvdData = {
+        obuId: obuId || `OBU-${Date.now()}`,
+        speed: 65,
+        collectionDt: new Date().toISOString(),
+        startvectorLatitude: 37.5665,
+        startvectorLongitude: 126.9780,
+        transmisstion: 'auto',
+        hazardLights: false,
+        leftTurnSignalOn: false,
+        rightTurnSignalOn: false,
+        steering: 0,
+        rpm: 2500,
+        footbrake: false,
+        gear: 'D',
+        accelator: 30,
+        wipers: false,
+        tireWarnLeftF: false,
+        tireWarnLeftR: false,
+        tireWarnRightF: false,
+        tireWarnRightR: false,
+        tirePsiLeftF: 32,
+        tirePsiLeftR: 32,
+        tirePsiRightF: 32,
+        tirePsiRightR: 32,
+        fuelPercent: 75,
+        fuelLiter: 35,
+        totaldist: 52000,
+        rsuId: 'rsu_csv_001',
+        msgId: 'msg_csv_001',
+        startvectorHeading: 90
+      };
+      
+      console.log(`📤 PVD 데이터 저장: OBU_ID=${csvPvdData.obuId}, Speed=${csvPvdData.speed}`);
+      const result = await pvdClient.putData(csvPvdData);
+      
+      pvdClient.close();
+      console.log('✅ PVD 데이터 저장 완료:', result);
+      return result;
+      
+    } else {
+      throw new Error(`${network} 네트워크는 PVD 데이터 저장을 지원하지 않습니다`);
+    }
+    
+  } catch (error) {
+    console.error(`❌ PVD 데이터 저장 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 // 네트워크별 데이터 조회
 async function searchData(network, dataType, searchValue) {
   try {
     console.log(`🔍 ${network} 네트워크에서 ${dataType} 데이터 조회 시작...`);
     
-    // Fabric 네트워크인 경우 grpc-go 서버 사용
+    // Fabric 네트워크인 경우 grpc-go 서버를 통해 실시간 블록체인 조회
     if (network === 'fabric') {
       console.log('🔗 Fabric 네트워크 - grpc-go 서버 연결 중...');
       
-      // grpc-go 서버는 PvdServer 서비스를 제공하므로
-      // 직접 Fabric 체인코드 호출 방식 사용
-      console.log('🔍 Fabric 체인코드 직접 호출 방식 사용...');
-      
       try {
-        // Fabric 체인코드 직접 호출 (PVD 체인코드)
+        // 1. grpc-go 서버를 통해 Fabric 체인코드에서 실시간 데이터 조회
         const fabricResult = await callFabricChaincode(dataType, searchValue);
-        console.log('🔍 Fabric 체인코드 호출 결과:', fabricResult);
-        return fabricResult;
+        console.log('🔍 Fabric 체인코드 조회 결과:', fabricResult);
+        
+        // 2. 인덱스에서도 검색 (병렬 수행)
+        console.log('🔍 Fabric 인덱스에서도 검색 시작...');
+        try {
+          const indexResult = await searchFabricIndex(dataType, searchValue);
+          console.log('🔍 Fabric 인덱스 검색 결과:', indexResult);
+          
+          // 체인코드 결과와 인덱스 결과를 합쳐서 반환
+          return {
+            ...fabricResult,
+            indexSearchResult: indexResult
+          };
+        } catch (indexError) {
+          console.warn('⚠️ 인덱스 검색 실패 (체인코드 결과만 반환):', indexError.message);
+          return fabricResult;
+        }
         
       } catch (error) {
-        console.error('❌ Fabric 체인코드 호출 실패:', error.message);
+        console.error('❌ Fabric 체인코드 조회 실패:', error.message);
         throw error;
       }
     }
@@ -289,10 +363,14 @@ class PvdClient {
       
       const pvdProto = grpc.loadPackageDefinition(packageDefinition);
       
-      // gRPC 클라이언트 생성
+      // gRPC 클라이언트 생성 (TLS 완전 비활성화)
       this.grpcClient = new pvdProto.pvdapi.Pvd(
         this.serverAddr,
-        grpc.credentials.createInsecure()
+        grpc.credentials.createInsecure(),
+        {
+          'grpc.ssl_target_name_override': 'localhost',
+          'grpc.default_authority': 'localhost'
+        }
       );
       
       // 연결 상태 확인
@@ -441,65 +519,55 @@ class PvdClient {
         throw new Error('gRPC 클라이언트가 연결되지 않음. connect() 메서드를 먼저 호출하세요.');
       }
       
-      // CSV 파일에서 실제 데이터 읽기 (client.go와 동일한 방식)
-      const csvPath = path.join(__dirname, '../../grpc-go/pvd_sample.csv');
-      console.log(`📁 CSV 파일 읽기: ${csvPath}`);
+      // client.go의 createData 함수와 동일한 방식으로 요청
+      console.log('📝 client.go createData 방식으로 PVD 데이터 저장 중...');
       
-      if (!fs.existsSync(csvPath)) {
-        throw new Error(`CSV 파일을 찾을 수 없음: ${csvPath}`);
-      }
-      
-      const csvContent = fs.readFileSync(csvPath, 'utf8');
-      const lines = csvContent.split('\n').filter(line => line.trim());
-      
-      if (lines.length < 2) {
-        throw new Error('CSV 파일이 비어있거나 헤더만 있음');
-      }
-      
-      // 첫 번째 데이터 행 사용 (헤더 제외)
-      const dataLine = lines[1]; // OBU-461001c4,20211001001000198,33.496063,126.491677,-,589,OFF,OFF,OFF,0,0,-,0,0,작동,-,-,-,-,0,0,0,0,0,0,0,,PVD-461001c4-20210930150956947,2463
-      const values = dataLine.split(',');
-      
-      console.log(`📊 CSV 데이터 파싱: ${values.length}개 필드`);
-      
-      // client.go와 정확히 동일한 데이터 구조 사용 (하드코딩된 값)
-      const request = {
-        chainInfo: {
-          channelName: 'pvdchannel',
-          chaincode: 'pvd'
-        },
-        pvd: {
-          obu_id: 'OBU-461001c4',                    // ObuId
-          collection_dt: '20221001001000198',         // CollectionDt
-          startvector_latitude: '33.496063',          // StartvectorLatitude
-          startvector_longitude: '126.491677',        // StartvectorLongitude
-          transmisstion: '-',                         // Transmisstion
-          speed: 0,                                   // Speed (int32)
-          hazard_lights: 'OFF',                       // HazardLights
-          left_turn_signal_on: 'OFF',                 // LeftTurnSignalOn
-          right_turn_signal_on: 'OFF',                // RightTurnSignalOn
-          steering: 0,                                // Steering (int32)
-          rpm: 0,                                     // Rpm (int32)
-          footbrake: '-',                             // Footbrake
-          gear: '0',                                  // Gear
-          accelator: 0,                               // Accelator (int32)
-          wipers: '작동',                              // Wipers
-          tire_warn_left_f: '-',                      // TireWarnLeftF
-          tire_warn_left_r: '-',                      // TireWarnLeftR
-          tire_warn_right_f: '-',                     // TireWarnRightF
-          tire_warn_right_r: '-',                     // TireWarnRightR
-          tire_psi_left_f: 0,                         // TirePsiLeftF (int32)
-          tire_psi_left_r: 0,                         // TirePsiLeftR (int32)
-          tire_psi_right_f: 0,                        // TirePsiRightF (int32)
-          tire_psi_right_r: 0,                        // TirePsiRightR (int32)
-          fuel_percent: 0,                            // FuelPercent (int32)
-          fuel_liter: 0,                              // FuelLiter (int32)
-          totaldist: 0,                               // Totaldist (int32)
-          rsu_id: '',                                 // RsuId
-          msg_id: 'PVD-461001c4-20210930150956947',  // MsgId
-          startvector_heading: 2468                   // StartvectorHeading (int32)
-        }
+      const chainInfo = {
+        ChannelName: 'pvdchannel',
+        Chaincode: 'pvd'
       };
+      
+      // 매개변수로 받은 PVD 데이터를 gRPC 형식으로 변환
+      const grpcPvdData = {
+        Obu_id: pvdData.obuId || `OBU-${Date.now()}`,
+        Collection_dt: pvdData.collectionDt || '20250101120000000',
+        Startvector_latitude: pvdData.startvectorLatitude?.toString() || '37.5665',
+        Startvector_longitude: pvdData.startvectorLongitude?.toString() || '126.9780',
+        Transmisstion: pvdData.transmisstion || 'D',
+        Speed: pvdData.speed || 60,
+        Hazard_lights: pvdData.hazardLights ? 'ON' : 'OFF',
+        Left_turn_signal_on: pvdData.leftTurnSignalOn ? 'ON' : 'OFF',
+        Right_turn_signal_on: pvdData.rightTurnSignalOn ? 'ON' : 'OFF',
+        Steering: pvdData.steering || 0,
+        Rpm: pvdData.rpm || 2000,
+        Footbrake: pvdData.footbrake ? 'ON' : 'OFF',
+        Gear: pvdData.gear || 'D',
+        Accelator: pvdData.accelator || 30,
+        Wipers: pvdData.wipers ? 'ON' : 'OFF',
+        Tire_warn_left_f: pvdData.tireWarnLeftF ? 'WARN' : 'OK',
+        Tire_warn_left_r: pvdData.tireWarnLeftR ? 'WARN' : 'OK',
+        Tire_warn_right_f: pvdData.tireWarnRightF ? 'WARN' : 'OK',
+        Tire_warn_right_r: pvdData.tireWarnRightR ? 'WARN' : 'OK',
+        Tire_psi_left_f: pvdData.tirePsiLeftF || 32,
+        Tire_psi_left_r: pvdData.tirePsiLeftR || 32,
+        Tire_psi_right_f: pvdData.tirePsiRightF || 32,
+        Tire_psi_right_r: pvdData.tirePsiRightR || 32,
+        Fuel_percent: pvdData.fuelPercent || 75,
+        Fuel_liter: pvdData.fuelLiter || 45,
+        Totaldist: pvdData.totaldist || 15000,
+        Rsu_id: pvdData.rsuId || 'RSU-TEST-001',
+        Msg_id: pvdData.msgId || 'MSG-TEST-001',
+        Startvector_heading: pvdData.startvectorHeading || 90
+      };
+      
+      // client.go와 정확히 동일한 구조: &pvd.SinglePvd{ChainInfo: &chainInfo, Pvd: &data}
+      // Proto 필드명은 대문자로 시작해야 함
+      const request = {
+        ChainInfo: chainInfo,
+        Pvd: grpcPvdData
+      };
+      
+      console.log('📤 client.go createData 요청 구조:', JSON.stringify(request, null, 2));
       
       // 실제 gRPC putData 호출
       console.log('📤 gRPC 요청 데이터:', JSON.stringify(request, null, 2));
@@ -553,9 +621,15 @@ class PvdClient {
       }
       
       const request = {
-        channelName: chainInfo.channelName,
-        chaincode: chainInfo.chaincode
+        ChannelName: chainInfo.channelName,  // 대문자로 수정
+        Chaincode: chainInfo.chaincode       // 대문자로 수정
       };
+      
+      // 보내는 데이터 로그 추가
+      console.log('📤 [DEBUG] grpc-go 서버로 보내는 데이터:');
+      console.log('   - request.ChannelName:', request.ChannelName);
+      console.log('   - request.Chaincode:', request.Chaincode);
+      console.log('   - request 전체:', JSON.stringify(request, null, 2));
       
       return new Promise((resolve, reject) => {
         this.grpcClient.getWorldState(request, (error, response) => {
@@ -619,94 +693,34 @@ async function callFabricChaincode(dataType, searchValue) {
       
       switch (dataType) {
         case 'speed':
-          // 속도 데이터 조회: 실제 저장된 데이터 사용
-          console.log('🔍 속도 데이터 조회 중...');
-          // 이전에 putdata로 저장한 데이터를 시뮬레이션
-          result = {
-            success: true,
-            method: 'queryDatasByField',
-            data: '실제 저장된 PVD 데이터',
-            field: 'Speed',
-            value: searchValue,
-            matches: 1,
-            actualData: {
-              obuId: 'test_obu_001',
-              speed: 65,
-              collectionDt: '2025-08-31T12:36:06.809Z',
-              startvectorLatitude: 37.5665,
-              startvectorLongitude: 126.9780,
-              transmisstion: 'auto',
-              hazardLights: false,
-              leftTurnSignalOn: false,
-              rightTurnSignalOn: false,
-              steering: 0,
-              rpm: 2500,
-              footbrake: false,
-              gear: 'D',
-              accelator: 30,
-              wipers: false,
-              tireWarnLeftF: false,
-              tireWarnLeftR: false,
-              tireWarnRightF: false,
-              tireWarnRightR: false,
-              tirePsiLeftF: 32,
-              tirePsiLeftR: 32,
-              tirePsiRightF: 32,
-              tirePsiRightR: 32,
-              fuelPercent: 75,
-              fuelLiter: 35,
-              totaldist: 52000,
-              rsuId: 'rsu_csv_001',
-              msgId: 'msg_csv_001',
-              startvectorHeading: 90
-            }
-          };
+          // 속도 데이터 조회: 실제 Fabric 체인코드에서 조회
+          console.log('🔍 속도 데이터 조회 중 (실시간 체인코드 호출)...');
+          result = await pvdClient.getWorldState(chainInfo);
+          // 속도 필터링 로직 추가
+          if (result && result.PvdList) {
+            const filteredData = result.PvdList.filter(pvd => {
+              return pvd.Speed && parseInt(pvd.Speed) >= parseInt(searchValue);
+            });
+            result.filteredData = filteredData;
+            result.matches = filteredData.length;
+            result.searchCriteria = { field: 'Speed', value: searchValue };
+          }
           break;
           
         case 'dt':
         case 'collectiondt':
-          // 수집 날짜/시간 데이터 조회: 실제 저장된 데이터 사용
-          console.log('🔍 수집 날짜/시간 데이터 조회 중...');
-          // 이전에 putdata로 저장한 데이터를 시뮬레이션
-          result = {
-            success: true,
-            method: 'queryDatasByField',
-            data: '실제 저장된 PVD 데이터',
-            field: 'CollectionDt',
-            value: searchValue,
-            matches: 1,
-            actualData: {
-              obuId: 'test_obu_001',
-              speed: 65,
-              collectionDt: '2025-08-31T12:36:06.809Z',
-              startvectorLatitude: 37.5665,
-              startvectorLongitude: 126.9780,
-              transmisstion: 'auto',
-              hazardLights: false,
-              leftTurnSignalOn: false,
-              rightTurnSignalOn: false,
-              steering: 0,
-              rpm: 2500,
-              footbrake: false,
-              gear: 'D',
-              accelator: 30,
-              wipers: false,
-              tireWarnLeftF: false,
-              tireWarnLeftR: false,
-              tireWarnRightF: false,
-              tireWarnRightR: false,
-              tirePsiLeftF: 32,
-              tirePsiLeftR: 32,
-              tirePsiRightF: 32,
-              tirePsiRightR: 32,
-              fuelPercent: 75,
-              fuelLiter: 35,
-              totaldist: 52000,
-              rsuId: 'rsu_csv_001',
-              msgId: 'msg_csv_001',
-              startvectorHeading: 90
-            }
-          };
+          // 수집 날짜/시간 데이터 조회: 실제 Fabric 체인코드에서 조회
+          console.log('🔍 수집 날짜/시간 데이터 조회 중 (실시간 체인코드 호출)...');
+          result = await pvdClient.getWorldState(chainInfo);
+          // 날짜/시간 필터링 로직 추가
+          if (result && result.PvdList) {
+            const filteredData = result.PvdList.filter(pvd => {
+              return pvd.Collection_dt && pvd.Collection_dt.includes(searchValue);
+            });
+            result.filteredData = filteredData;
+            result.matches = filteredData.length;
+            result.searchCriteria = { field: 'CollectionDt', value: searchValue };
+          }
           break;
           
         case 'organization':
@@ -837,13 +851,12 @@ async function callFabricChaincode(dataType, searchValue) {
       
       console.log('🔍 PVD 서비스 호출 성공');
       
-      // 3. PVD 인덱스 생성 (데이터 없이)
-      console.log('📊 PVD 인덱스 생성 시작...');
-      const indexResult = await createPvdIndex(dataType, searchValue);
-      console.log('✅ PVD 인덱스 생성 완료');
-      
-      // 4. create-index 타입일 때는 여기서 종료 (인덱스 파일만 생성)
+      // create-index 타입일 때만 인덱스 생성 (별도 명령어로 분리됨)
       if (dataType === 'create-index') {
+        console.log('📊 PVD 인덱스 생성 시작...');
+        const indexResult = await createPvdIndex(searchValue, searchValue);
+        console.log('✅ PVD 인덱스 생성 완료');
+        
         console.log('📊 create-index 타입: 인덱스 파일만 생성 완료');
         console.log(`📁 생성된 인덱스: ${indexResult.indexID}`);
         console.log(`📁 파일 경로: ${indexResult.filePath}`);
@@ -864,28 +877,20 @@ async function callFabricChaincode(dataType, searchValue) {
         return finalResult;
       }
       
-      // 5. 데이터 타입일 때만 데이터 인덱싱 수행
-      console.log('📊 PVD 데이터 인덱싱 시작...');
-      const pvdData = {
-        txId: result.txId || `pvd_${Date.now()}`,
-        chainInfo: chainInfo,
-        data: result
-      };
+      // 일반 검색 타입: 실시간 체인코드 조회 결과 반환
+      console.log('🔍 실시간 체인코드 조회 결과 반환 중...');
       
-      const indexingResult = await indexPvdData(dataType, searchValue, pvdData);
-      console.log('✅ PVD 데이터 인덱싱 완료');
-      
-      // 결과 정리
+      // 결과 정리 (실시간 블록체인 조회)
       const finalResult = {
         success: true,
         network: 'fabric',
         dataType: dataType,
         searchValue: searchValue,
-        message: 'Fabric 체인코드 호출 및 PVD 인덱싱 완료 (client.go 함수들 사용)',
+        message: 'Fabric 체인코드 실시간 조회 완료',
         timestamp: new Date().toISOString(),
         chainInfo: chainInfo,
-        pvdData: result,
-        indexingResult: indexingResult
+        searchResult: result,
+        source: 'blockchain'  // 블록체인에서 직접 조회했음을 명시
       };
       
       pvdClient.close();
@@ -901,10 +906,14 @@ async function callFabricChaincode(dataType, searchValue) {
         network: 'fabric',
         dataType: dataType,
         searchValue: searchValue,
-        message: 'Fabric 체인코드 호출 성공 (PVD 서버 연동 필요)',
+        message: 'Fabric 체인코드 호출 실패, 재시도 필요',
         timestamp: new Date().toISOString(),
-        chainInfo: chainInfo,
-        note: 'PVD 서비스 호출 실패, 기본 응답 반환'
+        chainInfo: {
+          channelName: FABRIC_CONFIG.channelName,
+          chaincode: FABRIC_CONFIG.chaincode
+        },
+        note: 'PVD 서비스 호출 실패, 기본 응답 반환',
+        error: error.message
       };
       
       pvdClient.close();
@@ -913,6 +922,166 @@ async function callFabricChaincode(dataType, searchValue) {
     
   } catch (error) {
     console.error('❌ Fabric 체인코드 호출 실패:', error.message);
+    throw error;
+  }
+}
+
+// Fabric 인덱스에서 실제 데이터 검색하는 함수
+// 모든 speed_* 인덱스를 검색하는 함수
+async function searchAllSpeedIndexes(indexingClient, searchValue) {
+  console.log('🔍 모든 speed_* 인덱스에서 검색 중...');
+  
+  // 알려진 OBU ID들 (실제로는 동적으로 찾아야 하지만 임시로 하드코딩)
+  const knownObuIds = [
+    'OBU-TEST-001',
+    'OBU-SPEED-001', 
+    'OBU-SPEED-002',
+    'OBU-SPEED-003', 
+    'OBU-SPEED-004',
+    'OBU-SPEED-005'
+  ];
+  
+  const allResults = [];
+  let totalCount = 0;
+  
+  for (const obuId of knownObuIds) {
+    try {
+      const indexID = `speed_${obuId}`;
+      const filePath = `data/fabric/${indexID}.bf`;
+      
+      const searchRequest = {
+        IndexID: indexID,
+        Field: 'Speed',
+        Value: searchValue,
+        FilePath: filePath,
+        KeySize: 64,
+        ComOp: 'Eq'
+      };
+      
+      console.log(`🔍 검색 중: ${indexID}`);
+      const response = await indexingClient.searchData(searchRequest);
+      
+      if (response.IdxData && response.IdxData.length > 0) {
+        console.log(`✅ ${indexID}에서 ${response.IdxData.length}개 발견`);
+        allResults.push(...response.IdxData);
+        totalCount += response.IdxData.length;
+      }
+    } catch (error) {
+      console.log(`⚠️ ${indexID} 검색 실패: ${error.message}`);
+    }
+  }
+  
+  return {
+    success: true,
+    indexId: 'speed_*',
+    indexName: 'All Speed Indexes',
+    data: allResults,
+    count: totalCount,
+    network: 'fabric',
+    searchType: 'speed',
+    searchValue: searchValue,
+    timestamp: new Date().toISOString()
+  };
+}
+
+async function searchFabricIndex(dataType, searchValue) {
+  try {
+    console.log('🔍 Fabric 인덱스 검색 중...');
+    
+    // Fabric 전용 인덱싱 클라이언트 사용
+    const indexingClient = new FabricIndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: PROTO_PATH
+    });
+    
+    await indexingClient.connect();
+    console.log('✅ Fabric 인덱싱 서버 연결 성공');
+    
+    // 데이터 타입별 인덱스 ID 및 검색 필드 설정
+    let indexID, field, filePath;
+    
+    switch (dataType) {
+      case 'speed':
+        indexID = `speed_001`;
+        field = 'Speed';
+        filePath = `data/fabric/speed_001.bf`;
+        break;
+        
+      case 'dt':
+      case 'collectiondt':
+        indexID = `pvd_dt_001`;
+        field = 'CollectionDt';
+        filePath = `data/fabric/pvd_dt_001.bf`;
+        break;
+        
+      case 'organization':
+        indexID = `pvd_org_001`;
+        field = 'OrganizationName';
+        filePath = `data/fabric/pvd_org_001.bf`;
+        break;
+        
+      case 'user':
+        indexID = `pvd_user_001`;
+        field = 'UserId';
+        filePath = `data/fabric/pvd_user_001.bf`;
+        break;
+        
+      default:
+        throw new Error(`지원하지 않는 데이터 타입: ${dataType}`);
+    }
+    
+    // 검색 요청 구성
+    const searchRequest = {
+      IndexID: indexID,
+      Field: field,
+      Value: searchValue,
+      FilePath: filePath,
+      KeySize: 64,
+      ComOp: 'Eq'  // 기본적으로 동등 비교
+    };
+    
+    console.log(`🔍 검색 요청:`, searchRequest);
+    
+    // 실제 인덱스 검색 수행
+    const response = await indexingClient.searchData(searchRequest);
+    console.log(`✅ Fabric 인덱스 검색 완료!`);
+    
+    // 검색 결과를 깔끔하게 정리
+    const cleanResult = {
+      success: true,
+      indexId: response.idxInfo?.IndexID || searchRequest.IndexID,
+      indexName: response.idxInfo?.IndexName || 'Fabric Index',
+      data: response.IdxData || [],
+      count: response.IdxData?.length || 0,
+      network: 'fabric',
+      dataType: dataType,
+      searchValue: searchValue,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log(`📊 검색 결과:`);
+    console.log(`   🆔 인덱스 ID: ${cleanResult.indexId}`);
+    console.log(`   📝 인덱스 이름: ${cleanResult.indexName}`);
+    console.log(`   📊 데이터 개수: ${cleanResult.count}`);
+    console.log(`   🌐 네트워크: ${cleanResult.network}`);
+    console.log(`   🔍 검색 타입: ${cleanResult.dataType}`);
+    console.log(`   🔎 검색값: ${cleanResult.searchValue}`);
+    
+    if (cleanResult.data.length > 0) {
+      console.log(`   📋 검색된 데이터:`);
+      cleanResult.data.forEach((item, index) => {
+        console.log(`      ${index + 1}. ${item}`);
+      });
+    } else {
+      console.log(`   ℹ️  검색된 데이터가 없습니다.`);
+      console.log(`   💡 인덱스가 비어있거나 검색값과 일치하는 데이터가 없을 수 있습니다.`);
+    }
+    
+    indexingClient.close();
+    return cleanResult;
+    
+  } catch (error) {
+    console.error('❌ Fabric 인덱스 검색 실패:', error.message);
     throw error;
   }
 }
@@ -936,8 +1105,8 @@ async function createPvdIndex(dataType, searchValue) {
     
     switch (dataType) {
       case 'speed':
-        // 속도 인덱스: pvd_speed_001
-        indexID = `pvd_speed_001`;
+        // Fabric 네트워크일 때만 speed_001로 설정
+        indexID = `speed_001`;
         keyCol = 'Speed';
         colName = 'Speed';
         break;
@@ -1028,8 +1197,8 @@ async function indexPvdData(dataType, searchValue, pvdData) {
     
     switch (dataType) {
       case 'speed':
-        // 속도 인덱스: pvd_speed_001
-        indexID = `pvd_speed_001`;
+        // Fabric 네트워크일 때만 speed_001로 설정
+        indexID = `speed_001`;
         keyCol = 'Speed';
         colName = 'Speed';
         break;
@@ -2124,6 +2293,7 @@ function showHelp() {
   create-samsung           - Samsung 조직 인덱스 생성 (요청자 주소 기반)
   create-lg                - LG 조직 인덱스 생성
   create-user-indexes      - 사용자별 인덱스들 생성
+  create-fabric-index      - Fabric 전용 인덱스 생성 (speed, dt 등)
   search                   - 데이터 검색 (조직/사용자 주소로 검색)
   request-data             - 데이터 요청 및 양방향 인덱싱 (핵심!)
   large-scale-test         - 대규모 건강 데이터 테스트 (100개 요청)
@@ -2144,18 +2314,16 @@ function showHelp() {
   node cli.js -cmd=deploy -network=hardhat
   node cli.js -cmd=create-samsung -network=monad
   node cli.js -cmd=create-user-indexes -network=hardhat
+  node cli.js -cmd=create-fabric-index -type=speed -network=fabric
+  node cli.js -cmd=create-fabric-index -type=dt -network=fabric
   node cli.js -cmd=search -type=organization -value=0x2630ffE517DFC9b0112317a2EC0AB4cE2a59CEb8 -network=monad
   node cli.js -cmd=search -type=user -value=0xa5cc9D9F1f68546060852f7c685B99f0cD532229 -network=monad
-  node cli.js -cmd=search -type=organization -value=org1 -network=fabric
-  node cli.js -cmd=search -type=user -value=user123 -network=fabric
-  node cli.js -cmd=search -type=putdata -value=test_obu -network=fabric
-  node cli.js -cmd=search -type=create-index -value=speed -network=fabric
+  node cli.js -cmd=search -type=speed -value=60 -network=fabric
+  node cli.js -cmd=search -type=dt -value=20250101 -network=fabric
 
-Fabric 네트워크 타입:
-  -type=create-index: 인덱스만 생성 (data/fabric/ 하위)
-  -type=putdata: CSV 데이터 저장 및 인덱싱
-  -type=speed: 속도 데이터 조회 및 인덱싱
-  -type=dt: 수집 날짜/시간 데이터 조회 및 인덱싱
+Fabric 네트워크 명령어 구분:
+  create-fabric-index: Fabric 인덱스 생성 (speed_001, pvd_dt_001 등)
+  search: Fabric 데이터 검색 (기존 인덱스에서 조회)
   node cli.js -cmd=request-data -network=hardhat
   node cli.js -cmd=large-scale-test
   node cli.js -cmd=check-config
@@ -2187,6 +2355,14 @@ async function main() {
       case 'create-user-indexes':
         await createUserIndexes(network);
         break;
+      case 'create-fabric-index':
+        if (!type) {
+          console.error('❌ create-fabric-index 명령어는 -type이 필요합니다');
+          console.log('예시: node cli.js -cmd=create-fabric-index -type=speed');
+          return;
+        }
+        await callFabricChaincode('create-index', type);
+        break;
         
       // ===== 데이터 조회 =====
       case 'search':
@@ -2196,6 +2372,11 @@ async function main() {
           return;
         }
         await searchData(network, type, value);
+        break;
+        
+      // ===== PVD 데이터 저장 =====
+      case 'putdata':
+        await putPvdData(network, value);
         break;
         
              // ===== 데이터 요청 및 양방향 인덱싱 =====

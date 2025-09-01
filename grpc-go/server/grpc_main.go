@@ -83,12 +83,16 @@ func main() {
 		log.Fatal("An error has occurred while retrieving on launch: ", err)
 	}
 
-	grpcServer := grpc.NewServer(grpc.MaxSendMsgSize(50*1024*1024), grpc.MaxRecvMsgSize(50*1024*1024))
-	//pvdapi.RegisterPvdServiceServer(grpcServer, &handler.PvdHandler{})
+	// TLS 없이 gRPC 서버 생성 (명시적 설정)
+	grpcServer := grpc.NewServer(
+		grpc.MaxSendMsgSize(50*1024*1024), 
+		grpc.MaxRecvMsgSize(50*1024*1024),
+		grpc.Creds(nil), // TLS 자격 증명 명시적 비활성화
+	)
+	
 	pvdapi.RegisterPvdServer(grpcServer, handler.NewPvdServer())
 
-	//log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
-	log.Println("Grpc Server will be start. Listen : 19001 ")
+	log.Println("Grpc Server will be start. Listen : 19001 (TLS disabled)")
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatal("An error has occurred while retriving on launch: ", err)
 	}

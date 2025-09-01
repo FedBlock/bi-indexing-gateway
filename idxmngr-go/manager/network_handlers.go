@@ -1,11 +1,17 @@
 package manager
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
+	idxserver "fileindex-go/idxserver_api"
 	mngr "idxmngr-go/mngrapi/protos"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // =============================================================================
@@ -75,7 +81,7 @@ func (h *FabricHandler) ValidateData(data *mngr.PvdHistDataM) error {
 		return fmt.Errorf("OBU_ID is required for Fabric network")
 	}
 	if data.Speed < 0 || data.Speed > 200 {
-		return fmt.Errorf("Speed must be between 0 and 200 for Fabric network")
+		return fmt.Errorf("speed must be between 0 and 200 for Fabric network")
 	}
 	return nil
 }
@@ -84,6 +90,97 @@ func (h *FabricHandler) ValidateData(data *mngr.PvdHistDataM) error {
 func (h *FabricHandler) GetFileIndexPath(indexType string) string {
 	// Fabric은 체인코드 사용하므로 data/fabric/ 폴더 아래에 저장
 	return fmt.Sprintf("data/%s/%s.bf", h.networkName, indexType)
+}
+
+// sendToFileIndex - 실제 파일 인덱스로 데이터 전송
+func (h *FabricHandler) sendToFileIndex(data *mngr.PvdHistDataM, txID string, colName string, filePath string) error {
+	log.Printf("[Fabric] File Index로 데이터 전송: TxID=%s, ColName=%s, FilePath=%s", txID, colName, filePath)
+	
+	// fileindex-go 서버에 연결
+	fileIndexAddr := "localhost:50053"
+	conn, err := grpc.Dial(fileIndexAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("failed to connect to fileindex server: %v", err)
+	}
+	defer conn.Close()
+	
+	client := idxserver.NewHLFDataIndexClient(conn)
+	
+	// PVD 데이터를 fileindex-go 형식으로 변환
+	pvdData := &idxserver.PvdHistData{
+		CollectionDt:         data.CollectionDt,
+		StartvectorLatitude:  data.StartvectorLatitude,
+		StartvectorLongitude: data.StartvectorLongitude,
+		Transmisstion:        data.Transmisstion,
+		Speed:                data.Speed,
+		HazardLights:         data.HazardLights,
+		LeftTurnSignalOn:     data.LeftTurnSignalOn,
+		RightTurnSignalOn:    data.RightTurnSignalOn,
+		Steering:             data.Steering,
+		Rpm:                  data.Rpm,
+		Footbrake:            data.Footbrake,
+		Gear:                 data.Gear,
+		Accelator:            data.Accelator,
+		Wipers:               data.Wipers,
+		TireWarnLeftF:        data.TireWarnLeftF,
+		TireWarnLeftR:        data.TireWarnLeftR,
+		TireWarnRightF:       data.TireWarnRightF,
+		TireWarnRightR:       data.TireWarnRightR,
+		TirePsiLeftF:         data.TirePsiLeftF,
+		TirePsiLeftR:         data.TirePsiLeftR,
+		TirePsiRightF:        data.TirePsiRightF,
+		TirePsiRightR:        data.TirePsiRightR,
+		FuelPercent:          data.FuelPercent,
+		FuelLiter:            data.FuelLiter,
+		Totaldist:            data.Totaldist,
+		RsuId:                data.RsuId,
+		MsgId:                data.MsgId,
+		StartvectorHeading:   data.StartvectorHeading,
+	}
+	
+	// BcDataInfo 생성
+	bcDataInfo := &idxserver.BcDataInfo{
+		TxId:   txID,
+		KeyCol: colName,
+		Pvd:    pvdData,
+	}
+	
+	// InsertData 생성
+	insertData := &idxserver.InsertData{
+		ColIndex: "speed_001",
+		FilePath: filePath,
+		BcList:   []*idxserver.BcDataInfo{bcDataInfo},
+		ColName:  colName,
+	}
+	
+	// 스트림을 통해 데이터 전송
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+	
+	stream, err := client.InsertIndex(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create insert stream: %v", err)
+	}
+	
+	// 데이터 전송
+	if err := stream.Send(insertData); err != nil {
+		return fmt.Errorf("failed to send data to fileindex: %v", err)
+	}
+	
+	// 스트림 종료 및 응답 수신
+	response, err := stream.CloseAndRecv()
+	if err != nil {
+		if err == io.EOF {
+			log.Printf("[Fabric] 스트림이 정상적으로 종료됨")
+		} else {
+			return fmt.Errorf("failed to close stream and receive response: %v", err)
+		}
+	} else {
+		log.Printf("[Fabric] FileIndex 응답: %v", response)
+	}
+	
+	log.Printf("[Fabric] PVD 데이터 전송 완료: OBU_ID=%s, Speed=%d", data.ObuId, data.Speed)
+	return nil
 }
 
 // ProcessIndexing - Fabric 데이터 인덱싱 처리
@@ -96,11 +193,16 @@ func (h *FabricHandler) ProcessIndexing(data *mngr.PvdHistDataM, txID string, co
 		return fmt.Errorf("fabric indexing validation failed: %v", err)
 	}
 	
-	// 2. File Index에 데이터 저장 (시뮬레이션)
+	// 2. 실제 File Index에 데이터 저장
 	filePath := h.GetFileIndexPath("speed")
 	log.Printf("[Fabric] File Index에 저장: %s", filePath)
 	
-	// 3. 인덱싱 완료 로그
+	// 3. 실제 인덱싱 처리 - fileindex-go 서버로 데이터 전송
+	if err := h.sendToFileIndex(data, txID, colName, filePath); err != nil {
+		return fmt.Errorf("failed to send data to file index: %v", err)
+	}
+	
+	// 4. 인덱싱 완료 로그
 	log.Printf("[Fabric] 인덱싱 완료: %s -> %s", txID, filePath)
 	
 	return nil
@@ -110,7 +212,7 @@ func (h *FabricHandler) ProcessIndexing(data *mngr.PvdHistDataM, txID string, co
 func (h *FabricHandler) ProcessIndexingIndexableData(indexableData *mngr.IndexableDataM, txID string, colName string) error {
 	log.Printf("[Fabric] IndexableData 인덱싱 처리 중: TxID=%s, ColName=%s", txID, colName)
 	// Fabric는 주로 PVD 데이터를 사용하므로 IndexableData는 지원하지 않음
-	return fmt.Errorf("Fabric network does not support IndexableData indexing")
+	return fmt.Errorf("fabric network does not support IndexableData indexing")
 }
 
 // =============================================================================
@@ -133,7 +235,7 @@ func NewEVMPublicNetworkHandler(config NetworkConfig) *EVMPublicNetworkHandler {
 
 // PutData - EVM 네트워크에 데이터 저장
 func (h *EVMPublicNetworkHandler) PutData(data *mngr.PvdHistDataM) (string, error) {
-	log.Printf("[%s] 데이터 저장 중: OBU_ID=%s, Speed=%d", data.ObuId, data.Speed)
+	log.Printf("[%s] 데이터 저장 중: OBU_ID=%s, Speed=%d", h.networkName, data.ObuId, data.Speed)
 	
 	// EVM 전용 데이터 검증
 	if err := h.ValidateData(data); err != nil {
@@ -149,7 +251,7 @@ func (h *EVMPublicNetworkHandler) PutData(data *mngr.PvdHistDataM) (string, erro
 
 // GetData - EVM 네트워크에서 데이터 조회
 func (h *EVMPublicNetworkHandler) GetData(query string) ([]byte, error) {
-	log.Printf("[%s] 데이터 조회: %s", query)
+	log.Printf("[%s] 데이터 조회: %s", h.networkName, query)
 	// EVM 전용 조회 로직 구현
 	return []byte(fmt.Sprintf("%s_data", h.networkName)), nil
 }
@@ -166,7 +268,7 @@ func (h *EVMPublicNetworkHandler) ValidateData(data *mngr.PvdHistDataM) error {
 	}
 	// EVM은 더 유연한 검증 규칙
 	if data.Speed < 0 {
-		return fmt.Errorf("Speed cannot be negative for %s network", h.networkName)
+		return fmt.Errorf("speed cannot be negative for %s network", h.networkName아ㄴ
 	}
 	return nil
 }

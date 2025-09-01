@@ -59,3 +59,133 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: pvd_org_001
+      idxname: PVD organization Index (org1)
+      keycol: IndexableData
+      filepath: data/fabric/pvd_org_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: pvd_org_001
+      idxname: PVD organization Index (org1)
+      keycol: IndexableData
+      filepath: data/fabric/pvd_org_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: pvd_speed_001
+      idxname: PVD speed Index (60)
+      keycol: Speed
+      filepath: data/fabric/pvd_speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: pvd_dt_001
+      idxname: PVD dt Index (dt)
+      keycol: CollectionDt
+      filepath: data/fabric/pvd_dt_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: pvd_dt_001
+      idxname: PVD create-index Index (dt)
+      keycol: CollectionDt
+      filepath: data/fabric/pvd_dt_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: pvd_dt_001
+      idxname: PVD dt Index (dt)
+      keycol: CollectionDt
+      filepath: data/fabric/pvd_dt_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: pvd_dt_001
+      idxname: PVD create-index Index (dt)
+      keycol: CollectionDt
+      filepath: data/fabric/pvd_dt_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: speed_001
+      idxname: PVD speed Index (speed)
+      keycol: Speed
+      filepath: data/fabric/speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: speed_001
+      idxname: PVD speed Index (speed)
+      keycol: Speed
+      filepath: data/fabric/speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: speed_001
+      idxname: PVD speed Index (speed)
+      keycol: Speed
+      filepath: data/fabric/speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: speed_001
+      idxname: PVD speed Index (speed)
+      keycol: Speed
+      filepath: data/fabric/speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: speed_001
+      idxname: PVD speed Index (speed)
+      keycol: Speed
+      filepath: data/fabric/speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: speed_001
+      idxname: PVD speed Index (speed)
+      keycol: Speed
+      filepath: data/fabric/speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

@@ -124,6 +124,14 @@ func (h PvdServer) PutData(ctx context.Context, req *pvd.SinglePvd) (*pvd.PvdRes
 	log.SetPrefix("[" + funcName() + "] ")
 
 	start := time.Now()
+	
+	// 디버깅: 요청 데이터 전체 출력
+	log.Printf("DEBUG: 전체 요청 데이터: %+v", req)
+	log.Printf("DEBUG: 요청 타입: %T", req)
+	log.Printf("DEBUG: ChainInfo: %+v", req.GetChainInfo())
+	log.Printf("DEBUG: Pvd: %+v", req.GetPvd())
+	log.Printf("DEBUG: 요청 JSON: %s", req.String())
+	
 	log.Println("Request ID = ", req.GetPvd().GetObuId())
 
 	data, err := json.Marshal(req.GetPvd())
@@ -220,12 +228,12 @@ func (h PvdServer) sendIndexingRequest(pvdData *pvd.PvdHist, txID string) {
 	
 	// InsertDatatoIdx 구조체 생성
 	insertData := &idxmngr.InsertDatatoIdx{
-		IndexID:  "fabric_speed", // Fabric 네트워크용 Speed File 인덱스 ID
+		IndexID:  "speed_001", // 통합 인덱스 ID (모든 Speed 데이터)
 		BcList:   []*idxmngr.BcDataList{bcDataList},
 		ColName:  "Speed",
 		TxId:     txID,
 		OBU_ID:   pvdData.GetObuId(),
-		FilePath: "data/fabric/speed.bf",
+		FilePath: "data/fabric/speed_001.bf", // 통합 파일 경로
 		Network:  "fabric", // Fabric 네트워크 지정
 	}
 	
@@ -819,16 +827,24 @@ func (h PvdServer) GetWorldState(ctx context.Context, req *pvd.ChainInfo) (*pvd.
 
 	log.Println(" ChannelName : ", configuration.RuntimeConf.Profile[0].ChannelName)
 	log.Println(" ChaincodeName  : ", configuration.RuntimeConf.Profile[0].ChaincodeName)
+	
+	// 받은 요청 데이터 로그 추가
+	log.Println(" [DEBUG] 받은 요청 데이터:")
+	log.Println("   - req.ChannelName:", req.ChannelName)
+	log.Println("   - req.Chaincode:", req.Chaincode)
+	log.Println("   - req.String():", req.String())
 
 	start := time.Now()
 
 	if req.ChannelName != configuration.RuntimeConf.Profile[0].ChannelName {
+		log.Printf(" [ERROR] 채널명 불일치: 요청=%s, 설정=%s", req.ChannelName, configuration.RuntimeConf.Profile[0].ChannelName)
 		err3 := errors.New("not match channelname")
 		return nil, err3
 	}
 	
 	// 체인코드 이름이 qscc이거나 config에 명시된 이름과 일치하는지 확인
 	if req.Chaincode != "qscc" && req.Chaincode != "pvdRecord" && req.Chaincode != configuration.RuntimeConf.Profile[0].ChaincodeName {
+		log.Printf(" [ERROR] 체인코드명 불일치: 요청=%s, 설정=%s", req.Chaincode, configuration.RuntimeConf.Profile[0].ChaincodeName)
 		err3 := errors.New("not match chaincode name")
 		return nil, err3
 	}
