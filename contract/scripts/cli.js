@@ -94,8 +94,138 @@ async function deployContract(network) {
 
 
 
+// PVD 멀티 데이터 저장 (CSV 파일 읽기, Fabric 네트워크)
+async function putPvdMultiData(network, csvFile, batchSize = 1000) {
+  console.log(`🚀 ${network} 네트워크에 CSV 멀티 데이터 저장 시작`);
+  console.log(`📁 CSV 파일: ${csvFile}`);
+  console.log(`📦 배치 크기: ${batchSize}개씩\n`);
+
+  if (network !== 'fabric') {
+    throw new Error('CSV 멀티 데이터는 Fabric 네트워크에서만 지원됩니다');
+  }
+
+  const fs = require('fs');
+  const path = require('path');
+  
+  // CSV 파일 경로 설정
+  const csvPath = path.resolve(csvFile);
+  
+  if (!fs.existsSync(csvPath)) {
+    throw new Error(`CSV 파일을 찾을 수 없습니다: ${csvPath}`);
+  }
+
+  try {
+    console.log('📄 CSV 파일 읽는 중...');
+    const csvContent = fs.readFileSync(csvPath, 'utf8');
+    const lines = csvContent.trim().split('\n');
+    
+    if (lines.length < 2) {
+      throw new Error('CSV 파일에 데이터가 없습니다');
+    }
+    
+    const headers = lines[0].split(',');
+    console.log(`📋 CSV 헤더: ${headers.join(', ')}`);
+    console.log(`📊 총 데이터 라인: ${lines.length - 1}개\n`);
+    
+    // 배치로 나누어서 저장
+    let successCount = 0;
+    let errorCount = 0;
+    const totalLines = lines.length - 1;
+    const totalBatches = Math.ceil(totalLines / batchSize);
+    
+    console.log(`🔄 ${totalBatches}개 배치로 나누어서 저장 시작...\n`);
+    
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const start = batchIndex * batchSize + 1; // +1 to skip header
+      const end = Math.min(start + batchSize, lines.length);
+      const batchLines = lines.slice(start, end);
+      
+      console.log(`📦 배치 ${batchIndex + 1}/${totalBatches}: ${batchLines.length}개 데이터 저장 중...`);
+      
+      // 각 배치의 데이터를 개별적으로 저장
+      for (let i = 0; i < batchLines.length; i++) {
+        const values = batchLines[i].split(',');
+        
+        if (values.length < 5) {
+          console.log(`⚠️ 라인 스킵 (데이터 부족): ${values.join(',')}`);
+          errorCount++;
+          continue;
+        }
+        
+        // CSV 데이터를 PVD 객체로 파싱
+        const pvdData = {
+          obuId: values[0] || `CSV-OBU-${Date.now()}-${i}`,
+          collectionDt: values[1] || new Date().toISOString(),
+          startvectorLatitude: parseFloat(values[2]) || 37.5665,
+          startvectorLongitude: parseFloat(values[3]) || 126.9780,
+          transmisstion: values[4] || 'D',
+          speed: parseInt(values[5]) || 60,
+          hazardLights: values[6] === 'ON',
+          leftTurnSignalOn: values[7] === 'ON',
+          rightTurnSignalOn: values[8] === 'ON',
+          steering: parseInt(values[9]) || 0,
+          rpm: parseInt(values[10]) || 2000,
+          footbrake: values[11] === 'ON',
+          gear: values[12] || 'D',
+          accelator: parseInt(values[13]) || 30,
+          wipers: values[14] === 'ON',
+          tireWarnLeftF: values[15] === 'WARN',
+          tireWarnLeftR: values[16] === 'WARN',
+          tireWarnRightF: values[17] === 'WARN', 
+          tireWarnRightR: values[18] === 'WARN',
+          tirePsiLeftF: parseInt(values[19]) || 32,
+          tirePsiLeftR: parseInt(values[20]) || 32,
+          tirePsiRightF: parseInt(values[21]) || 32,
+          tirePsiRightR: parseInt(values[22]) || 32,
+          fuelPercent: parseInt(values[23]) || 75,
+          fuelLiter: parseInt(values[24]) || 45,
+          totaldist: parseInt(values[25]) || 15000,
+          rsuId: values[26] || 'RSU-CSV-001',
+          msgId: values[27] || `MSG-CSV-${i}`,
+          startvectorHeading: parseInt(values[28]) || 90
+        };
+        
+        try {
+          await putPvdData(network, pvdData.obuId, pvdData);
+          successCount++;
+          
+          // 진행 상황 표시 (10개마다)
+          if (successCount % 10 === 0) {
+            process.stdout.write('.');
+          }
+          
+        } catch (error) {
+          errorCount++;
+          console.log(`\n❌ 데이터 저장 실패 (OBU: ${pvdData.obuId}): ${error.message}`);
+        }
+        
+        // 서버 부하 방지를 위한 짧은 지연
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      console.log(`\n✅ 배치 ${batchIndex + 1} 완료\n`);
+    }
+    
+    console.log('\n🎉 CSV 멀티 데이터 저장 완료!');
+    console.log(`📊 총 ${totalLines}개 중 ${successCount}개 성공, ${errorCount}개 실패`);
+    
+    return {
+      success: true,
+      total: totalLines,
+      successCount,
+      errorCount,
+      file: csvFile,
+      batchSize
+    };
+    
+  } catch (error) {
+    console.error(`❌ CSV 멀티 데이터 저장 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 // PVD 데이터 저장 함수
-async function putPvdData(network, obuId) {
+async function putPvdData(network, obuId, pvdData = null) {
   try {
     console.log(`📝 ${network} 네트워크에 PVD 데이터 저장 중...`);
     
@@ -107,38 +237,75 @@ async function putPvdData(network, obuId) {
       await pvdClient.connect();
       console.log('✅ PVD 서버 연결 성공');
       
-      // PVD 데이터 생성 (고유한 OBU_ID 사용)
-      const csvPvdData = {
-        obuId: obuId || `OBU-${Date.now()}`,
-        speed: 65,
-        collectionDt: new Date().toISOString(),
-        startvectorLatitude: 37.5665,
-        startvectorLongitude: 126.9780,
-        transmisstion: 'auto',
-        hazardLights: false,
-        leftTurnSignalOn: false,
-        rightTurnSignalOn: false,
-        steering: 0,
-        rpm: 2500,
-        footbrake: false,
-        gear: 'D',
-        accelator: 30,
-        wipers: false,
-        tireWarnLeftF: false,
-        tireWarnLeftR: false,
-        tireWarnRightF: false,
-        tireWarnRightR: false,
-        tirePsiLeftF: 32,
-        tirePsiLeftR: 32,
-        tirePsiRightF: 32,
-        tirePsiRightR: 32,
-        fuelPercent: 75,
-        fuelLiter: 35,
-        totaldist: 52000,
-        rsuId: 'rsu_csv_001',
-        msgId: 'msg_csv_001',
-        startvectorHeading: 90
-      };
+      // CSV 데이터가 있으면 사용, 없으면 기본값 생성
+      let csvPvdData;
+      if (pvdData) {
+        // CSV에서 파싱된 데이터 사용
+        csvPvdData = {
+          obuId: pvdData.obuId,
+          speed: pvdData.speed || 65,
+          collectionDt: pvdData.collectionDt || new Date().toISOString(),
+          startvectorLatitude: pvdData.startvectorLatitude || 37.5665,
+          startvectorLongitude: pvdData.startvectorLongitude || 126.9780,
+          transmisstion: pvdData.transmisstion || 'auto',
+          hazardLights: pvdData.hazardLights || false,
+          leftTurnSignalOn: pvdData.leftTurnSignalOn || false,
+          rightTurnSignalOn: pvdData.rightTurnSignalOn || false,
+          steering: pvdData.steering || 0,
+          rpm: pvdData.rpm || 2500,
+          footbrake: pvdData.footbrake || false,
+          gear: pvdData.gear || 'D',
+          accelator: pvdData.accelator || 30,
+          wipers: pvdData.wipers || false,
+          tireWarnLeftF: pvdData.tireWarnLeftF || false,
+          tireWarnLeftR: pvdData.tireWarnLeftR || false,
+          tireWarnRightF: pvdData.tireWarnRightF || false,
+          tireWarnRightR: pvdData.tireWarnRightR || false,
+          tirePsiLeftF: pvdData.tirePsiLeftF || 32,
+          tirePsiLeftR: pvdData.tirePsiLeftR || 32,
+          tirePsiRightF: pvdData.tirePsiRightF || 32,
+          tirePsiRightR: pvdData.tirePsiRightR || 32,
+          fuelPercent: pvdData.fuelPercent || 75,
+          fuelLiter: pvdData.fuelLiter || 35,
+          totaldist: pvdData.totaldist || 52000,
+          rsuId: pvdData.rsuId || 'rsu_csv_001',
+          msgId: pvdData.msgId || 'msg_csv_001',
+          startvectorHeading: pvdData.startvectorHeading || 90
+        };
+      } else {
+        // 기존 방식: 기본값 사용
+        csvPvdData = {
+          obuId: obuId || `OBU-${Date.now()}`,
+          speed: 65,
+          collectionDt: new Date().toISOString(),
+          startvectorLatitude: 37.5665,
+          startvectorLongitude: 126.9780,
+          transmisstion: 'auto',
+          hazardLights: false,
+          leftTurnSignalOn: false,
+          rightTurnSignalOn: false,
+          steering: 0,
+          rpm: 2500,
+          footbrake: false,
+          gear: 'D',
+          accelator: 30,
+          wipers: false,
+          tireWarnLeftF: false,
+          tireWarnLeftR: false,
+          tireWarnRightF: false,
+          tireWarnRightR: false,
+          tirePsiLeftF: 32,
+          tirePsiLeftR: 32,
+          tirePsiRightF: 32,
+          tirePsiRightR: 32,
+          fuelPercent: 75,
+          fuelLiter: 35,
+          totaldist: 52000,
+          rsuId: 'rsu_csv_001',
+          msgId: 'msg_csv_001',
+          startvectorHeading: 90
+        };
+      }
       
       console.log(`📤 PVD 데이터 저장: OBU_ID=${csvPvdData.obuId}, Speed=${csvPvdData.speed}`);
       const result = await pvdClient.putData(csvPvdData);
@@ -2656,7 +2823,15 @@ async function main() {
         
       // ===== PVD 데이터 저장 =====
       case 'putdata':
-        await putPvdData(network, value);
+        if (type === 'multi' || type === 'csv') {
+          // CSV 멀티 데이터 넣기
+          const csvFile = value || 'pvd_hist_100.csv';
+          const batchSize = process.argv.find(arg => arg.startsWith('-batch='))?.split('=')[1] || '1000';
+          await putPvdMultiData(network, csvFile, parseInt(batchSize));
+        } else {
+          // 단건 데이터 넣기
+          await putPvdData(network, value);
+        }
         break;
         
              // ===== 데이터 요청 및 양방향 인덱싱 =====
