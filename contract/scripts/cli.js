@@ -157,6 +157,163 @@ async function putPvdData(network, obuId) {
   }
 }
 
+// 네트워크별 통합 인덱스 생성 (EVM/Fabric 통합)
+async function createIndexUnified(network, indexType) {
+  try {
+    console.log(`🔧 ${network} 네트워크에 ${indexType} 인덱스 생성 중...`);
+    
+    if (network === 'fabric') {
+      // Fabric 네트워크: type별 인덱스 생성
+      switch (indexType) {
+        case 'speed':
+          console.log('📊 Fabric 네트워크 - Speed 인덱스 생성...');
+          await callFabricChaincode('create-index', 'speed');
+          console.log('✅ Fabric Speed 인덱스 생성 완료');
+          return {
+            success: true,
+            network: 'fabric',
+            indexType: 'speed',
+            indexId: 'speed_001',
+            message: 'Fabric Speed 인덱스 생성 완료'
+          };
+          
+        case 'dt':
+        case 'collectiondt':
+          console.log('📊 Fabric 네트워크 - CollectionDt 인덱스 생성...');
+          await callFabricChaincode('create-index', 'dt');
+          console.log('✅ Fabric CollectionDt 인덱스 생성 완료');
+          return {
+            success: true,
+            network: 'fabric',
+            indexType: 'dt',
+            indexId: 'dt_001',
+            message: 'Fabric CollectionDt 인덱스 생성 완료'
+          };
+          
+        default:
+          throw new Error(`Fabric에서 지원하지 않는 인덱스 타입: ${indexType}`);
+      }
+      
+    } else {
+      // EVM 계열 네트워크: type별 인덱스 생성
+      switch (indexType) {
+        case 'samsung':
+          console.log(`📊 ${network} 네트워크 - Samsung 인덱스 생성...`);
+          await createSamsungIndex(network);
+          console.log('✅ Samsung 인덱스 생성 완료');
+          return {
+            success: true,
+            network: network,
+            indexType: 'samsung',
+            message: `${network} Samsung 인덱스 생성 완료`
+          };
+          
+        case 'lg':
+          console.log(`📊 ${network} 네트워크 - LG 인덱스 생성...`);
+          await createLgIndex(network);
+          console.log('✅ LG 인덱스 생성 완료');
+          return {
+            success: true,
+            network: network,
+            indexType: 'lg',
+            message: `${network} LG 인덱스 생성 완료`
+          };
+          
+        case 'user':
+        case 'users':
+          console.log(`📊 ${network} 네트워크 - User 인덱스들 생성...`);
+          await createUserIndexes(network);
+          console.log('✅ User 인덱스들 생성 완료');
+          return {
+            success: true,
+            network: network,
+            indexType: 'user',
+            message: `${network} User 인덱스들 생성 완료`
+          };
+          
+        case 'all':
+          console.log(`📊 ${network} 네트워크 - 모든 인덱스 생성...`);
+          const results = [];
+          
+          try {
+            await createSamsungIndex(network);
+            results.push('Samsung');
+          } catch (error) {
+            console.log(`⚠️ Samsung 인덱스 생성 실패: ${error.message}`);
+          }
+          
+          try {
+            await createLgIndex(network);
+            results.push('LG');
+          } catch (error) {
+            console.log(`⚠️ LG 인덱스 생성 실패: ${error.message}`);
+          }
+          
+          try {
+            await createUserIndexes(network);
+            results.push('User');
+          } catch (error) {
+            console.log(`⚠️ User 인덱스들 생성 실패: ${error.message}`);
+          }
+          
+          console.log(`✅ ${network} 네트워크 모든 인덱스 생성 완료`);
+          return {
+            success: true,
+            network: network,
+            indexType: 'all',
+            indexes: results,
+            message: `${network} 모든 인덱스 생성 완료`
+          };
+          
+        default:
+          throw new Error(`${network}에서 지원하지 않는 인덱스 타입: ${indexType}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`❌ ${network} ${indexType} 인덱스 생성 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// 네트워크별 인덱스 전체 조회 (EVM/Fabric 통합)
+async function searchIndexAll(network, indexType) {
+  try {
+    console.log(`🔍 ${network} 네트워크의 ${indexType} 인덱스 전체 조회 시작...`);
+    
+    if (network === 'fabric') {
+      // Fabric 네트워크: 인덱스에서 직접 전체 조회
+      console.log('📊 Fabric 인덱스에서 전체 데이터 조회...');
+      
+      const indexResult = await searchFabricIndexAll(indexType);
+      console.log('🔍 Fabric 인덱스 전체 조회 결과:', indexResult);
+      return indexResult;
+      
+    } else {
+      // EVM 계열 네트워크: 기존 EVM 인덱스 조회 로직
+      console.log(`📊 ${network} 네트워크 인덱스에서 전체 데이터 조회...`);
+      
+      const indexingClient = new IndexingClient({
+        serverAddr: 'localhost:50052',
+        protoPath: PROTO_PATH
+      });
+      
+      await indexingClient.connect();
+      console.log('✅ 인덱싱 서버 연결 성공');
+      
+      // EVM 인덱스 전체 조회 로직 (구현 필요)
+      const result = await indexingClient.searchAllData(indexType);
+      
+      indexingClient.close();
+      return result;
+    }
+    
+  } catch (error) {
+    console.error(`❌ ${network} 인덱스 전체 조회 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 // 네트워크별 데이터 조회
 async function searchData(network, dataType, searchValue) {
   try {
@@ -238,26 +395,31 @@ async function searchData(network, dataType, searchValue) {
         
         console.log(`   매칭된 조직명: ${orgName}`);
         
+        // 네트워크 경로 매핑 (hardhat -> hardhat-local)
+        const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
+        
         indexID = `${orgName}_${orgShortHash}_001`;
         field = 'IndexableData';
         searchValue = orgName;   // 실제 조직명으로 검색
-        filePath = `data/${network}/${orgName}_${orgShortHash}_001.bf`;
+        filePath = `data/${networkDir}/${orgName}_${orgShortHash}_001.bf`;
         break;
         
       case 'user':
         // 사용자 검색도 IndexableData에서 지갑 주소로 검색
         const shortHash = hashWalletAddress(searchValue);
+        const userNetworkDir = network === 'hardhat' ? 'hardhat-local' : network;
         indexID = `user_${shortHash}_001`;
         field = 'IndexableData';  // 🔥 DynamicFields → IndexableData
         // 🔥 지갑 주소 그대로 검색
         searchValue = searchValue;  // 원본 지갑 주소 사용
-        filePath = `data/${network}/user_${shortHash}_001.bf`;
+        filePath = `data/${userNetworkDir}/user_${shortHash}_001.bf`;
         break;
         
       case 'speed':
+        const speedNetworkDir = network === 'hardhat' ? 'hardhat-local' : network;
         indexID = `${network}_speed_001`;
         field = 'Speed';
-        filePath = `data/${network}/speed.bf`;
+        filePath = `data/${speedNetworkDir}/speed.bf`;
         break;
         
       default:
@@ -984,6 +1146,94 @@ async function searchAllSpeedIndexes(indexingClient, searchValue) {
   };
 }
 
+// Fabric 인덱스 전체 조회 함수 (조건 없이 모든 데이터)
+async function searchFabricIndexAll(indexType) {
+  try {
+    console.log(`🔍 Fabric ${indexType} 인덱스 전체 조회 중...`);
+    
+    // Fabric 전용 인덱싱 클라이언트 사용
+    const indexingClient = new FabricIndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: PROTO_PATH
+    });
+    
+    await indexingClient.connect();
+    console.log('✅ Fabric 인덱싱 서버 연결 성공');
+    
+    // 인덱스 타입별 설정
+    let indexID, field, filePath;
+    
+    switch (indexType) {
+      case 'speed':
+        indexID = `speed_001`;
+        field = 'Speed';
+        filePath = `data/fabric/speed_001.bf`;
+        break;
+        
+      case 'dt':
+      case 'collectiondt':
+        indexID = `dt_001`;
+        field = 'CollectionDt';
+        filePath = `data/fabric/dt_001.bf`;
+        break;
+        
+      default:
+        throw new Error(`지원하지 않는 인덱스 타입: ${indexType}`);
+    }
+    
+    // 전체 조회 요청 (Range 검색으로 모든 데이터)
+    const searchRequest = {
+      IndexID: indexID,
+      Field: field,
+      Value: '0',  // 최소값부터
+      Value2: '999999',  // 최대값까지 (범위 검색)
+      FilePath: filePath,
+      KeySize: 64,
+      ComOp: 'Range'  // 범위 검색으로 전체 데이터
+    };
+    
+    console.log(`🔍 전체 조회 요청:`, searchRequest);
+    
+    // 실제 인덱스 전체 검색 수행
+    const response = await indexingClient.searchData(searchRequest);
+    console.log(`✅ Fabric 인덱스 전체 조회 완료!`);
+    
+    // 검색 결과를 깔끔하게 정리
+    const cleanResult = {
+      success: true,
+      indexId: response.idxInfo?.IndexID || searchRequest.IndexID,
+      indexName: response.idxInfo?.IndexName || `Fabric ${indexType} Index`,
+      data: response.IdxData || [],
+      count: response.IdxData?.length || 0,
+      network: 'fabric',
+      indexType: indexType,
+      searchType: 'all',
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log(`📊 전체 조회 결과:`);
+    console.log(`   🆔 인덱스 ID: ${cleanResult.indexId}`);
+    console.log(`   📝 인덱스 이름: ${cleanResult.indexName}`);
+    console.log(`   📊 데이터 개수: ${cleanResult.count}`);
+    console.log(`   🌐 네트워크: ${cleanResult.network}`);
+    console.log(`   🔍 검색 타입: ${cleanResult.indexType}`);
+    
+    if (cleanResult.data && cleanResult.data.length > 0) {
+      console.log(`   📋 검색된 TxID들:`);
+      cleanResult.data.forEach((txId, index) => {
+        console.log(`      ${index + 1}. ${txId}`);
+      });
+    }
+    
+    await indexingClient.close();
+    return cleanResult;
+    
+  } catch (error) {
+    console.error(`❌ Fabric 인덱스 전체 조회 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 async function searchFabricIndex(dataType, searchValue) {
   try {
     console.log('🔍 Fabric 인덱스 검색 중...');
@@ -1009,9 +1259,9 @@ async function searchFabricIndex(dataType, searchValue) {
         
       case 'dt':
       case 'collectiondt':
-        indexID = `pvd_dt_001`;
+        indexID = `dt_001`;
         field = 'CollectionDt';
-        filePath = `data/fabric/pvd_dt_001.bf`;
+        filePath = `data/fabric/dt_001.bf`;
         break;
         
       case 'organization':
@@ -1113,8 +1363,8 @@ async function createPvdIndex(dataType, searchValue) {
         
       case 'dt':
       case 'collectiondt':
-        // 수집 날짜/시간 인덱스: pvd_dt_001
-        indexID = `pvd_dt_001`;
+        // 수집 날짜/시간 인덱스: dt_001
+        indexID = `dt_001`;
         keyCol = 'CollectionDt';
         colName = 'CollectionDt';
         break;
@@ -1134,8 +1384,8 @@ async function createPvdIndex(dataType, searchValue) {
         break;
         
       default:
-        // 기본 인덱스: pvd_dt_001 (CollectionDt 기반)
-        indexID = `pvd_dt_001`;
+        // 기본 인덱스: dt_001 (CollectionDt 기반)
+        indexID = `dt_001`;
         keyCol = 'CollectionDt';
         colName = 'CollectionDt';
         break;
@@ -1205,8 +1455,8 @@ async function indexPvdData(dataType, searchValue, pvdData) {
         
       case 'dt':
       case 'collectiondt':
-        // 수집 날짜/시간 인덱스: pvd_dt_001
-        indexID = `pvd_dt_001`;
+        // 수집 날짜/시간 인덱스: dt_001
+        indexID = `dt_001`;
         keyCol = 'CollectionDt';
         colName = 'CollectionDt';
         break;
@@ -1226,8 +1476,8 @@ async function indexPvdData(dataType, searchValue, pvdData) {
         break;
         
       default:
-        // 기본 인덱스: pvd_dt_001 (CollectionDt 기반)
-        indexID = `pvd_dt_001`;
+        // 기본 인덱스: dt_001 (CollectionDt 기반)
+        indexID = `dt_001`;
         keyCol = 'CollectionDt';
         colName = 'CollectionDt';
         break;
@@ -1850,11 +2100,14 @@ async function createSamsungIndex(network) {
     
     const orgShortHash = hashWalletAddress(samsungAddress);
     
+    // 네트워크 경로 매핑 (hardhat -> hardhat-local)
+    const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
+    
     const indexInfo = {
       IndexID: `samsung_${orgShortHash}_001`,
       IndexName: `Samsung Organization Index (${samsungAddress.slice(0, 10)}...)`,
       KeyCol: 'IndexableData',
-      FilePath: `data/${network}/samsung_${orgShortHash}_001.bf`,
+      FilePath: `data/${networkDir}/samsung_${orgShortHash}_001.bf`,
       KeySize: 64,
       Network: network
     };
@@ -1905,11 +2158,14 @@ async function createLgIndex(network) {
     
     const orgShortHash = hashWalletAddress(lgAddress);
     
+    // 네트워크 경로 매핑 (hardhat -> hardhat-local)
+    const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
+    
     const indexInfo = {
       IndexID: `lg_${orgShortHash}_001`,
       IndexName: `LG Organization Index (${lgAddress.slice(0, 10)}...)`,
       KeyCol: 'IndexableData',
-      FilePath: `data/${network}/lg_${orgShortHash}_001.bf`,
+      FilePath: `data/${networkDir}/lg_${orgShortHash}_001.bf`,
       KeySize: 64,
       Network: network
     };
@@ -1976,6 +2232,9 @@ async function createUserIndexes(network) {
     });
     console.log('');
 
+    // 네트워크 경로 매핑 (hardhat -> hardhat-local)
+    const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
+    
     // 각 사용자별 인덱스 생성
     for (let i = 0; i < testAddresses.length; i++) {
       const address = testAddresses[i];
@@ -1985,7 +2244,7 @@ async function createUserIndexes(network) {
         IndexID: `user_${shortHash}_001`,
         IndexName: `User ${address.slice(0, 10)}... Personal Index`,
         KeyCol: 'UserId',
-        FilePath: `data/${network}/user_${shortHash}_001.bf`,
+        FilePath: `data/${networkDir}/user_${shortHash}_001.bf`,
         KeySize: 64,
         Network: network
       };
@@ -2216,7 +2475,7 @@ async function requestData(network) {
           }],
           ColName: 'IndexableData',
           ColIndex: `${request.organizationName}_${orgShortHash}_001`,
-          FilePath: `data/${network}/${request.organizationName}_${orgShortHash}_001.bf`,
+          FilePath: `data/${network === 'hardhat' ? 'hardhat-local' : network}/${request.organizationName}_${orgShortHash}_001.bf`,
           Network: network
         };
         
@@ -2250,7 +2509,7 @@ async function requestData(network) {
           }],
           ColName: 'UserId',
           ColIndex: `user_${shortHash}_001`,
-          FilePath: `data/${network}/user_${shortHash}_001.bf`,
+          FilePath: `data/${network === 'hardhat' ? 'hardhat-local' : network}/user_${shortHash}_001.bf`,
           Network: network
         };
         
@@ -2322,7 +2581,7 @@ function showHelp() {
   node cli.js -cmd=search -type=dt -value=20250101 -network=fabric
 
 Fabric 네트워크 명령어 구분:
-  create-fabric-index: Fabric 인덱스 생성 (speed_001, pvd_dt_001 등)
+  create-fabric-index: Fabric 인덱스 생성 (speed_001, dt_001 등)
   search: Fabric 데이터 검색 (기존 인덱스에서 조회)
   node cli.js -cmd=request-data -network=hardhat
   node cli.js -cmd=large-scale-test
@@ -2345,7 +2604,18 @@ async function main() {
         await deployContract(network);
         break;
         
-      // ===== 인덱스 생성 =====
+      // ===== 인덱스 생성 (EVM/Fabric 통합) =====
+      case 'create-index':
+        if (!type) {
+          console.error('❌ create-index 명령어는 -type이 필요합니다');
+          console.log('예시: node cli.js -cmd=create-index -type=lg -network=hardhat');
+          console.log('      node cli.js -cmd=create-index -type=speed -network=fabric');
+          return;
+        }
+        await createIndexUnified(network, type);
+        break;
+        
+      // ===== 개별 인덱스 생성 (기존 호환성) =====
       case 'create-samsung':
         await createSamsungIndex(network);
         break;
@@ -2372,6 +2642,16 @@ async function main() {
           return;
         }
         await searchData(network, type, value);
+        break;
+        
+      // ===== 인덱스 전체 조회 =====
+      case 'search-index':
+        if (!type) {
+          console.error('❌ search-index 명령어는 -type이 필요합니다');
+          console.log('예시: node cli.js -cmd=search-index -type=speed -network=fabric');
+          return;
+        }
+        await searchIndexAll(network, type);
         break;
         
       // ===== PVD 데이터 저장 =====

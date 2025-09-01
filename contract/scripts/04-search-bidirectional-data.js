@@ -39,7 +39,7 @@ async function searchBidirectionalData() {
       IndexID: "samsung_001",
       Field: "IndexableData",
       Value: "samsung",
-      FilePath: "data/hardhat/samsung_001.bf",
+      FilePath: "data/hardhat-local/samsung_001.bf",
       KeySize: 64,
       ComOp: "Eq"
     };
@@ -88,7 +88,7 @@ async function searchBidirectionalData() {
         IndexID: userIndexID,
         Field: "UserId",
         Value: address,
-        FilePath: `data/hardhat/user_${shortHash}_001.bf`,
+        FilePath: `data/hardhat-local/user_${shortHash}_001.bf`,
         KeySize: 64,
         ComOp: "Eq"
       };

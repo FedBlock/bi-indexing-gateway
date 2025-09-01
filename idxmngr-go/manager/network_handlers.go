@@ -268,15 +268,21 @@ func (h *EVMPublicNetworkHandler) ValidateData(data *mngr.PvdHistDataM) error {
 	}
 	// EVM은 더 유연한 검증 규칙
 	if data.Speed < 0 {
-		return fmt.Errorf("speed cannot be negative for %s network", h.networkName아ㄴ
+		return fmt.Errorf("speed cannot be negative for %s network", h.networkName)
 	}
 	return nil
 }
 
 // GetFileIndexPath - EVM File Index 경로 반환
 func (h *EVMPublicNetworkHandler) GetFileIndexPath(indexType string) string {
+	// 네트워크 이름 매핑
+	networkDir := h.networkName
+	if h.networkName == "hardhat" {
+		networkDir = "hardhat-local"
+	}
+	
 	// 새로운 폴더 구조: data/{network}/{indexType}.bf
-	return fmt.Sprintf("data/%s/%s.bf", h.networkName, indexType)
+	return fmt.Sprintf("data/%s/%s.bf", networkDir, indexType)
 }
 
 // ProcessIndexing - EVM 데이터 인덱싱 처리

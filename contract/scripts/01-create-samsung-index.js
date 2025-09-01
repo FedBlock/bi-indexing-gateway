@@ -19,7 +19,7 @@ async function createSamsungIndex() {
       IndexID: "samsung_001",
       IndexName: "Samsung Organization Index",
       KeyCol: 'IndexableData',
-      FilePath: "data/hardhat/samsung_001.bf",
+      FilePath: "data/hardhat-local/samsung_001.bf",
       KeySize: 64,
       Network: 'hardhat'
     };

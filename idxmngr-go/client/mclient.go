@@ -669,7 +669,7 @@ func main() {
 			IdxID:    "hardhat_001_speed",
 			IdxName:  "File_Hardhat_Speed",
 			KeyCol:   "IndexableData", // IndexableData로 변경
-			FilePath: "data/hardhat/speed.bf",
+			FilePath: "data/hardhat-local/speed.bf",
 			KeySize:  7, // "samsung" 문자열 길이에 맞춤
 		})
 	case "fcreate_sepolia": // sepolia 네트워크용 File Index

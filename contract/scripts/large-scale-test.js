@@ -26,7 +26,7 @@ async function createIndexes(indexingClient, organizations, users) {
         IndexID: `${org.name}_${orgShortHash}_001`,
         IndexName: `${org.name.toUpperCase()} Organization Index (${org.address.slice(0, 10)}...)`,
         KeyCol: 'IndexableData',
-        FilePath: `data/hardhat/${org.name}_${orgShortHash}_001.bf`,
+        FilePath: `data/hardhat-local/${org.name}_${orgShortHash}_001.bf`,
         KeySize: 64,
         Network: 'hardhat'
       };
@@ -46,7 +46,7 @@ async function createIndexes(indexingClient, organizations, users) {
         IndexID: `user_${userShortHash}_001`,
         IndexName: `User ${user.address.slice(0, 10)}... Personal Index`,
         KeyCol: 'IndexableData',
-        FilePath: `data/hardhat/user_${userShortHash}_001.bf`,
+        FilePath: `data/hardhat-local/user_${userShortHash}_001.bf`,
         KeySize: 64,
         Network: 'hardhat'
       };
@@ -207,7 +207,7 @@ async function runLargeScaleTest() {
           }],
           ColName: 'IndexableData',
           ColIndex: `${organization.name}_${orgShortHash}_001`,
-          FilePath: `data/hardhat/${organization.name}_${orgShortHash}_001.bf`,
+          FilePath: `data/hardhat-local/${organization.name}_${orgShortHash}_001.bf`,
           Network: 'hardhat'
         };
         
@@ -242,7 +242,7 @@ async function runLargeScaleTest() {
           }],
           ColName: 'UserId',
           ColIndex: `user_${userShortHash}_001`,
-          FilePath: `data/hardhat/user_${userShortHash}_001.bf`,
+          FilePath: `data/hardhat-local/user_${userShortHash}_001.bf`,
           Network: 'hardhat'
         };
         
@@ -281,7 +281,7 @@ async function runLargeScaleTest() {
           IndexID: `${org.name}_${orgShortHash}_001`,
           Field: 'IndexableData',
           Value: org.name,
-          FilePath: `data/hardhat/${org.name}_${orgShortHash}_001.bf`,
+          FilePath: `data/hardhat-local/${org.name}_${orgShortHash}_001.bf`,
           KeySize: 64,
           ComOp: 'Eq'
         };
@@ -305,7 +305,7 @@ async function runLargeScaleTest() {
           IndexID: `user_${userShortHash}_001`,
           Field: 'IndexableData',
           Value: user.address,
-          FilePath: `data/hardhat/user_${userShortHash}_001.bf`,
+          FilePath: `data/hardhat-local/user_${userShortHash}_001.bf`,
           KeySize: 64,
           ComOp: 'Eq'
         };

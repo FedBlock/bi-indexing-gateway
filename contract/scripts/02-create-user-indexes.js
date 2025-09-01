@@ -46,7 +46,7 @@ async function createUserIndexes() {
         IndexID: `user_${shortHash}_001`,
         IndexName: `User ${address.slice(0, 10)}... Personal Index`,
         KeyCol: 'UserId',
-        FilePath: `data/hardhat/user_${shortHash}_001.bf`,
+        FilePath: `data/hardhat-local/user_${shortHash}_001.bf`,
         KeySize: 64,
         Network: 'hardhat'
       };

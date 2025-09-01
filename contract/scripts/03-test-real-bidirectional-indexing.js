@@ -170,7 +170,7 @@ async function indexBidirectionalData(indexingClient, requestId, receipt, reques
       }],
       ColName: 'IndexableData',
       ColIndex: "samsung_001",
-      FilePath: "data/hardhat/samsung_001.bf",
+      FilePath: "data/hardhat-local/samsung_001.bf",
       Network: 'hardhat'
     };
 
@@ -200,7 +200,7 @@ async function indexBidirectionalData(indexingClient, requestId, receipt, reques
       }],
       ColName: 'UserId',
       ColIndex: `user_${shortHash}_001`,
-      FilePath: `data/hardhat/user_${shortHash}_001.bf`,
+      FilePath: `data/hardhat-local/user_${shortHash}_001.bf`,
       Network: 'hardhat'
     };
     
