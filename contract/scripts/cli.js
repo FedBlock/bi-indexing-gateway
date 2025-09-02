@@ -636,8 +636,16 @@ async function createIndexUnified(network, indexType) {
     console.log(`🔧 ${network} 네트워크에 ${indexType} 인덱스 생성 중...`);
     
     if (network === 'fabric') {
-      // Fabric 네트워크: 인덱싱 서버를 통한 인덱스 생성
+      // Fabric 네트워크: dt와 speed 인덱스만 생성 가능
       console.log(`📊 Fabric 네트워크 - ${indexType} 인덱스 생성...`);
+      
+      // Fabric에서 허용된 인덱스 타입 검증
+      const allowedTypes = ['dt', 'speed'];
+      if (!allowedTypes.includes(indexType.toLowerCase())) {
+        throw new Error(`Fabric 네트워크에서는 ${allowedTypes.join(', ')} 인덱스만 생성할 수 있습니다. 요청된 타입: ${indexType}`);
+      }
+      
+      console.log(`✅ 허용된 인덱스 타입: ${indexType}`);
       
       // FabricIndexingClient를 사용한 Fabric 인덱스 생성
       const indexingClient = new FabricIndexingClient({
@@ -654,7 +662,7 @@ async function createIndexUnified(network, indexType) {
           IndexID: indexType,
           ColName: 'IndexableData',
           ColIndex: indexType,
-          KeyCol: 'IndexableData',  // KeyCol 필드 추가
+          KeyCol: 'IndexableData',
           FilePath: `data/fabric/${indexType}.bf`,
           Network: 'fabric',
           KeySize: 64
@@ -2437,6 +2445,9 @@ async function main() {
         if (!network || !type) {
           console.error('❌ create-index 명령어는 -network와 -type이 필요합니다');
           console.log('예시: node cli.js -cmd=create-index -type=samsung -network=hardhat');
+          console.log('예시: node cli.js -cmd=create-index -type=dt -network=fabric');
+          console.log('예시: node cli.js -cmd=create-index -type=speed -network=fabric');
+          console.log('📝 Fabric 네트워크에서는 dt, speed 인덱스만 생성 가능합니다');
           return;
         }
         await createIndexUnified(network, type);
