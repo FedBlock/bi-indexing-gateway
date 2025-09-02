@@ -375,7 +375,9 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 		// IndexableData에서 DynamicFields의 organizationName 추출
 		if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
 			if orgName, exists := rec.IndexableData.DynamicFields["organizationName"]; exists {
+				// 원래 방식: 조직명을 키로 사용 (B+Tree가 중복 키를 체인으로 처리해야 함)
 				key = stringToFixedBytes(orgName, keySize)
+				log.Printf("Using organization name as key: %s for TxId: %s", orgName, rec.TxId)
 			} else {
 				log.Printf("organizationName not found in DynamicFields at index: %d", idx)
 				continue
@@ -435,9 +437,15 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 			}
 
 			newValue := []byte(rec.TxId)
+			
+			log.Printf("=== Data Validation at index %d ===", idx)
+			log.Printf("TxId: '%s' (length: %d)", rec.TxId, len(rec.TxId))
+			log.Printf("Key: %s (length: %d)", string(key), len(key))
+			log.Printf("NewValue: '%s' (length: %d)", string(newValue), len(newValue))
 
 			if len(key) == 0 || len(newValue) == 0 {
-				log.Printf("Invalid data at index: %d", idx)
+				log.Printf("❌ Invalid data at index: %d - Key empty: %v, Value empty: %v", 
+					idx, len(key) == 0, len(newValue) == 0)
 				continue
 			}
 			
@@ -450,6 +458,8 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 			if err := (*targetTree).Add(key, newValue); err != nil {
 				log.Printf("Failed to add to tree: %v", err)
 				return status.Errorf(codes.Internal, "Failed to add data: %v", err)
+			} else {
+				log.Printf("Successfully added to tree - Key: %s, Value: %s", string(key), string(newValue))
 			}
 		}
 
@@ -853,6 +863,13 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 	case "IndexableData":  // IndexableData용 검색
 		// 동적으로 해당 인덱스의 트리 사용
 		indexID := req.IndexID
+		log.Printf("=== IndexableData Tree Status ===")
+		log.Printf("Looking for IndexID: %s", indexID)
+		log.Printf("Available trees: %d", len(IndexableDataTrees))
+		for k := range IndexableDataTrees {
+			log.Printf("  - %s", k)
+		}
+		
 		tree, exists := IndexableDataTrees[indexID]
 		if !exists {
 			log.Printf("IndexableData 트리를 찾을 수 없음: %s", indexID)
@@ -862,17 +879,33 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 				IdxData: []string{},
 			}, nil
 		}
+		
+		if tree == nil {
+			log.Printf("IndexableData 트리가 nil임: %s", indexID)
+			return &fsindex.RstTxList{
+				IndexID: req.IndexID,
+				Key:     req.Key,
+				IdxData: []string{},
+			}, nil
+		}
+		log.Printf("IndexableData 트리 찾음: %s", indexID)
 
 		start := time.Now()
 		txlist := []string{}
 
 		if req.ComOp == fsindex.ComparisonOps_Range {
-			begin := stringToFixedBytes(req.Begin, keySize)
-			end := stringToFixedBytes(req.End, keySize)
+			// 조직명 기반 범위 설정 - 원래 방식으로 복원
+			beginStr := req.Begin
+			endStr := req.End
+			log.Printf("Using original range: Begin='%s', End='%s'", beginStr, endStr)
+			
+			begin := stringToFixedBytes(beginStr, keySize)
+			end := stringToFixedBytes(endStr, keySize)
 
 			log.Println("=== IndexableData Range Search Debug ===")
 			log.Printf("IndexID: %s", req.IndexID)
 			log.Printf("Original range: Begin='%s', End='%s'", req.Begin, req.End)
+			log.Printf("Adjusted range: Begin='%s', End='%s'", beginStr, endStr)
 			log.Printf("Converted bytes: Begin=%v, End=%v", begin, end)
 			log.Printf("KeySize: %d", keySize)
 
@@ -883,18 +916,36 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 			log.Printf("tree.Range returned: %v", returned_pointers)
 
 			if returned_pointers != nil {
+				log.Printf("Found pointer chain, starting iteration...")
+				chainCount := 0
 				for returned_pointers != nil {
-					_, value1, err1, nextPointer := returned_pointers()
+					chainCount++
+					key1, value1, err1, nextPointer := returned_pointers()
 					if err1 != nil {
-						log.Fatal("Error while fetching data:", err1)
-					}
-					if nextPointer == nil {
-						log.Println("End of pointer chain")
+						log.Printf("Error while fetching data at chain %d: %v", chainCount, err1)
 						break
 					}
-					txlist = append(txlist, string(value1))
+					
+					log.Printf("Chain %d - Key: %s, Value: %s, HasNext: %v", 
+						chainCount, string(key1), string(value1), nextPointer != nil)
+					
+					// 값이 비어있지 않은 경우만 추가
+					if len(value1) > 0 {
+						txlist = append(txlist, string(value1))
+						log.Printf("✅ Added tx %d: %s", len(txlist), string(value1))
+					} else {
+						log.Printf("⚠️ Empty value at chain %d", chainCount)
+					}
+					
+					if nextPointer == nil {
+						log.Printf("End of pointer chain at position %d", chainCount)
+						break
+					}
 					returned_pointers = nextPointer
 				}
+				log.Printf("Total chains processed: %d, Total txs added: %d", chainCount, len(txlist))
+			} else {
+				log.Printf("No pointer returned from tree.Range")
 			}
 		} else if req.ComOp == fsindex.ComparisonOps_Eq {
 			key := stringToFixedBytes(req.Value, keySize)
@@ -906,17 +957,21 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 					if err1 != nil {
 						log.Fatal("Error while fetching data:", err1)
 					}
+					// 현재 값을 먼저 추가
+					txlist = append(txlist, string(value1))
+					log.Printf("Added tx: %s", string(value1))
+					
 					if nextPointer == nil {
 						log.Println("End of pointer chain")
 						break
 					}
-					txlist = append(txlist, string(value1))
 					returned_pointers = nextPointer
 				}
 			}
 		}
 
 		log.Printf("IndexableData search completed in %v", time.Since(start))
+		log.Printf("Found %d transactions for IndexID: %s", len(txlist), req.IndexID)
 		return &fsindex.RstTxList{
 			IndexID: req.IndexID,
 			Key:     req.Key,

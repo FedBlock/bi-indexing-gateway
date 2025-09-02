@@ -347,7 +347,7 @@ func NewNetworkHandlerFactory() *NetworkHandlerFactory {
 		switch network {
 		case "fabric":
 			handler = NewFabricHandler(config)
-		case "hardhat", "sepolia", "monad":
+		case "hardhat", "hardhat-local", "sepolia", "monad":
 			handler = NewEVMPublicNetworkHandler(config)
 		default:
 			log.Printf("Unsupported network: %s", network)

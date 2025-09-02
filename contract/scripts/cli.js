@@ -618,7 +618,7 @@ async function createIndexUnified(network, indexType) {
         console.log('✅ 인덱싱 서버 연결 성공');
         
         // 네트워크별 디렉토리 매핑
-        const networkDir = network === 'hardhat' ? 'hardhat이거없어?local' : network;
+        const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
         
         // EVM 네트워크용: 조직/타입별 지갑 주소 매핑
         let walletAddress;
@@ -712,6 +712,116 @@ async function createIndexUnified(network, indexType) {
   }
 }
 
+// 지갑 주소별 데이터 검색 (EVM 전용)
+async function searchByWalletAddress(network, searchType, walletAddress) {
+  try {
+    console.log(`🔍 ${network} 네트워크에서 지갑 주소별 데이터 검색 시작...`);
+    console.log(`📱 검색 타입: ${searchType}, 지갑 주소: ${walletAddress}`);
+    
+    if (network === 'fabric') {
+      throw new Error('Fabric 네트워크는 지갑 주소 검색을 지원하지 않습니다. search-index를 사용하세요.');
+    }
+    
+    // EVM 네트워크에서 지갑 주소 기반 검색
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: PROTO_PATH
+    });
+    
+    await indexingClient.connect();
+    console.log('✅ 인덱싱 서버 연결 성공');
+    
+    // 지갑 주소 해시 생성
+    const addressHash = hashWalletAddress(walletAddress);
+    const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
+    
+    let indexID, filePath;
+    
+    if (searchType === 'organization') {
+      // 조직별 검색: 조직명은 지갑 주소로 역매핑
+      let orgName;
+      if (walletAddress === '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC') {
+        orgName = 'samsung';
+      } else if (walletAddress === '0x90F79bf6EB2c4f870365E785982E1f101E93b906') {
+        orgName = 'lg';
+      } else {
+        orgName = 'unknown';
+      }
+      
+      indexID = `${orgName}_${addressHash}`;
+      filePath = `data/${networkDir}/${orgName}_${addressHash}.bf`;
+      
+    } else if (searchType === 'user') {
+      // 사용자별 검색: 사용자 타입은 지갑 주소로 역매핑
+      let userType;
+      if (walletAddress === '0x70997970C51812dc3A010C7d01b50e0d17dc79C8') {
+        userType = 'user1';
+      } else if (walletAddress === '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65') {
+        userType = 'user2';
+      } else if (walletAddress === '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc') {
+        userType = 'user3';
+      } else {
+        userType = 'user';
+      }
+      
+      indexID = `${userType}_${addressHash}`;
+      filePath = `data/${networkDir}/${userType}_${addressHash}.bf`;
+      
+    } else {
+      throw new Error(`지원하지 않는 검색 타입: ${searchType}`);
+    }
+    
+    // 전체 데이터 조회를 위한 Range 검색
+    const searchRequest = {
+      IndexID: indexID,
+      Field: 'IndexableData',
+      Begin: '',        // 시작값 (빈 문자열 = 최소값)
+      End: 'zzz',       // 끝값 (최대값)
+      FilePath: filePath,
+      KeySize: 64,
+      ComOp: 'Range'    // Range 검색으로 모든 데이터 조회
+    };
+    
+    console.log(`🔧 검색 요청:`, searchRequest);
+    
+    const result = await indexingClient.searchData(searchRequest);
+    
+    // 결과 정리 및 출력
+    const cleanResult = {
+      success: true,
+      searchType: searchType,
+      walletAddress: walletAddress,
+      indexId: indexID,
+      data: result.IdxData || [],
+      count: result.IdxData?.length || 0,
+      network: network,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log(`\n📊 검색 결과:`);
+    console.log(`   🔍 검색 타입: ${searchType}`);
+    console.log(`   📱 지갑 주소: ${walletAddress}`);
+    console.log(`   🆔 인덱스 ID: ${indexID}`);
+    console.log(`   📊 데이터 개수: ${cleanResult.count}`);
+    
+    if (cleanResult.data.length > 0) {
+      console.log(`   📋 트랜잭션 목록:`);
+      cleanResult.data.forEach((txHash, index) => {
+        console.log(`      ${index + 1}. ${txHash}`);
+      });
+    } else {
+      console.log(`   ℹ️  해당 지갑 주소와 관련된 데이터가 없습니다.`);
+    }
+    
+    indexingClient.close();
+    return cleanResult;
+    
+  } catch (error) {
+    console.error(`❌ ${network} 지갑 주소 검색 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 // 네트워크별 인덱스 전체 조회 (EVM/Fabric 통합)
 async function searchIndexAll(network, indexType) {
   try {
@@ -737,8 +847,55 @@ async function searchIndexAll(network, indexType) {
       await indexingClient.connect();
       console.log('✅ 인덱싱 서버 연결 성공');
       
-      // EVM 인덱스 전체 조회 로직 (구현 필요)
-      const result = await indexingClient.searchAllData(indexType);
+      // EVM 인덱스 전체 조회 로직
+      // 인덱스 타입에 따른 지갑 주소 매핑 (create-index와 동일한 로직)
+      let walletAddress;
+      if (network === 'hardhat' || network === 'hardhat-local' || network === 'localhost') {
+        switch (indexType.toLowerCase()) {
+          case 'samsung':
+            walletAddress = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+            break;
+          case 'lg':
+            walletAddress = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+            break;
+          case 'user':
+          case 'users':
+            walletAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+            break;
+          case 'user1':
+            walletAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+            break;
+          case 'user2':
+            walletAddress = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65';
+            break;
+          case 'user3':
+            walletAddress = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
+            break;
+          default:
+            walletAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+            break;
+        }
+      }
+      
+      const addressHash = hashWalletAddress(walletAddress);
+      const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
+      const indexID = `${indexType}_${addressHash}`;
+      const filePath = `data/${networkDir}/${indexType}_${addressHash}.bf`;
+      
+      // 전체 데이터 조회를 위한 Range 검색 (모든 데이터)
+      const searchRequest = {
+        IndexID: indexID,
+        Field: 'IndexableData',
+        Begin: '',        // 시작값 (빈 문자열 = 최소값)
+        End: 'zzz',       // 끝값 (최대값)
+        FilePath: filePath,
+        KeySize: 64,
+        ComOp: 'Range'    // Range 검색으로 모든 데이터 조회
+      };
+      
+      console.log(`🔧 검색 요청:`, searchRequest);
+      
+      const result = await indexingClient.searchData(searchRequest);
       
       indexingClient.close();
       return result;
@@ -1795,22 +1952,30 @@ async function addToOrganizationIndex(organizationName, txHash, network) {
     const indexID = `${organizationName}_${addressHash}`;
     const filePath = `data/${networkDir}/${organizationName}_${addressHash}.bf`;
     
-    // 트랜잭션 ID를 인덱스에 추가 (AccessManagement 구조)
+    // 트랜잭션 ID를 인덱스에 추가 (IndexableData 구조로 수정)
     const insertRequest = {
       IndexID: indexID,
       BcList: [{
         TxId: txHash,
         KeyCol: 'IndexableData',
-        AccessRequest: {
-          requestId: Date.now().toString(),
-          resourceOwner: walletAddress,
-          requester: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', // 배포자 주소
-          organizationName: organizationName,
-          purpose: 'health_data_request',
-          status: 'PENDING',
-          createdAt: new Date().toISOString()
+        IndexableData: {
+          TxId: txHash,
+          ContractAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+          EventName: 'AccessRequestsSaved',
+          Timestamp: new Date().toISOString(),
+          BlockNumber: 0,
+          DynamicFields: {
+            "organizationName": organizationName,
+            "resourceOwner": walletAddress,
+            "purpose": 'health_data_request',
+            "status": 'PENDING',
+            "createdAt": new Date().toISOString()
+          },
+          SchemaVersion: "1.0"
         }
       }],
+      ColName: 'IndexableData',  // 중요: 추가!
+      ColIndex: indexID,
       FilePath: filePath,
       Network: network
     };
@@ -1858,22 +2023,30 @@ async function addToUserIndex(resourceOwner, txHash, network) {
     const indexID = `${userType}_${addressHash}`;
     const filePath = `data/${networkDir}/${userType}_${addressHash}.bf`;
     
-    // 트랜잭션 ID를 인덱스에 추가 (AccessManagement 구조)
+    // 트랜잭션 ID를 인덱스에 추가 (UserId 구조로 수정)
     const insertRequest = {
       IndexID: indexID,
       BcList: [{
         TxId: txHash,
-        KeyCol: 'IndexableData',
-        AccessRequest: {
-          requestId: Date.now().toString(),
-          resourceOwner: resourceOwner,
-          requester: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', // 배포자 주소
-          organizationName: 'user_request',
-          purpose: 'health_data_access',
-          status: 'PENDING',
-          createdAt: new Date().toISOString()
+        KeyCol: 'UserId',  // User 인덱스는 UserId 사용
+        IndexableData: {
+          TxId: txHash,
+          ContractAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+          EventName: 'AccessRequestsSaved',
+          Timestamp: new Date().toISOString(),
+          BlockNumber: 0,
+          DynamicFields: {
+            "userId": resourceOwner,  // 사용자 주소를 키로 사용
+            "userType": userType,
+            "purpose": 'health_data_access',
+            "status": 'PENDING',
+            "createdAt": new Date().toISOString()
+          },
+          SchemaVersion: "1.0"
         }
       }],
+      ColName: 'UserId',  // User 인덱스는 UserId 사용
+      ColIndex: indexID,
       FilePath: filePath,
       Network: network
     };
@@ -2223,6 +2396,17 @@ async function main() {
         break;
         
 
+      // ===== 지갑 주소별 데이터 조회 =====
+      case 'search':
+        if (!type || !value) {
+          console.error('❌ search 명령어는 -type과 -value가 필요합니다');
+          console.log('예시: node cli.js -cmd=search -type=organization -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
+          console.log('예시: node cli.js -cmd=search -type=user -value=0x70997970C51812dc3A010C7d01b50e0d17dc79C8 -network=hardhat');
+          return;
+        }
+        await searchByWalletAddress(network, type, value);
+        break;
+        
       // ===== 인덱스 전체 조회 =====
       case 'search-index':
         if (!type) {

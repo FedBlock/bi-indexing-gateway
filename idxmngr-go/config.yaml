@@ -39,38 +39,8 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: user1_d8321319
-      idxname: HARDHAT USER1 Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/user1_d8321319.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: user2_519b178b
-      idxname: HARDHAT USER2 Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/user2_519b178b.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: user3_21bc2424
-      idxname: HARDHAT USER3 Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/user3_21bc2424.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
     - idxid: samsung_575a3a49
-      idxname: HARDHAT SAMSUNG Index
+      idxname: HARDHAT-LOCAL SAMSUNG Index
       keycol: IndexableData
       filepath: data/hardhat-local/samsung_575a3a49.bf
       blocknum: 0
@@ -80,9 +50,39 @@ items:
       keycnt: 0
       indexdatacnt: 0
     - idxid: lg_eb5d27fd
-      idxname: HARDHAT LG Index
+      idxname: HARDHAT-LOCAL LG Index
       keycol: IndexableData
       filepath: data/hardhat-local/lg_eb5d27fd.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user1_d8321319
+      idxname: HARDHAT-LOCAL USER1 Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/user1_d8321319.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user2_519b178b
+      idxname: HARDHAT-LOCAL USER2 Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/user2_519b178b.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user3_21bc2424
+      idxname: HARDHAT-LOCAL USER3 Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/user3_21bc2424.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
