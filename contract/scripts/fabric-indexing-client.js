@@ -145,6 +145,25 @@ class FabricIndexingClient {
 
       console.log(`📊 Fabric 데이터 인덱싱 중: ${indexData.IndexID}`);
       
+      // KeySize 필드가 없으면 기본값 설정
+      if (!indexData.KeySize) {
+        indexData.KeySize = 64;
+        console.log(`⚠️ KeySize가 설정되지 않아 기본값 64로 설정`);
+      }
+      
+      // 필수 필드 검증
+      if (!indexData.IndexID || !indexData.ColName || !indexData.FilePath) {
+        throw new Error('필수 필드가 누락되었습니다: IndexID, ColName, FilePath');
+      }
+      
+      console.log(`🔧 인덱싱 요청 데이터:`, {
+        IndexID: indexData.IndexID,
+        ColName: indexData.ColName,
+        KeySize: indexData.KeySize,
+        FilePath: indexData.FilePath,
+        Network: indexData.Network
+      });
+      
       return new Promise((resolve, reject) => {
         // 스트림 방식으로 데이터 전송 (idxmngr 서버가 스트림을 기대함)
         const stream = this.client.InsertIndexRequest((error, response) => {
@@ -159,9 +178,28 @@ class FabricIndexingClient {
           }
         });
         
-        // 스트림으로 데이터 전송
+        // KeySize 필드를 명시적으로 포함하여 데이터 전송
+        const enhancedIndexData = {
+          IndexID: indexData.IndexID,
+          ColName: indexData.ColName,
+          ColIndex: indexData.ColIndex,
+          KeyCol: indexData.KeyCol,
+          KeySize: parseInt(indexData.KeySize) || 64,  // 숫자로 변환
+          FilePath: indexData.FilePath,
+          Network: indexData.Network,
+          BcList: indexData.BcList
+        };
+        
         console.log(`📤 스트림으로 데이터 전송: ${indexData.IndexID}`);
-        stream.write(indexData);
+        console.log(`🔧 전송 데이터 KeySize: ${enhancedIndexData.KeySize} (타입: ${typeof enhancedIndexData.KeySize})`);
+        console.log(`🔧 전체 전송 데이터:`, JSON.stringify(enhancedIndexData, null, 2));
+        
+        // KeySize가 0이 아닌지 확인
+        if (enhancedIndexData.KeySize <= 0) {
+          throw new Error(`Invalid KeySize: ${enhancedIndexData.KeySize}. KeySize must be greater than 0.`);
+        }
+        
+        stream.write(enhancedIndexData);
         
         // 스트림 종료
         stream.end();

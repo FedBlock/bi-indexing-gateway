@@ -28,7 +28,7 @@ const FABRIC_CONFIG = {
 // 명령어 플래그 파싱
 const args = process.argv.slice(2);
 const cmd = args.find(arg => arg.startsWith('-cmd='))?.split('=')[1] || 'help';
-const network = args.find(arg => arg.startsWith('-network='))?.split('=')[1] || 'hardhat';
+const network = args.find(arg => arg.startsWith('-network='))?.split('=')[1] || 'fabric';
 const type = args.find(arg => arg.startsWith('-type='))?.split('=')[1] || '';
 const value = args.find(arg => arg.startsWith('-value='))?.split('=')[1] || '';
 const contractAddress = args.find(arg => arg.startsWith('-contract='))?.split('=')[1] || '';
@@ -554,6 +554,70 @@ async function putPvdData(network, obuId, pvdData = null) {
       
       pvdClient.close();
       console.log('✅ PVD 데이터 저장 완료:', result);
+      
+      // idxmngr 서버에도 데이터 전송 (인덱싱용)
+      try {
+        console.log('🔗 idxmngr 서버에 데이터 전송 중...');
+        
+        // putPvdMultiData와 동일한 방식으로 처리
+        const indexingClient = new FabricIndexingClient({
+          serverAddr: 'localhost:50052',
+          protoPath: path.join(__dirname, '../../grpc-go/protos/index_manager.proto')
+        });
+        
+        await indexingClient.connect();
+        console.log('✅ idxmngr 서버 연결 성공');
+        
+        // 인덱싱 요청 데이터 구성 (putPvdMultiData와 동일한 구조)
+        const indexRequest = {
+          IndexID: 'pvd_data',
+          BcList: [{
+            TxId: `pvd_${csvPvdData.obuId}_${Date.now()}`,
+            KeyCol: 'IndexableData',
+            IndexableData: {
+              TxId: `pvd_${csvPvdData.obuId}_${Date.now()}`,
+              ContractAddress: 'fabric-pvd-chaincode',
+              EventName: 'PvdDataSaved',
+              Timestamp: csvPvdData.collectionDt,
+              BlockNumber: 0,
+              DynamicFields: {
+                "obuId": csvPvdData.obuId,
+                "speed": csvPvdData.speed,
+                "collectionDt": csvPvdData.collectionDt,
+                "latitude": csvPvdData.startvectorLatitude,
+                "longitude": csvPvdData.startvectorLongitude,
+                "network": "fabric"
+              },
+              SchemaVersion: "1.0"
+            }
+          }],
+          ColName: 'IndexableData',
+          ColIndex: 'pvd_data',
+          KeySize: 64,
+          FilePath: 'data/fabric/pvd_data.bf',
+          Network: 'fabric'
+        };
+        
+        console.log('🔧 인덱싱 요청 데이터 검증:', {
+          IndexID: indexRequest.IndexID,
+          ColName: indexRequest.ColName,
+          KeySize: indexRequest.KeySize,
+          FilePath: indexRequest.FilePath,
+          Network: indexRequest.Network
+        });
+        
+        console.log('📤 idxmngr 서버에 인덱싱 요청 전송 중...');
+        
+        // putPvdMultiData와 동일한 방식으로 insertData 호출
+        const indexResult = await indexingClient.insertData(indexRequest);
+        console.log('✅ idxmngr 서버 인덱싱 완료:', indexResult);
+        
+        await indexingClient.close();
+        
+      } catch (indexError) {
+        console.warn(`⚠️ idxmngr 서버 인덱싱 실패 (PVD 저장은 성공): ${indexError.message}`);
+      }
+      
       return result;
       
     } else {
@@ -2514,6 +2578,49 @@ async function main() {
   } catch (error) {
     console.error(`❌ 명령어 실행 실패: ${error.message}`);
   }
+}
+
+// 도움말 함수
+function showHelp() {
+  console.log('\n🔧 BI-Index CLI 도움말');
+  console.log('=====================================');
+  console.log('\n📋 사용 가능한 명령어:');
+  console.log('  deploy                    - 컨트랙트 배포');
+  console.log('  create-index              - 인덱스 생성');
+  console.log('  create-samsung            - Samsung 인덱스 생성');
+  console.log('  create-fabric-index       - Fabric 인덱스 생성');
+  console.log('  putdata                   - PVD 데이터 저장');
+  console.log('  search                    - 지갑 주소별 데이터 조회');
+  console.log('  search-index              - 인덱스 전체 조회');
+  console.log('  get-tx-details            - 트랜잭션 상세 조회');
+  console.log('  request-data              - 샘플 데이터 생성');
+  console.log('  large-scale-test          - 대규모 테스트');
+  console.log('  check-config              - 설정 확인');
+  console.log('  check-network-config      - 네트워크 설정 확인');
+  console.log('  update-network            - 네트워크 업데이트');
+  console.log('  help                      - 이 도움말 표시');
+  
+  console.log('\n🌐 네트워크 옵션:');
+  console.log('  -network=fabric           - Hyperledger Fabric (기본값)');
+  console.log('  -network=hardhat-local    - Hardhat Local');
+  console.log('  -network=hardhat          - Hardhat');
+  console.log('  -network=localhost        - Localhost');
+  
+  console.log('\n📝 사용 예시:');
+  console.log('  # 기본값 (fabric) 사용');
+  console.log('  node scripts/cli.js -cmd=create-index -type=speed');
+  console.log('  node scripts/cli.js -cmd=putdata -value=OBU-TEST-001');
+  console.log('  node scripts/cli.js -cmd=search-index -type=speed');
+  console.log('');
+  console.log('  # 네트워크 명시');
+  console.log('  node scripts/cli.js -cmd=create-index -type=samsung -network=hardhat-local');
+  console.log('  node scripts/cli.js -cmd=search-index -type=samsung -network=hardhat-local');
+  console.log('  node scripts/cli.js -cmd=get-tx-details -value=0x123... -network=hardhat-local');
+  
+  console.log('\n💡 팁:');
+  console.log('  • -network를 생략하면 자동으로 fabric 네트워크가 사용됩니다');
+  console.log('  • Fabric: PVD 센서 데이터 처리');
+  console.log('  • EVM: 블록체인 트랜잭션 데이터 처리');
 }
 
 // 스크립트가 직접 실행될 때만 main 함수 호출
