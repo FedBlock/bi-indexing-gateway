@@ -142,65 +142,73 @@ async function putPvdMultiData(network, csvFile, batchSize = 1000) {
       
       console.log(`📦 배치 ${batchIndex + 1}/${totalBatches}: ${batchLines.length}개 데이터 저장 중...`);
       
-      // 각 배치의 데이터를 개별적으로 저장
-      for (let i = 0; i < batchLines.length; i++) {
-        const values = batchLines[i].split(',');
-        
-        if (values.length < 5) {
-          console.log(`⚠️ 라인 스킵 (데이터 부족): ${values.join(',')}`);
-          errorCount++;
-          continue;
-        }
-        
-        // CSV 데이터를 PVD 객체로 파싱
-        const pvdData = {
-          obuId: values[0] || `CSV-OBU-${Date.now()}-${i}`,
-          collectionDt: values[1] || new Date().toISOString(),
-          startvectorLatitude: parseFloat(values[2]) || 37.5665,
-          startvectorLongitude: parseFloat(values[3]) || 126.9780,
-          transmisstion: values[4] || 'D',
-          speed: parseInt(values[5]) || 60,
-          hazardLights: values[6] === 'ON',
-          leftTurnSignalOn: values[7] === 'ON',
-          rightTurnSignalOn: values[8] === 'ON',
-          steering: parseInt(values[9]) || 0,
-          rpm: parseInt(values[10]) || 2000,
-          footbrake: values[11] === 'ON',
-          gear: values[12] || 'D',
-          accelator: parseInt(values[13]) || 30,
-          wipers: values[14] === 'ON',
-          tireWarnLeftF: values[15] === 'WARN',
-          tireWarnLeftR: values[16] === 'WARN',
-          tireWarnRightF: values[17] === 'WARN', 
-          tireWarnRightR: values[18] === 'WARN',
-          tirePsiLeftF: parseInt(values[19]) || 32,
-          tirePsiLeftR: parseInt(values[20]) || 32,
-          tirePsiRightF: parseInt(values[21]) || 32,
-          tirePsiRightR: parseInt(values[22]) || 32,
-          fuelPercent: parseInt(values[23]) || 75,
-          fuelLiter: parseInt(values[24]) || 45,
-          totaldist: parseInt(values[25]) || 15000,
-          rsuId: values[26] || 'RSU-CSV-001',
-          msgId: values[27] || `MSG-CSV-${i}`,
-          startvectorHeading: parseInt(values[28]) || 90
-        };
-        
-        try {
-          await putPvdData(network, pvdData.obuId, pvdData);
-          successCount++;
+      // 배치 방식 선택 (type에 따라)
+      if (type === 'batch') {
+        // 진짜 배치 방식: 여러 데이터를 한번에 gRPC 호출
+        await putPvdBatchData(network, batchLines, batchIndex);
+        successCount += batchLines.length;
+        console.log(`✅ 배치 ${batchIndex + 1} 완료 (${batchLines.length}개 한번에 처리)`);
+      } else if (type === 'individual' || type === 'multi') {
+        // 개별 방식: 하나씩 개별 저장
+        for (let i = 0; i < batchLines.length; i++) {
+          const values = batchLines[i].split(',');
           
-          // 진행 상황 표시 (10개마다)
-          if (successCount % 10 === 0) {
-            process.stdout.write('.');
+          if (values.length < 5) {
+            console.log(`⚠️ 라인 스킵 (데이터 부족): ${values.join(',')}`);
+            errorCount++;
+            continue;
           }
           
-        } catch (error) {
-          errorCount++;
-          console.log(`\n❌ 데이터 저장 실패 (OBU: ${pvdData.obuId}): ${error.message}`);
+          // CSV 데이터를 PVD 객체로 파싱
+          const pvdData = {
+            obuId: values[0] || `CSV-OBU-${Date.now()}-${i}`,
+            collectionDt: values[1] || new Date().toISOString(),
+            startvectorLatitude: parseFloat(values[2]) || 37.5665,
+            startvectorLongitude: parseFloat(values[3]) || 126.9780,
+            transmisstion: values[4] || 'D',
+            speed: parseInt(values[5]) || 60,
+            hazardLights: values[6] === 'ON',
+            leftTurnSignalOn: values[7] === 'ON',
+            rightTurnSignalOn: values[8] === 'ON',
+            steering: parseInt(values[9]) || 0,
+            rpm: parseInt(values[10]) || 2000,
+            footbrake: values[11] === 'ON',
+            gear: values[12] || 'D',
+            accelator: parseInt(values[13]) || 30,
+            wipers: values[14] === 'ON',
+            tireWarnLeftF: values[15] === 'WARN',
+            tireWarnLeftR: values[16] === 'WARN',
+            tireWarnRightF: values[17] === 'WARN', 
+            tireWarnRightR: values[18] === 'WARN',
+            tirePsiLeftF: parseInt(values[19]) || 32,
+            tirePsiLeftR: parseInt(values[20]) || 32,
+            tirePsiRightF: parseInt(values[21]) || 32,
+            tirePsiRightR: parseInt(values[22]) || 32,
+            fuelPercent: parseInt(values[23]) || 75,
+            fuelLiter: parseInt(values[24]) || 45,
+            totaldist: parseInt(values[25]) || 15000,
+            rsuId: values[26] || 'RSU-CSV-001',
+            msgId: values[27] || `MSG-CSV-${i}`,
+            startvectorHeading: parseInt(values[28]) || 90
+          };
+          
+          try {
+            await putPvdData(network, pvdData.obuId, pvdData);
+            successCount++;
+            
+            // 진행 상황 표시 (10개마다)
+            if (successCount % 10 === 0) {
+              process.stdout.write('.');
+            }
+            
+          } catch (error) {
+            errorCount++;
+            console.log(`\n❌ 데이터 저장 실패 (OBU: ${pvdData.obuId}): ${error.message}`);
+          }
+          
+          // 서버 부하 방지를 위한 짧은 지연
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
-        
-        // 서버 부하 방지를 위한 짧은 지연
-        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
       console.log(`\n✅ 배치 ${batchIndex + 1} 완료\n`);
@@ -220,6 +228,83 @@ async function putPvdMultiData(network, csvFile, batchSize = 1000) {
     
   } catch (error) {
     console.error(`❌ CSV 멀티 데이터 저장 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// PVD 배치 데이터 저장 (진짜 배치 방식, Fabric 네트워크)
+async function putPvdBatchData(network, batchLines, batchIndex) {
+  console.log(`🚀 배치 ${batchIndex + 1} 데이터를 한번에 처리 중...`);
+  
+  if (network !== 'fabric') {
+    throw new Error('배치 데이터는 Fabric 네트워크에서만 지원됩니다');
+  }
+  
+  try {
+    // PVD 클라이언트 연결
+    const pvdClient = new PvdClient('localhost:19001');
+    await pvdClient.connect();
+    console.log('✅ PVD 서버 연결 성공');
+    
+    // 배치 데이터 준비
+    const batchData = [];
+    
+    for (let i = 0; i < batchLines.length; i++) {
+      const values = batchLines[i].split(',');
+      
+      if (values.length < 5) {
+        console.log(`⚠️ 라인 스킵 (데이터 부족): ${values.join(',')}`);
+        continue;
+      }
+      
+      // CSV 데이터를 PVD 객체로 파싱
+      const pvdData = {
+        obuId: values[0] || `CSV-OBU-${Date.now()}-${i}`,
+        speed: parseInt(values[5]) || 60,
+        collectionDt: values[1] || new Date().toISOString(),
+        startvectorLatitude: parseFloat(values[2]) || 37.5665,
+        startvectorLongitude: parseFloat(values[3]) || 126.9780,
+        transmisstion: values[4] || 'D',
+        hazardLights: values[6] === 'ON',
+        leftTurnSignalOn: values[7] === 'ON',
+        rightTurnSignalOn: values[8] === 'ON',
+        steering: parseInt(values[9]) || 0,
+        rpm: parseInt(values[10]) || 2000,
+        footbrake: values[11] === 'ON',
+        gear: values[12] || 'D',
+        accelator: parseInt(values[13]) || 30,
+        wipers: values[14] === 'ON',
+        tireWarnLeftF: values[15] === 'WARN',
+        tireWarnLeftR: values[16] === 'WARN',
+        tireWarnRightF: values[17] === 'WARN', 
+        tireWarnRightR: values[18] === 'WARN',
+        tirePsiLeftF: parseInt(values[19]) || 32,
+        tirePsiLeftR: parseInt(values[20]) || 32,
+        tirePsiRightF: parseInt(values[21]) || 32,
+        tirePsiRightR: parseInt(values[22]) || 32,
+        fuelPercent: parseInt(values[23]) || 75,
+        fuelLiter: parseInt(values[24]) || 45,
+        totaldist: parseInt(values[25]) || 15000,
+        rsuId: values[26] || 'RSU-CSV-001',
+        msgId: values[27] || `MSG-CSV-${i}`,
+        startvectorHeading: parseInt(values[28]) || 90
+      };
+      
+      batchData.push(pvdData);
+    }
+    
+    console.log(`📦 배치 데이터 준비 완료: ${batchData.length}개`);
+    
+    // 배치로 한번에 저장 (putMultiData 사용)
+    const result = await pvdClient.putMultiData(batchData);
+    
+    pvdClient.close();
+    console.log(`✅ 배치 ${batchIndex + 1} 처리 완료: ${batchData.length}개 데이터`);
+    
+    return result;
+    
+  } catch (error) {
+    console.error(`❌ 배치 데이터 저장 실패: ${error.message}`);
     throw error;
   }
 }
@@ -453,7 +538,7 @@ async function searchIndexAll(network, indexType) {
       console.log('📊 Fabric 인덱스에서 전체 데이터 조회...');
       
       const indexResult = await searchFabricIndexAll(indexType);
-      console.log('🔍 Fabric 인덱스 전체 조회 결과:', indexResult);
+      console.log('🔍 Fabric 인덱스 전체 조회 결과:', JSON.stringify(indexResult, null, 2));
       return indexResult;
       
     } else {
@@ -768,13 +853,19 @@ class PvdClient {
   // client.go의 getWorldState 함수
   async getWorldState(chainInfo) {
     console.log('🔍 PVD getWorldState 호출:', chainInfo);
-    return { 
-      success: true, 
-      method: 'getWorldState', 
-      data: '월드스테이트 데이터',
-      pvdCount: 100,
-      channelName: chainInfo.channelName
-    };
+    
+    return new Promise((resolve, reject) => {
+      this.grpcClient.getWorldState(chainInfo, (error, response) => {
+        if (error) {
+          console.error('❌ gRPC getWorldState 호출 실패:', error);
+          reject(error);
+          return;
+        }
+        
+        console.log('✅ gRPC getWorldState 호출 성공:', response);
+        resolve(response);
+      });
+    });
   }
   
   // client.go의 getChainInfo 함수
@@ -816,27 +907,37 @@ class PvdClient {
   // client.go의 getAllBlock 함수
   async getAllBlock(chainInfo) {
     console.log('🔍 PVD getAllBlock 호출:', chainInfo);
-    return { 
-      success: true, 
-      method: 'getAllBlock', 
-      data: '모든 블록 데이터',
-      startBlock: chainInfo.start || 0,
-      endBlock: chainInfo.end || 100,
-      totalTxCount: 500
-    };
+    
+    return new Promise((resolve, reject) => {
+      this.grpcClient.getAllBlock(chainInfo, (error, response) => {
+        if (error) {
+          console.error('❌ gRPC getAllBlock 호출 실패:', error);
+          reject(error);
+          return;
+        }
+        
+        console.log('✅ gRPC getAllBlock 호출 성공:', response);
+        resolve(response);
+      });
+    });
   }
   
   // client.go의 getRangeBlock 함수
   async getRangeBlock(chainInfo) {
     console.log('🔍 PVD getRangeBlock 호출:', chainInfo);
-    return { 
-      success: true, 
-      method: 'getRangeBlock', 
-      data: '범위 블록 데이터',
-      startBlock: chainInfo.start || 0,
-      endBlock: chainInfo.end || 100,
-      totalTxCount: 200
-    };
+    
+    return new Promise((resolve, reject) => {
+      this.grpcClient.getRangeBlock(chainInfo, (error, response) => {
+        if (error) {
+          console.error('❌ gRPC getRangeBlock 호출 실패:', error);
+          reject(error);
+          return;
+        }
+        
+        console.log('✅ gRPC getRangeBlock 호출 성공:', response);
+        resolve(response);
+      });
+    });
   }
 
     // client.go의 putData 함수 (실제 gRPC 호출)
@@ -1080,6 +1181,24 @@ async function callFabricChaincode(dataType, searchValue) {
           result = await pvdClient.getWorldState(chainInfo);
           break;
           
+        case 'allblock':
+          // 모든 블록 조회: getAllBlock 사용
+          console.log('🔍 모든 블록 데이터 조회 중...');
+          result = await pvdClient.getAllBlock(chainInfo);
+          break;
+          
+        case 'range':
+          // 범위 블록 조회: getRangeBlock 사용
+          console.log('🔍 범위 블록 데이터 조회 중...');
+          const startBlock = 1;
+          const endBlock = 1000;
+          result = await pvdClient.getRangeBlock({
+            ...chainInfo,
+            Start: startBlock,
+            End: endBlock
+          });
+          break;
+          
         case 'chaininfo':
           // 체인 정보 조회: getChainInfo 사용
           console.log('🔍 체인 정보 조회 중...');
@@ -1313,87 +1432,209 @@ async function searchAllSpeedIndexes(indexingClient, searchValue) {
   };
 }
 
-// Fabric 인덱스 전체 조회 함수 (조건 없이 모든 데이터)
+// Fabric 인덱스 전체 조회 함수 (grpc-go를 거쳐서 처리)
 async function searchFabricIndexAll(indexType) {
   try {
     console.log(`🔍 Fabric ${indexType} 인덱스 전체 조회 중...`);
     
-    // Fabric 전용 인덱싱 클라이언트 사용
-    const indexingClient = new FabricIndexingClient({
-      serverAddr: 'localhost:50052',
-      protoPath: PROTO_PATH
-    });
+    // grpc-go를 거쳐서 처리 (search 명령어와 동일한 방식)
+    console.log('🔗 Fabric 네트워크 - grpc-go 서버 연결 중...');
     
-    await indexingClient.connect();
-    console.log('✅ Fabric 인덱싱 서버 연결 성공');
-    
-    // 인덱스 타입별 설정
-    let indexID, field, filePath;
-    
-    switch (indexType) {
-      case 'speed':
-        indexID = `speed_001`;
-        field = 'Speed';
-        filePath = `data/fabric/speed_001.bf`;
-        break;
+    try {
+      // PVD 클라이언트를 통해 grpc-go 서버 연결
+      const pvdClient = new PvdClient('localhost:19001');
+      await pvdClient.connect();
+      console.log('✅ PVD 서버 연결 성공');
+      
+      // 체인코드 정보
+      const chainInfo = {
+        channelName: FABRIC_CONFIG.channelName,
+        chaincode: FABRIC_CONFIG.chaincode
+      };
+      
+      // 1. 먼저 체인코드에서 전체 데이터 조회 (월드스테이트)
+      console.log('🔍 Fabric 체인코드에서 전체 데이터 조회 중...');
+      const worldStateResult = await pvdClient.getWorldState(chainInfo);
+      
+      if (!worldStateResult || !worldStateResult.PvdList) {
+        throw new Error('체인코드에서 데이터를 가져올 수 없습니다');
+      }
+      
+      console.log(`✅ 체인코드 조회 완료: ${worldStateResult.PvdList.length}개 데이터`);
+      
+      // 2. 인덱스에서도 전체 데이터 조회 (병렬로 처리)
+      console.log('🔍 Fabric 인덱스에서도 전체 데이터 조회 중...');
+      let indexResult = null;
+      
+      try {
+        // 인덱스 검색을 위한 별도 클라이언트 (idxmngr를 거쳐서)
+        const indexingClient = new FabricIndexingClient({
+          serverAddr: 'localhost:50052',
+          protoPath: PROTO_PATH
+        });
         
-      case 'dt':
-      case 'collectiondt':
-        indexID = `dt_001`;
-        field = 'CollectionDt';
-        filePath = `data/fabric/dt_001.bf`;
-        break;
+        await indexingClient.connect();
         
-      default:
-        throw new Error(`지원하지 않는 인덱스 타입: ${indexType}`);
+        // 인덱스 타입별 설정
+        let indexID, field, filePath;
+        
+        switch (indexType) {
+          case 'speed':
+            indexID = `speed_001`;
+            field = 'Speed';
+            filePath = `data/fabric/speed_001.bf`;
+            break;
+            
+          case 'dt':
+          case 'collectiondt':
+            indexID = `dt_001`;
+            field = 'CollectionDt';
+            filePath = `data/fabric/dt_001.bf`;
+            break;
+            
+          default:
+            throw new Error(`지원하지 않는 인덱스 타입: ${indexType}`);
+        }
+        
+        // 전체 조회 요청 (Range 검색으로 모든 데이터 가져오기)
+        console.log('🔍 인덱스 전체 데이터를 Range 검색으로 가져오는 중...');
+        
+        let allIndexData = [];
+        
+        try {
+          const searchRequest = {
+            IndexID: indexID,
+            Field: field,
+            FilePath: filePath,
+            KeySize: 64,
+            ComOp: 'Range',  // Range 검색 사용
+            Begin: '-999999', // 시작값 (음수 포함, 더 넓은 범위)
+            End: '999999'     // 끝값 (더 큰 값으로 확장)
+          };
+          
+          console.log(`🔍 Range 검색 요청:`, searchRequest);
+          const response = await indexingClient.searchData(searchRequest);
+          
+          if (response.IdxData && response.IdxData.length > 0) {
+            console.log(`✅ Range 검색 완료: ${response.IdxData.length}개 데이터 발견`);
+            allIndexData = response.IdxData;
+          } else {
+            console.log(`⚠️ Range 검색 결과 없음, Eq 검색으로 대체...`);
+            // Range 검색이 실패하면 Eq 검색으로 대체
+            allIndexData = await performEqSearch(indexingClient, indexID, field, filePath);
+          }
+          
+        } catch (error) {
+          console.warn(`⚠️ Range 검색 실패, Eq 검색으로 대체:`, error.message);
+          allIndexData = await performEqSearch(indexingClient, indexID, field, filePath);
+        }
+        
+        console.log(`✅ 전체 인덱스 데이터 수집 완료: ${allIndexData.length}개`);
+        
+        // 중복 제거 (TxID 기준)
+        const uniqueData = [...new Set(allIndexData)];
+        console.log(`✅ 중복 제거 후: ${uniqueData.length}개`);
+        
+        // Eq 검색 헬퍼 함수
+        async function performEqSearch(indexingClient, indexID, field, filePath) {
+          console.log('🔍 Eq 검색으로 대체 실행 중...');
+          let allIndexData = [];
+          const speedValues = [0, 10, 20, 30, 40, 50, 60, 65, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
+          
+          for (const speedValue of speedValues) {
+            try {
+              const searchRequest = {
+                IndexID: indexID,
+                Field: field,
+                FilePath: filePath,
+                KeySize: 64,
+                ComOp: 'Eq',
+                Value: speedValue.toString()
+              };
+              
+              console.log(`🔍 Speed ${speedValue} 검색 중...`);
+              const response = await indexingClient.searchData(searchRequest);
+              
+              if (response.IdxData && response.IdxData.length > 0) {
+                console.log(`✅ Speed ${speedValue}: ${response.IdxData.length}개 데이터 발견`);
+                allIndexData = allIndexData.concat(response.IdxData);
+              }
+              
+              // 검색 간격을 두어 서버 부하 방지
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+            } catch (error) {
+              console.warn(`⚠️ Speed ${speedValue} 검색 실패:`, error.message);
+            }
+          }
+          
+          return allIndexData;
+        }
+        
+        indexResult = {
+          success: true,
+          indexId: indexID,
+          indexName: `Fabric ${indexType} Index`,
+          data: uniqueData,
+          count: uniqueData.length,
+          network: 'fabric',
+          indexType: indexType,
+          searchType: 'all',
+          timestamp: new Date().toISOString()
+        };
+        
+        await indexingClient.close();
+        
+      } catch (indexError) {
+        console.warn('⚠️ 인덱스 검색 실패 (체인코드 결과만 반환):', indexError.message);
+      }
+      
+      // 3. 체인코드 결과와 인덱스 결과를 합쳐서 반환
+      const finalResult = {
+        success: true,
+        network: 'fabric',
+        indexType: indexType,
+        searchType: 'all',
+        timestamp: new Date().toISOString(),
+        chaincodeResult: {
+          data: worldStateResult.PvdList,
+          count: worldStateResult.PvdList.length,
+          source: 'blockchain'
+        },
+        indexResult: indexResult
+      };
+      
+      console.log(`📊 전체 조회 결과:`);
+      console.log(`   🆔 인덱스 타입: ${indexType}`);
+      console.log(`   📊 체인코드 데이터: ${finalResult.chaincodeResult.count}개`);
+      console.log(`   📊 인덱스 데이터: ${indexResult ? indexResult.count : 0}개`);
+      console.log(`   🌐 네트워크: ${finalResult.network}`);
+      
+      // 체인코드 데이터 상세 출력
+      if (finalResult.chaincodeResult.data && finalResult.chaincodeResult.data.length > 0) {
+        console.log(`   📋 체인코드에서 조회된 PVD 데이터:`);
+        finalResult.chaincodeResult.data.forEach((pvd, index) => {
+          console.log(`      ${index + 1}. OBU_ID: ${pvd.Obu_id}, Speed: ${pvd.Speed}, CollectionDt: ${pvd.Collection_dt}`);
+        });
+      }
+      
+      // 인덱스 데이터 상세 출력
+      if (indexResult && indexResult.data && indexResult.data.length > 0) {
+        console.log(`   📋 인덱스에서 검색된 TxID들:`);
+        indexResult.data.forEach((txId, index) => {
+          console.log(`      ${index + 1}. ${txId}`);
+        });
+      } else {
+        console.log(`   ℹ️  인덱스 데이터가 없습니다 (인덱스가 비어있거나 ComOp: 'All'을 지원하지 않을 수 있습니다)`);
+      }
+      
+      pvdClient.close();
+      return finalResult;
+      
+    } catch (error) {
+      console.error('❌ Fabric 체인코드 조회 실패:', error.message);
+      throw error;
     }
-    
-    // 전체 조회 요청 (Range 검색으로 모든 데이터)
-    const searchRequest = {
-      IndexID: indexID,
-      Field: field,
-      Value: '0',  // 최소값부터
-      Value2: '999999',  // 최대값까지 (범위 검색)
-      FilePath: filePath,
-      KeySize: 64,
-      ComOp: 'Range'  // 범위 검색으로 전체 데이터
-    };
-    
-    console.log(`🔍 전체 조회 요청:`, searchRequest);
-    
-    // 실제 인덱스 전체 검색 수행
-    const response = await indexingClient.searchData(searchRequest);
-    console.log(`✅ Fabric 인덱스 전체 조회 완료!`);
-    
-    // 검색 결과를 깔끔하게 정리
-    const cleanResult = {
-      success: true,
-      indexId: response.idxInfo?.IndexID || searchRequest.IndexID,
-      indexName: response.idxInfo?.IndexName || `Fabric ${indexType} Index`,
-      data: response.IdxData || [],
-      count: response.IdxData?.length || 0,
-      network: 'fabric',
-      indexType: indexType,
-      searchType: 'all',
-      timestamp: new Date().toISOString()
-    };
-    
-    console.log(`📊 전체 조회 결과:`);
-    console.log(`   🆔 인덱스 ID: ${cleanResult.indexId}`);
-    console.log(`   📝 인덱스 이름: ${cleanResult.indexName}`);
-    console.log(`   📊 데이터 개수: ${cleanResult.count}`);
-    console.log(`   🌐 네트워크: ${cleanResult.network}`);
-    console.log(`   🔍 검색 타입: ${cleanResult.indexType}`);
-    
-    if (cleanResult.data && cleanResult.data.length > 0) {
-      console.log(`   📋 검색된 TxID들:`);
-      cleanResult.data.forEach((txId, index) => {
-        console.log(`      ${index + 1}. ${txId}`);
-      });
-    }
-    
-    await indexingClient.close();
-    return cleanResult;
     
   } catch (error) {
     console.error(`❌ Fabric 인덱스 전체 조회 실패: ${error.message}`);
@@ -1443,6 +1684,13 @@ async function searchFabricIndex(dataType, searchValue) {
         filePath = `data/fabric/pvd_user_001.bf`;
         break;
         
+      case 'allblock':
+        // 전체 블록 조회를 위한 특별한 케이스
+        indexID = `speed_001`;  // 기본 인덱스 사용
+        field = 'Speed';
+        filePath = `data/fabric/speed_001.bf`;
+        break;
+        
       default:
         throw new Error(`지원하지 않는 데이터 타입: ${dataType}`);
     }
@@ -1454,7 +1702,8 @@ async function searchFabricIndex(dataType, searchValue) {
       Value: searchValue,
       FilePath: filePath,
       KeySize: 64,
-      ComOp: 'Eq'  // 기본적으로 동등 비교
+      ComOp: dataType === 'allblock' ? 'Range' : 'Eq',  // allblock이면 범위 검색, 아니면 동등 비교
+      ...(dataType === 'allblock' && { Begin: '-999999', End: '999999' })  // allblock일 때 범위 값 추가
     };
     
     console.log(`🔍 검색 요청:`, searchRequest);
@@ -2823,13 +3072,20 @@ async function main() {
         
       // ===== PVD 데이터 저장 =====
       case 'putdata':
-        if (type === 'multi' || type === 'csv') {
-          // CSV 멀티 데이터 넣기
+        if (type === 'individual' || type === 'multi' || type === 'batch' || type === 'csv') {
+          // CSV 데이터 넣기 (개별 또는 배치)
           const csvFile = value || 'pvd_hist_100.csv';
           const batchSize = process.argv.find(arg => arg.startsWith('-batch='))?.split('=')[1] || '1000';
           await putPvdMultiData(network, csvFile, parseInt(batchSize));
         } else {
           // 단건 데이터 넣기
+          if (!value) {
+            console.error('❌ putdata 명령어는 -value가 필요합니다');
+            console.log('예시: node cli.js -cmd=putdata -value=OBU-TEST-001 -network=fabric');
+            console.log('     node cli.js -cmd=putdata -type=individual -value=pvd_data.csv -network=fabric');
+            console.log('     node cli.js -cmd=putdata -type=batch -value=pvd_data.csv -network=fabric');
+            return;
+          }
           await putPvdData(network, value);
         }
         break;

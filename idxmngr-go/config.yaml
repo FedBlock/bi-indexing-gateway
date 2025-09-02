@@ -309,3 +309,23 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: speed_001
+      idxname: PVD speed Index (speed)
+      keycol: Speed
+      filepath: data/fabric/speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: speed_001
+      idxname: PVD speed Index (speed)
+      keycol: Speed
+      filepath: data/fabric/speed_001.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
