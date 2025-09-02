@@ -273,37 +273,8 @@ class FabricIndexingClient {
               reject(error);
             } else {
               console.log(`✅ Fabric Range 검색 완료: ${searchRequest.IndexID}`);
-              
-              // 응답 데이터 파싱 개선
-              let resultData = [];
-              let resultCount = 0;
-              
-              if (response.IdxData && response.IdxData.length > 0) {
-                resultData = response.IdxData;
-                resultCount = response.IdxData.length;
-              } else if (response.TxIds && response.TxIds.length > 0) {
-                resultData = response.TxIds;
-                resultCount = response.TxIds.length;
-              } else if (response.data && response.data.length > 0) {
-                resultData = response.data;
-                resultCount = response.data.length;
-              } else if (response.Count && response.Count > 0) {
-                resultCount = response.Count;
-                resultData = [`Found ${response.Count} items`];
-              }
-              
-              console.log(`📊 검색 결과 수: ${resultCount}`);
-              console.log(`📋 응답 구조:`, Object.keys(response));
-              
-              // 표준화된 응답 구조로 반환
-              const standardResponse = {
-                ...response,
-                data: resultData,
-                count: resultCount,
-                IdxData: resultData
-              };
-              
-              resolve(standardResponse);
+              console.log(`📊 검색 결과 수: ${response.data ? response.data.length : 0}`);
+              resolve(response);
             }
           });
         } else {

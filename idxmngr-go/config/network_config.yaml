@@ -8,3 +8,4 @@ networks:
   fabric:
     network_name: fabric
     contract_address: ''
+    file_index_path: 'data/fabric'

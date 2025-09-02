@@ -1,4 +1,4 @@
-/#!/usr/bin/env node
+#!/usr/bin/env node
 
 const { ethers } = require('hardhat');
 const path = require('path');
@@ -193,12 +193,47 @@ async function putPvdMultiData(network, csvFile, batchSize = 1000) {
           };
           
           try {
-            await putPvdData(network, pvdData.obuId, pvdData);
-            successCount++;
+            // PVD 데이터 저장
+            const result = await putPvdData(network, pvdData.obuId, pvdData);
             
-            // 진행 상황 표시 (10개마다)
-            if (successCount % 10 === 0) {
-              process.stdout.write('.');
+            if (result.success) {
+              successCount++;
+              
+              // 트랜잭션 ID를 PVD 데이터에 추가 (인덱싱용)
+              pvdData.txId = result.txId;
+              
+              // PVD 클라이언트를 통해 인덱싱 처리 (single-csv와 동일한 방식)
+              const pvdClient = new PvdClient('localhost:19001');
+              await pvdClient.connect();
+              
+              try {
+                // 순차적으로 인덱싱 처리 (동시 연결 문제 방지)
+                console.log(`🔄 OBU ${pvdData.obuId} Speed 인덱싱 시작...`);
+                const speedResult = await pvdClient.putSpeedIndex(pvdData);
+                
+                                // 짧은 지연 후 DT 인덱싱 (연결 충돌 방지)
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                console.log(`🔄 OBU ${pvdData.obuId} DT 인덱싱 시작...`);
+                const dtResult = await pvdClient.putDtIndex(pvdData);
+                
+                console.log(`📊 OBU ${pvdData.obuId} 인덱싱 처리 완료:`);
+                console.log(`   - Speed: ${speedResult.success ? '✅' : '❌'}`);
+                console.log(`   - DT: ${dtResult.success ? '✅' : '❌'}`);
+                
+              } catch (error) {
+                console.warn(`⚠️ OBU ${pvdData.obuId} 인덱싱 처리 중 오류: ${error.message}`);
+              } finally {
+                pvdClient.close();
+              }
+              
+              // 진행 상황 표시 (10개마다)
+              if (successCount % 10 === 0) {
+                process.stdout.write('.');
+              }
+            } else {
+              errorCount++;
+              console.log(`\n❌ 데이터 저장 실패 (OBU: ${pvdData.obuId}): ${result.message || '알 수 없는 오류'}`);
             }
             
           } catch (error) {
@@ -1997,8 +2032,8 @@ async function searchFabricIndexAll(indexType) {
     const searchRequest = {
       IndexID: indexID,
       Field: fieldName, // 동적 필드명
-      Value: fieldName === 'Speed' ? '0' : '20000101000000000', // Speed는 0부터, DT는 날짜 시작값
-      ValueEnd: fieldName === 'Speed' ? '999999' : '30001231235959999', // Speed는 적당한 값, DT는 날짜 끝값
+      Value: fieldName === 'Speed' ? '' : '', // 빈 값으로 시작 (최소값)
+      ValueEnd: fieldName === 'Speed' ? 'zzz' : 'zzz', // 최대값 (모든 문자열/숫자보다 큼)
       FilePath: filePath,
       KeySize: 64,
       ComOp: 'Range' // 범위 조회로 전체 데이터 조회
@@ -2010,17 +2045,23 @@ async function searchFabricIndexAll(indexType) {
       const result = await indexingClient.searchData(searchRequest);
       console.log('✅ Fabric 인덱스 전체 조회 완료!');
       
+      // 응답 데이터 파싱
+      const responseData = result.IdxData || result.data || [];
+      const responseCount = responseData.length;
+      
+      console.log(`📊 조회 결과: ${responseCount}개 데이터 발견`);
+      
       return {
-      success: true,
+        success: true,
         indexId: indexID,
         indexName: `Fabric ${indexType} Index`,
-        data: result.data || [],
-        count: result.count || 0,
+        data: responseData,
+        count: responseCount,
         filePath: filePath,
-      network: 'fabric',
+        network: 'fabric',
         indexType: indexType,
-      timestamp: new Date().toISOString()
-    };
+        timestamp: new Date().toISOString()
+      };
     
     } catch (searchError) {
       console.error('❌ 인덱스 검색 실패:', searchError.message);
