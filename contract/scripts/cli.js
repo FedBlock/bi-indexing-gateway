@@ -1115,6 +1115,53 @@ class PvdClient {
     });
   }
   
+  // client.go의 queryDatasByTxid 함수 - 트랜잭션 ID로 상세 정보 조회
+  async getDataByTxId(txId) {
+    console.log('🔍 PVD 트랜잭션 상세 조회:', txId);
+    
+    if (!this.grpcClient) {
+      throw new Error('gRPC 클라이언트가 연결되지 않음. connect() 메서드를 먼저 호출하세요.');
+    }
+    
+    const request = {
+      TxId: Array.isArray(txId) ? txId : [txId]
+    };
+    
+    console.log('📤 gRPC 요청 데이터:', JSON.stringify(request, null, 2));
+    
+    return new Promise((resolve, reject) => {
+      // getDataByTxID는 스트리밍 메서드 (proto에서 소문자로 정의됨)
+      const stream = this.grpcClient.getDataByTxID(request);
+      
+      const results = [];
+      
+      stream.on('data', (data) => {
+        console.log('📥 트랜잭션 데이터 수신:', JSON.stringify(data, null, 2));
+        if (data.Pvd) {
+          results.push({
+            txId: data.TxId,
+            pvd: data.Pvd,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
+      
+      stream.on('end', () => {
+        console.log('✅ 트랜잭션 상세 조회 완료');
+        resolve({
+          success: true,
+          count: results.length,
+          data: results
+        });
+      });
+      
+      stream.on('error', (error) => {
+        console.error('❌ 트랜잭션 상세 조회 실패:', error);
+        reject(error);
+      });
+    });
+  }
+  
   // client.go의 getChainInfo 함수
   async getChainInfo(chainInfo) {
     console.log('🔍 PVD getChainInfo 호출:', chainInfo);
@@ -2148,6 +2195,76 @@ async function searchData(network, dataType, searchValue) {
   }
 }
 
+// 트랜잭션 상세 조회 함수
+async function getTxDetails(network, txId) {
+  try {
+    console.log(`🔍 ${network} 네트워크에서 트랜잭션 상세 조회 시작...`);
+    console.log(`📄 트랜잭션 ID: ${txId}`);
+    
+    if (network !== 'fabric') {
+      throw new Error('트랜잭션 상세 조회는 Fabric 네트워크에서만 지원됩니다');
+    }
+    
+    // PVD 클라이언트 연결
+    const pvdClient = new PvdClient('localhost:19001');
+    await pvdClient.connect();
+    console.log('✅ PVD 서버 연결 성공');
+    
+    try {
+      // 트랜잭션 상세 정보 조회
+      console.log('🔄 트랜잭션 상세 정보 조회 중...');
+      const result = await pvdClient.getDataByTxId(txId);
+      
+      if (result.success && result.data.length > 0) {
+        console.log('\n🎉 트랜잭션 상세 조회 성공!');
+        console.log(`📊 조회된 데이터 수: ${result.count}개`);
+        
+        result.data.forEach((item, index) => {
+          console.log(`\n📋 트랜잭션 ${index + 1}:`);
+          console.log(`   🔑 트랜잭션 ID: ${item.txId}`);
+          console.log(`   ⏰ 조회 시간: ${item.timestamp}`);
+          
+          if (item.pvd) {
+            console.log(`   🚗 PVD 상세 정보:`);
+            console.log(`      • OBU ID: ${item.pvd.Obu_id || 'N/A'}`);
+            console.log(`      • 수집 일시: ${item.pvd.Collection_dt || 'N/A'}`);
+            console.log(`      • 속도: ${item.pvd.Speed || 'N/A'} km/h`);
+            console.log(`      • 위도: ${item.pvd.Startvector_latitude || 'N/A'}`);
+            console.log(`      • 경도: ${item.pvd.Startvector_longitude || 'N/A'}`);
+            console.log(`      • 변속기: ${item.pvd.Transmisstion || 'N/A'}`);
+            console.log(`      • RPM: ${item.pvd.Rpm || 'N/A'}`);
+            console.log(`      • 기어: ${item.pvd.Gear || 'N/A'}`);
+            console.log(`      • 연료량: ${item.pvd.Fuel_liter || 'N/A'}L (${item.pvd.Fuel_percent || 'N/A'}%)`);
+            console.log(`      • 총 주행거리: ${item.pvd.Totaldist || 'N/A'}km`);
+            console.log(`      • RSU ID: ${item.pvd.Rsu_id || 'N/A'}`);
+            console.log(`      • MSG ID: ${item.pvd.Msg_id || 'N/A'}`);
+          }
+        });
+        
+        return result;
+        
+      } else {
+        console.log('❌ 해당 트랜잭션 ID로 데이터를 찾을 수 없습니다');
+        return {
+          success: false,
+          message: '데이터 없음',
+          txId: txId
+        };
+      }
+      
+    } catch (error) {
+      console.error('❌ 트랜잭션 상세 조회 실패:', error.message);
+      throw error;
+    } finally {
+      pvdClient.close();
+    }
+    
+  } catch (error) {
+    console.error(`❌ 트랜잭션 상세 조회 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 // ===== 메인 함수 =====
 async function main() {
   console.log(`🔧 BI-Index CLI - 명령어: ${cmd}, 네트워크: ${network}`);
@@ -2232,14 +2349,27 @@ async function main() {
         break;
         
       // ===== 인덱스 전체 조회 =====
-      case 'search-all':
       case 'search-index':
         if (!type) {
-          console.error('❌ search-all 명령어는 -type이 필요합니다');
-          console.log('예시: node cli.js -cmd=search-all -type=speed -network=fabric');
+          console.error('❌ search-index 명령어는 -type이 필요합니다');
+          console.log('예시: node cli.js -cmd=search-index -type=speed -network=fabric');
           return;
         }
         await searchIndexAll(network, type);
+        break;
+        
+      // ===== 트랜잭션 상세 조회 =====
+      case 'get-tx-details':
+        if (!value) {
+          console.error('❌ get-tx-details 명령어는 -value(트랜잭션 ID)가 필요합니다');
+          console.log('예시: node cli.js -cmd=get-tx-details -value=05aba83a12c143d3843e363f21ac4759c61db8b6c4c1a609db62b40412fbe5d5 -network=fabric');
+          return;
+        }
+        if (network !== 'fabric') {
+          console.error('❌ 트랜잭션 상세 조회는 fabric 네트워크에서만 지원됩니다');
+          return;
+        }
+        await getTxDetails(network, value);
         break;
         
       // ===== 데이터 요청 =====
