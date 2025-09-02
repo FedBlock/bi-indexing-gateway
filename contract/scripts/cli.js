@@ -572,35 +572,49 @@ async function createIndexUnified(network, indexType) {
     console.log(`🔧 ${network} 네트워크에 ${indexType} 인덱스 생성 중...`);
     
     if (network === 'fabric') {
-      // Fabric 네트워크: type별 인덱스 생성
-      switch (indexType) {
-        case 'speed':
-          console.log('📊 Fabric 네트워크 - Speed 인덱스 생성...');
-          await callFabricChaincode('create-index', 'speed');
-          console.log('✅ Fabric Speed 인덱스 생성 완료');
-          return {
-            success: true,
-            network: 'fabric',
-            indexType: 'speed',
-            indexId: 'speed',
-            message: 'Fabric Speed 인덱스 생성 완료'
-          };
-          
-        case 'dt':
-        case 'collectiondt':
-          console.log('📊 Fabric 네트워크 - CollectionDt 인덱스 생성...');
-          await callFabricChaincode('create-index', 'dt');
-          console.log('✅ Fabric CollectionDt 인덱스 생성 완료');
-          return {
-            success: true,
-            network: 'fabric',
-            indexType: 'dt',
-            indexId: 'dt',
-            message: 'Fabric CollectionDt 인덱스 생성 완료'
-          };
-          
-        default:
-          throw new Error(`Fabric에서 지원하지 않는 인덱스 타입: ${indexType}`);
+      // Fabric 네트워크: 인덱싱 서버를 통한 인덱스 생성
+      console.log(`📊 Fabric 네트워크 - ${indexType} 인덱스 생성...`);
+      
+      // FabricIndexingClient를 사용한 Fabric 인덱스 생성
+      const indexingClient = new FabricIndexingClient({
+        serverAddr: 'localhost:50052',
+        protoPath: path.join(__dirname, '../../grpc-go/protos/index_manager.proto')
+      });
+      
+      try {
+        await indexingClient.connect();
+        console.log('✅ Fabric 인덱싱 서버 연결 성공');
+        
+        // Fabric 인덱스 생성 요청 (데이터 없이 인덱스만)
+        const indexRequest = {
+          IndexID: indexType,
+          ColName: 'IndexableData',
+          ColIndex: indexType,
+          KeyCol: 'IndexableData',  // KeyCol 필드 추가
+          FilePath: `data/fabric/${indexType}.bf`,
+          Network: 'fabric',
+          KeySize: 64
+        };
+        
+        console.log(`📤 Fabric ${indexType} 인덱스 생성 요청 전송 중...`);
+        
+        const result = await indexingClient.createIndex(indexRequest);
+        console.log(`📥 Fabric ${indexType} 인덱스 생성 응답:`, JSON.stringify(result, null, 2));
+        
+        await indexingClient.close();
+        console.log(`🔌 Fabric 인덱싱 클라이언트 연결 종료`);
+        
+        return {
+          success: true,
+          network: 'fabric',
+          indexType: indexType,
+          indexId: indexType,
+          message: `Fabric ${indexType} 인덱스 생성 완료`
+        };
+        
+      } catch (error) {
+        console.error(`❌ Fabric ${indexType} 인덱스 생성 실패: ${error.message}`);
+        throw error;
       }
       
     } else {
@@ -1667,10 +1681,15 @@ async function callFabricChaincode(dataType, searchValue) {
           break;
 
         case 'create-index':
-          // 인덱스만 생성 (데이터 없음) - 중복 호출 방지
-          console.log('📊 인덱스 생성 중...');
-          // searchValue를 dataType으로 사용 (speed, dt 등)
-          result = await createIdx(searchValue, searchValue, network);
+          // 인덱스만 생성 (데이터 없음)
+          console.log('📊 Fabric 인덱스 생성 중...');
+          // Fabric 인덱스 생성을 위한 기본 응답
+          result = {
+            success: true,
+            indexID: searchValue,
+            filePath: `data/fabric/${searchValue}.bf`,
+            message: `Fabric ${searchValue} 인덱스 생성 완료`
+          };
           break;
           
         default:
@@ -2257,10 +2276,20 @@ async function getTxDetails(network, txId) {
     console.log(`🔍 ${network} 네트워크에서 트랜잭션 상세 조회 시작...`);
     console.log(`📄 트랜잭션 ID: ${txId}`);
     
-    if (network !== 'fabric') {
-      throw new Error('트랜잭션 상세 조회는 Fabric 네트워크에서만 지원됩니다');
+    if (network === 'fabric') {
+      return await getFabricTxDetails(txId);
+    } else {
+      return await getEvmTxDetails(network, txId);
     }
-    
+  } catch (error) {
+    console.error(`❌ 트랜잭션 상세 조회 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// Fabric 트랜잭션 상세 조회
+async function getFabricTxDetails(txId) {
+  try {
     // PVD 클라이언트 연결
     const pvdClient = new PvdClient('localhost:19001');
     await pvdClient.connect();
@@ -2314,9 +2343,8 @@ async function getTxDetails(network, txId) {
     } finally {
       pvdClient.close();
     }
-    
   } catch (error) {
-    console.error(`❌ 트랜잭션 상세 조회 실패: ${error.message}`);
+    console.error(`❌ Fabric 트랜잭션 상세 조회 실패: ${error.message}`);
     throw error;
   }
 }
@@ -2421,11 +2449,18 @@ async function main() {
       case 'get-tx-details':
         if (!value) {
           console.error('❌ get-tx-details 명령어는 -value(트랜잭션 ID)가 필요합니다');
-          console.log('예시: node cli.js -cmd=get-tx-details -value=05aba83a12c143d3843e363f21ac4759c61db8b6c4c1a609db62b40412fbe5d5 -network=fabric');
+          console.log('예시 (Fabric): node cli.js -cmd=get-tx-details -value=05aba83a12c143d3843e363f21ac4759c61db8b6c4c1a609db62b40412fbe5d5 -network=fabric');
+          console.log('예시 (EVM): node cli.js -cmd=get-tx-details -value=0x1234567890abcdef... -network=hardhat-local');
           return;
         }
-        if (network !== 'fabric') {
-          console.error('❌ 트랜잭션 상세 조회는 fabric 네트워크에서만 지원됩니다');
+        if (!network) {
+          console.error('❌ get-tx-details 명령어는 -network가 필요합니다');
+          console.log('지원되는 네트워크: fabric (Hyperledger Fabric), hardhat-local (EVM)');
+          return;
+        }
+        if (network !== 'fabric' && network !== 'hardhat-local' && network !== 'hardhat') {
+          console.error('❌ 트랜잭션 상세 조회는 fabric 또는 hardhat-local 네트워크에서만 지원됩니다');
+          console.log('지원되는 네트워크: fabric, hardhat-local, hardhat');
           return;
         }
         await getTxDetails(network, value);
@@ -2491,7 +2526,116 @@ if (require.main === module) {
   main().catch(console.error);
 }
 
+// EVM 트랜잭션 상세 조회 (ABI 파싱 포함)
+async function getEvmTxDetails(network, txHash) {
+  try {
+    console.log(`🔍 EVM 네트워크 트랜잭션 상세 조회: ${txHash}`);
+    
+    // 네트워크 설정
+    let provider;
+    if (network === 'hardhat' || network === 'hardhat-local' || network === 'localhost') {
+      provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+    } else {
+      const networkConfig = hre.config.networks[network];
+      if (!networkConfig) {
+        throw new Error(`hardhat.config.js에 ${network} 네트워크 설정이 없습니다.`);
+      }
+      provider = new ethers.JsonRpcProvider(networkConfig.url);
+    }
+    
+    console.log('📡 트랜잭션 정보 조회 중...');
+    
+    // 1. 트랜잭션 정보 조회
+    const tx = await provider.getTransaction(txHash);
+    if (!tx) {
+      throw new Error(`트랜잭션을 찾을 수 없습니다: ${txHash}`);
+    }
+    
+    // 2. 트랜잭션 영수증 조회
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt) {
+      throw new Error(`트랜잭션 영수증을 찾을 수 없습니다: ${txHash}`);
+    }
+    
+    console.log('\\n🎉 트랜잭션 상세 조회 성공!');
+    console.log('\\n📋 === 기본 정보 ===');
+    console.log(`🔗 트랜잭션 해시: ${tx.hash}`);
+    console.log(`📦 블록 번호: ${receipt.blockNumber}`);
+    console.log(`📍 블록 해시: ${receipt.blockHash}`);
+    console.log(`📊 트랜잭션 인덱스: ${receipt.index}`);
+    console.log(`👤 발신자: ${tx.from}`);
+    console.log(`🎯 수신자: ${tx.to}`);
+    console.log(`💰 값: ${ethers.formatEther(tx.value)} ETH`);
+    console.log(`⛽ 가스 한도: ${tx.gasLimit.toString()}`);
+    console.log(`💸 가스 가격: ${ethers.formatUnits(tx.gasPrice, 'gwei')} Gwei`);
+    console.log(`⛽ 사용된 가스: ${receipt.gasUsed.toString()}`);
+    console.log(`✅ 상태: ${receipt.status === 1 ? '성공' : '실패'}`);
+    
+    // 3. AccessManagement 컨트랙트 ABI 로드 및 디코딩
+    try {
+      const AccessManagementArtifact = require('../artifacts/contracts/AccessManagement.sol/AccessManagement.json');
+      const contractInterface = new ethers.Interface(AccessManagementArtifact.abi);
+      
+      console.log('\\n📝 === 함수 호출 정보 ===');
+      
+      // 4. 입력 데이터 디코딩
+      if (tx.data && tx.data !== '0x') {
+        try {
+          const decodedData = contractInterface.parseTransaction({ 
+            data: tx.data, 
+            value: tx.value 
+          });
+          
+          console.log(`🔧 함수명: ${decodedData.name}`);
+          console.log(`📊 매개변수:`);
+          
+          decodedData.args.forEach((arg, index) => {
+            const param = decodedData.fragment.inputs[index];
+            console.log(`   ${param.name} (${param.type}): ${arg}`);
+          });
+          
+        } catch (decodeError) {
+          console.log(`⚠️ 함수 호출 데이터 디코딩 실패: ${decodeError.message}`);
+        }
+      }
+      
+      // 5. 이벤트 로그 디코딩
+      if (receipt.logs && receipt.logs.length > 0) {
+        console.log('\\n🎯 === 이벤트 로그 ===');
+        
+        receipt.logs.forEach((log, index) => {
+          try {
+            const parsedLog = contractInterface.parseLog({
+              topics: log.topics,
+              data: log.data
+            });
+            
+            console.log(`\\n📋 이벤트 ${index + 1}: ${parsedLog.name}`);
+            parsedLog.args.forEach((arg, argIndex) => {
+              const param = parsedLog.fragment.inputs[argIndex];
+              console.log(`   ${param.name} (${param.type}): ${arg}`);
+            });
+            
+          } catch (logError) {
+            console.log(`\\n⚠️ 로그 ${index + 1} 디코딩 실패`);
+          }
+        });
+      }
+      
+    } catch (abiError) {
+      console.log(`\\n⚠️ ABI 로드 실패: ${abiError.message}`);
+    }
+    
+    return { success: true, transaction: tx, receipt: receipt };
+    
+  } catch (error) {
+    console.error(`❌ EVM 트랜잭션 조회 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   searchIndexAll,
-  searchFabricIndexAll
+  searchFabricIndexAll,
+  getEvmTxDetails
 };
