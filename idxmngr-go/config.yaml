@@ -1,45 +1,91 @@
 items:
-  - idxid: bimatrix_f4a73d71
-    idxname: hardhat bimatrix Index (bimatrix)
-    keycol: IndexableData
-    filepath: data/hardhat-local/bimatrix_f4a73d71.bf
-    blocknum: 0
-    keysize: 64
-    address: localhost:50052
-    callcnt: 0
-    keycnt: 0
-    indexdatacnt: 0
-    network: hardhat
-  - idxid: fabric_speed
-    idxname: File_Fabric_Speed
-    keycol: Speed
-    filepath: fabric_speed.bf
-    blocknum: 0
-    keysize: 5
-    address: localhost:50052
-    callcnt: 0
-    keycnt: 0
-    indexdatacnt: 0
-    network: fabric
-  - idxid: speed
-    idxname: fabric speed Index
-    keycol: Speed
-    filepath: data/fabric/speed.bf
-    blocknum: 0
-    keysize: 64
-    address: localhost:50052
-    callcnt: 0
-    keycnt: 0
-    indexdatacnt: 0
-    network: fabric
-  - idxid: dt
-    idxname: fabric dt Index
-    keycol: CollectionDt
-    filepath: data/fabric/dt.bf
-    network: fabric
-    blocknum: 0
-    keysize: 64
-    address: localhost:50052
-    callcnt: 0
-    keycnt: 0
-    indexdatacnt: 0
+    - idxid: bimatrix_f4a73d71
+      idxname: hardhat bimatrix Index (bimatrix)
+      keycol: IndexableData
+      filepath: data/hardhat-local/bimatrix_f4a73d71.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: fabric_speed
+      idxname: File_Fabric_Speed
+      keycol: Speed
+      filepath: fabric_speed.bf
+      blocknum: 0
+      keysize: 5
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: speed
+      idxname: fabric speed Index
+      keycol: Speed
+      filepath: data/fabric/speed.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: dt
+      idxname: fabric dt Index
+      keycol: CollectionDt
+      filepath: data/fabric/dt.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user1_d8321319
+      idxname: HARDHAT USER1 Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/user1_d8321319.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user2_519b178b
+      idxname: HARDHAT USER2 Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/user2_519b178b.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: user3_21bc2424
+      idxname: HARDHAT USER3 Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/user3_21bc2424.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: samsung_575a3a49
+      idxname: HARDHAT SAMSUNG Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/samsung_575a3a49.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: lg_eb5d27fd
+      idxname: HARDHAT LG Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/lg_eb5d27fd.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
