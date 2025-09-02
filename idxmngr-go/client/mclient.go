@@ -632,19 +632,19 @@ func main() {
 	// File indexes
 	case "fcreates": // fileindex-speed (Fabric 네트워크용)
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
-			IdxID:    "fabric_003_speed",
-			IdxName:  "File_Fabric_Speed",
+			IdxID:    "speed",
+			IdxName:  "fabric speed Index (speed)",
 			KeyCol:   "Speed",
 			FilePath: "data/fabric/speed.bf",
-			KeySize:  5,
+			KeySize:  64,
 		})
-	case "fcreated": // fileindex-DT
+	case "fcreated": // fileindex-DT (Fabric 네트워크용)
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
-			IdxID:    "fileidx_dt",
-			IdxName:  "File_DT",
+			IdxID:    "dt",
+			IdxName:  "fabric dt Index",
 			KeyCol:   "CollectionDt",
-			FilePath: "dt_file.bf",
-			KeySize:  17,
+			FilePath: "data/fabric/dt.bf",
+			KeySize:  64,
 		})
 	case "fcreateorg": // fileindex-organization
 		CreateIndexRequestM(qe.MngrClient, mserver.IndexInfo{
@@ -723,7 +723,7 @@ func main() {
 	case "fexact0": //fileindex-speed (Speed = 0) - 새로 추가
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fileidx_sp", Field: "Speed", Value: "0", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5})
 	case "fabric_exact0": //fabric-speed (Speed = 0) - Fabric 네트워크용
-		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "fabric_speed", Field: "Speed", Value: "0", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 5})
+		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "speed", Field: "Speed", Value: "0", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 64})
 	case "hardhat_exact_samsung": //hardhat-IndexableData (OrganizationName = "samsung") - Hardhat 네트워크용
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "hardhat_001_speed", Field: "IndexableData", Value: "samsung", ComOp: idxmngr.ComparisonOps_Eq, KeySize: 7})
 	case "fexactd": //fileindex-20211001053430718
@@ -853,114 +853,8 @@ type PVD_CSV struct {
 	Startvector_heading   int    `csv:"STARTVECTOR_HEADING" json:"startvector_heading"`
 }
 
-// ===== SMART CONTRACT INTEGRATION FUNCTIONS =====
 
-// IndexContractTransaction indexes a single contract transaction
-func IndexContractTransaction(client idxmngr.IndexManagerClient, txHash string, orgName string) {
-	log.SetPrefix("[IndexContractTransaction] ")
-	
-	log.Printf("Indexing contract transaction: %s for organization: %s", txHash, orgName)
-	
-	// Create stream for InsertIndexRequest
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-	defer cancel()
-	
-	stream, err := client.InsertIndexRequest(ctx)
-	if err != nil {
-		log.Printf("Failed to open stream: %v", err)
-		return
-	}
-	
-	defer func() {
-		if err := stream.CloseSend(); err != nil {
-			log.Printf("Failed to close stream: %v", err)
-		}
-		response, err := stream.CloseAndRecv()
-		if err != nil {
-			log.Printf("Error closing stream: %v", err)
-		} else {
-			log.Printf("Successfully indexed contract transaction. Response: %v", response)
-		}
-	}()
-	
-	// Create BcDataList with IndexableData
-	bcData := &idxmngr.BcDataList{
-		TxId:          txHash,
-		IndexableData: &idxmngr.IndexableDataM{
-			OrganizationName: orgName,
-		},
-	}
-	
-	// Create InsertDatatoIdx with BcList
-	insertData := idxmngr.InsertDatatoIdx{
-		IndexID: "org_samsung",
-		BcList:  []*idxmngr.BcDataList{bcData},
-	}
-	
-	// Send data through stream
-	if err := stream.Send(&insertData); err != nil {
-		log.Printf("Failed to send data: %v", err)
-		return
-	}
-	
-	log.Printf("Contract transaction data sent successfully")
-}
 
-// IndexContractTransactions indexes multiple contract transactions
-func IndexContractTransactions(client idxmngr.IndexManagerClient, txHashes []string, orgName string) {
-	log.SetPrefix("[IndexContractTransactions] ")
-	
-	log.Printf("Indexing %d contract transactions for organization: %s", len(txHashes), orgName)
-	
-	// Create stream for InsertIndexRequest
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-	defer cancel()
-	
-	stream, err := client.InsertIndexRequest(ctx)
-	if err != nil {
-		log.Printf("Failed to open stream: %v", err)
-		return
-	}
-	
-	defer func() {
-		if err := stream.CloseSend(); err != nil {
-			log.Printf("Failed to close stream: %v", err)
-		}
-		response, err := stream.CloseAndRecv()
-		if err != nil {
-			log.Printf("Error closing stream: %v", err)
-		} else {
-			log.Printf("Successfully indexed %d contract transactions. Response: %v", len(txHashes), response)
-		}
-	}()
-	
-	// Send each transaction through stream
-	for i, txHash := range txHashes {
-		// Create BcDataList with IndexableData
-		bcData := &idxmngr.BcDataList{
-			TxId:          txHash,
-			IndexableData: &idxmngr.IndexableDataM{
-				OrganizationName: orgName,
-			},
-		}
-		
-		insertData := idxmngr.InsertDatatoIdx{
-			IndexID: "org_samsung",
-			BcList:  []*idxmngr.BcDataList{bcData},
-		}
-		
-		if err := stream.Send(&insertData); err != nil {
-			log.Printf("Failed to send transaction %d: %v", i+1, err)
-			continue
-		}
-		
-		if i%100 == 0 {
-			log.Printf("Sent transaction %d/%d", i+1, len(txHashes))
-		}
-	}
-	
-	log.Printf("All contract transaction data sent successfully")
-}
 
 // SearchContractTransactions searches for indexed contract transactions
 func SearchContractTransactions(client idxmngr.IndexManagerClient, indexID string, field string, value string) {
@@ -990,63 +884,7 @@ func SearchContractTransactions(client idxmngr.IndexManagerClient, indexID strin
 	}
 }
 
-// JavaScript 테스트용 데이터 삽입 함수
-func PutJavaScriptTestData(client idxmngr.IndexManagerClient, idxID string, txId string, orgName string) {
-	start := time.Now()
-	log.Printf("JavaScript 테스트 데이터 삽입 시작...")
 
-	// JavaScript와 동일한 데이터 구조 생성
-	bcData := &idxmngr.BcDataList{
-		TxId: txId,
-		IndexableData: &idxmngr.IndexableDataM{
-			OrganizationName: orgName,
-		},
-	}
-
-	insertData := &idxmngr.InsertDatatoIdx{
-		IndexID: idxID,
-		BcList:  []*idxmngr.BcDataList{bcData},
-		ColName: "IndexableData",
-		FilePath: "fileindex-go/samsung.bf",
-	}
-
-	log.Printf("삽입할 데이터 구조: %+v", insertData)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-	defer cancel()
-
-	stream, err := client.InsertIndexRequest(ctx)
-	if err != nil {
-		log.Fatalf("Failed to open stream: %v", err)
-	}
-
-	defer func() {
-		if err := stream.CloseSend(); err != nil {
-			log.Printf("Failed to close stream: %v", err)
-		}
-		response, err := stream.CloseAndRecv()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				log.Printf("Stream closed by server: EOF received.")
-				return
-			}
-			st, ok := status.FromError(err)
-			if ok {
-				log.Printf("gRPC Error: %v, Code: %v", st.Message(), st.Code())
-			} else {
-				log.Printf("Error closing stream: %v", err)
-			}
-		} else {
-			log.Printf("Stream Closed Successfully. Response: %v", response)
-		}
-	}()
-
-	if err := stream.Send(insertData); err != nil {
-		log.Fatalf("Failed to send data: %v", err)
-	}
-
-	log.Printf("JavaScript 테스트 데이터 삽입 완료. 소요시간: %v", time.Since(start))
-}
 
 // 범용 데이터 삽입 함수 (Public Block Chain 데이터)
 func PutPublicBC(client idxmngr.IndexManagerClient, idxID string, idxCol string) *idxmngr.IdxMngrResponse {
@@ -1132,4 +970,95 @@ func generatePublicBCDummyData() []*idxmngr.IndexableDataM {
 	}
 	
 	return dataList
+}
+
+// PVD 데이터를 Fabric 인덱스에 삽입하는 함수
+func PutPvdDataToFabricIndex(client idxmngr.IndexManagerClient, txID string, obuID string, speed int32, collectionDt string) error {
+	log.Printf("PVD 데이터를 Fabric 인덱스에 삽입: TxID=%s, OBU=%s, Speed=%d", txID, obuID, speed)
+	
+	// Speed 인덱스에 삽입
+	speedBcData := &idxmngr.BcDataList{
+		TxId:   txID,
+		KeyCol: "Speed",
+		Pvd: &idxmngr.PvdHistDataM{
+			ObuId:        obuID,
+			Speed:        speed,
+			CollectionDt: collectionDt,
+		},
+	}
+	
+	speedInsertData := &idxmngr.InsertDatatoIdx{
+		IndexID:  "speed",
+		BcList:   []*idxmngr.BcDataList{speedBcData},
+		ColName:  "Speed",
+		TxId:     txID,
+		OBU_ID:   obuID,
+		FilePath: "data/fabric/speed.bf",
+		Network:  "fabric",
+	}
+	
+	// DT 인덱스에 삽입
+	dtBcData := &idxmngr.BcDataList{
+		TxId:   txID,
+		KeyCol: "CollectionDt",
+		Pvd: &idxmngr.PvdHistDataM{
+			ObuId:        obuID,
+			Speed:        speed,
+			CollectionDt: collectionDt,
+		},
+	}
+	
+	dtInsertData := &idxmngr.InsertDatatoIdx{
+		IndexID:  "dt",
+		BcList:   []*idxmngr.BcDataList{dtBcData},
+		ColName:  "CollectionDt",
+		TxId:     txID,
+		OBU_ID:   obuID,
+		FilePath: "data/fabric/dt.bf",
+		Network:  "fabric",
+	}
+	
+	// Speed 인덱스 삽입
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	defer cancel()
+	
+	speedStream, err := client.InsertIndexRequest(ctx)
+	if err != nil {
+		return fmt.Errorf("Speed 인덱스 스트림 생성 실패: %v", err)
+	}
+	
+	if err := speedStream.Send(speedInsertData); err != nil {
+		return fmt.Errorf("Speed 인덱스 데이터 전송 실패: %v", err)
+	}
+	
+	speedStream.CloseSend()
+	speedResponse, err := speedStream.CloseAndRecv()
+	if err != nil {
+		return fmt.Errorf("Speed 인덱스 응답 실패: %v", err)
+	}
+	
+	log.Printf("Speed 인덱스 삽입 완료: %v", speedResponse)
+	
+	// DT 인덱스 삽입
+	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Minute*2)
+	defer cancel2()
+	
+	dtStream, err := client.InsertIndexRequest(ctx2)
+	if err != nil {
+		return fmt.Errorf("DT 인덱스 스트림 생성 실패: %v", err)
+	}
+	
+	if err := dtStream.Send(dtInsertData); err != nil {
+		return fmt.Errorf("DT 인덱스 데이터 전송 실패: %v", err)
+	}
+	
+	dtStream.CloseSend()
+	dtResponse, err := dtStream.CloseAndRecv()
+	if err != nil {
+		return fmt.Errorf("DT 인덱스 응답 실패: %v", err)
+	}
+	
+	log.Printf("DT 인덱스 삽입 완료: %v", dtResponse)
+	
+	return nil
 }

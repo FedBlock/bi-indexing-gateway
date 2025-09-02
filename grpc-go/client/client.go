@@ -17,6 +17,8 @@ import (
 
 	pvd "grpc-go/pvdapi/grpc-go/pvdapi"
 
+	idxmngr "../../idxmngr-go/protos"
+
 	"github.com/diegoholiveira/jsonlogic/v3"
 	"github.com/gocarina/gocsv"
 	"github.com/goccy/go-json"
@@ -39,6 +41,8 @@ var (
 	start_block        = flag.Int("start_block", 10, "range start block ")
 	end_block          = flag.Int("end_block", 100, "range end block ")
 	num                = flag.Int("number", 10, "number ")
+	obu_id             = flag.String("obu_id", "OBU-TEST-001", "OBU ID for PVD data")
+	speed_val          = flag.Int("speed", 80, "Speed value for PVD data")
 )
 
 type PVD_CSV struct {
@@ -1192,6 +1196,8 @@ func main() {
 		queryRangeBlock(client, &chainInfo)
 	case "data":
 		queryData(client, &pvd.SinglePvd{ChainInfo: &chainInfo, Pvd: &pvd.PvdHist{ObuId: "OBU-461001c4"}})
+	case "putdata": // PVD 데이터 저장 + 인덱싱 통합
+		putDataWithIndexing(client, &chainInfo)
 	case "txids":
 		fileBytes, err := ioutil.ReadFile("txids.txt")
 		if err != nil {
@@ -1350,4 +1356,143 @@ func main() {
 	}
 
 	log.Println("=================================================")
+}
+
+// PVD 데이터 저장 후 바로 인덱싱하는 함수
+func putDataWithIndexing(client pvd.PvdClient, chainInfo *pvd.ChainInfo) {
+	log.Printf("PVD 데이터 저장 + 인덱싱 시작")
+	
+	// 명령행 인수에서 OBU_ID와 Speed 가져오기
+	obuID := *obu_id
+	speed := *speed_val
+	
+	if obuID == "" {
+		obuID = "OBU-TEST-001"
+	}
+	if speed == 0 {
+		speed = 80
+	}
+	
+	log.Printf("OBU_ID: %s, Speed: %d", obuID, speed)
+	
+	// PVD 데이터 생성
+	pvdData := &pvd.PvdHist{
+		ObuId:                obuID,
+		CollectionDt:         "20250102120000000",
+		StartvectorLatitude:  "37.5665",
+		StartvectorLongitude: "126.9780",
+		Transmisstion:        "D",
+		Speed:                int32(speed),
+		HazardLights:         "OFF",
+		LeftTurnSignalOn:     "OFF",
+		RightTurnSignalOn:    "OFF",
+		Steering:             0,
+		Rpm:                  2000,
+		Footbrake:            "OFF",
+		Gear:                 "D",
+		Accelator:            30,
+		Wipers:               "OFF",
+		TireWarnLeftF:        "OK",
+		TireWarnLeftR:        "OK",
+		TireWarnRightF:       "OK",
+		TireWarnRightR:       "OK",
+		TirePsiLeftF:         32,
+		TirePsiLeftR:         32,
+		TirePsiRightF:        32,
+		TirePsiRightR:        32,
+		FuelPercent:          75,
+		FuelLiter:            45,
+		Totaldist:            15000,
+		RsuId:                "RSU-TEST-001",
+		MsgId:                "MSG-TEST-001",
+		StartvectorHeading:   90,
+	}
+	
+	// 1. PVD 데이터 저장
+	log.Printf("1. PVD 데이터를 Fabric에 저장 중...")
+	request := &pvd.SinglePvd{
+		ChainInfo: chainInfo,
+		Pvd:       pvdData,
+	}
+	
+	txID := createData(client, request)
+	if txID == "" {
+		log.Printf("❌ PVD 데이터 저장 실패")
+		return
+	}
+	
+	log.Printf("✅ PVD 데이터 저장 성공: TxID = %s", txID)
+	
+	// 2. 인덱싱 처리
+	log.Printf("2. 인덱스에 데이터 삽입 중...")
+	
+	// idxmngr 클라이언트 연결
+	idxmngrConn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
+	if err != nil {
+		log.Printf("❌ idxmngr 연결 실패: %v", err)
+		return
+	}
+	defer idxmngrConn.Close()
+	
+	idxmngrClient := idxmngr.NewIndexManagerClient(idxmngrConn)
+	
+	// Speed 인덱스에 데이터 삽입
+	speedBcData := &idxmngr.BcDataList{
+		TxId:   txID,
+		KeyCol: "Speed",
+		Pvd: &idxmngr.PvdHistDataM{
+			ObuId:        obuID,
+			Speed:        int32(speed),
+			CollectionDt: pvdData.CollectionDt,
+		},
+	}
+	
+	speedInsertData := &idxmngr.InsertDatatoIdx{
+		IndexID:  "speed",
+		BcList:   []*idxmngr.BcDataList{speedBcData},
+		ColName:  "Speed",
+		TxId:     txID,
+		OBU_ID:   obuID,
+		FilePath: "data/fabric/speed.bf",
+		Network:  "fabric",
+	}
+	
+	// Speed 인덱스 삽입
+	_, err = idxmngrClient.InsertDatatoIdx(context.Background(), speedInsertData)
+	if err != nil {
+		log.Printf("❌ Speed 인덱스 삽입 실패: %v", err)
+		return
+	}
+	log.Printf("✅ Speed 인덱스 삽입 성공")
+	
+	// DT 인덱스에 데이터 삽입
+	dtBcData := &idxmngr.BcDataList{
+		TxId:   txID,
+		KeyCol: "CollectionDt",
+		Pvd: &idxmngr.PvdHistDataM{
+			ObuId:        obuID,
+			Speed:        int32(speed),
+			CollectionDt: pvdData.CollectionDt,
+		},
+	}
+	
+	dtInsertData := &idxmngr.InsertDatatoIdx{
+		IndexID:  "dt",
+		BcList:   []*idxmngr.BcDataList{dtBcData},
+		ColName:  "CollectionDt",
+		TxId:     txID,
+		OBU_ID:   obuID,
+		FilePath: "data/fabric/dt.bf",
+		Network:  "fabric",
+	}
+	
+	// DT 인덱스 삽입
+	_, err = idxmngrClient.InsertDatatoIdx(context.Background(), dtInsertData)
+	if err != nil {
+		log.Printf("❌ DT 인덱스 삽입 실패: %v", err)
+		return
+	}
+	log.Printf("✅ DT 인덱스 삽입 성공")
+	
+	log.Printf("✅ PVD 데이터 저장 + 인덱싱 완료!")
 }

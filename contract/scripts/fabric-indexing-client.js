@@ -146,7 +146,8 @@ class FabricIndexingClient {
       console.log(`📊 Fabric 데이터 인덱싱 중: ${indexData.IndexID}`);
       
       return new Promise((resolve, reject) => {
-        this.client.InsertIndexRequest(indexData, (error, response) => {
+        // 스트림 방식으로 데이터 전송 (idxmngr 서버가 스트림을 기대함)
+        const stream = this.client.InsertIndexRequest((error, response) => {
           if (error) {
             console.error(`❌ Fabric 데이터 인덱싱 실패: ${error.message}`);
             reject(error);
@@ -157,6 +158,13 @@ class FabricIndexingClient {
             resolve(response);
           }
         });
+        
+        // 스트림으로 데이터 전송
+        console.log(`📤 스트림으로 데이터 전송: ${indexData.IndexID}`);
+        stream.write(indexData);
+        
+        // 스트림 종료
+        stream.end();
       });
       
     } catch (error) {
@@ -246,16 +254,71 @@ class FabricIndexingClient {
       console.log(`   🔎 검색값: ${searchRequest.Value}`);
       
       return new Promise((resolve, reject) => {
-        this.client.GetindexDataByFieldM(searchRequest, (error, response) => {
-          if (error) {
-            console.error(`❌ Fabric 데이터 검색 실패: ${error.message}`);
-            reject(error);
-          } else {
-            console.log(`✅ Fabric 데이터 검색 완료: ${searchRequest.IndexID}`);
-            console.log(`📊 검색 결과 수: ${response.IdxData ? response.IdxData.length : 0}`);
-            resolve(response);
-          }
-        });
+        // Range 검색인 경우 특별한 처리
+        if (searchRequest.ComOp === 'Range' && searchRequest.ValueEnd) {
+          console.log(`   🔎 Range 검색: ${searchRequest.Value} ~ ${searchRequest.ValueEnd}`);
+          
+          // Range 검색을 위한 요청 구조 수정
+          const rangeRequest = {
+            ...searchRequest,
+            Begin: searchRequest.Value,
+            End: searchRequest.ValueEnd
+          };
+          
+          console.log('📤 Range 검색 요청:', rangeRequest);
+          
+          this.client.GetindexDataByFieldM(rangeRequest, (error, response) => {
+            if (error) {
+              console.error(`❌ Fabric Range 검색 실패: ${error.message}`);
+              reject(error);
+            } else {
+              console.log(`✅ Fabric Range 검색 완료: ${searchRequest.IndexID}`);
+              
+              // 응답 데이터 파싱 개선
+              let resultData = [];
+              let resultCount = 0;
+              
+              if (response.IdxData && response.IdxData.length > 0) {
+                resultData = response.IdxData;
+                resultCount = response.IdxData.length;
+              } else if (response.TxIds && response.TxIds.length > 0) {
+                resultData = response.TxIds;
+                resultCount = response.TxIds.length;
+              } else if (response.data && response.data.length > 0) {
+                resultData = response.data;
+                resultCount = response.data.length;
+              } else if (response.Count && response.Count > 0) {
+                resultCount = response.Count;
+                resultData = [`Found ${response.Count} items`];
+              }
+              
+              console.log(`📊 검색 결과 수: ${resultCount}`);
+              console.log(`📋 응답 구조:`, Object.keys(response));
+              
+              // 표준화된 응답 구조로 반환
+              const standardResponse = {
+                ...response,
+                data: resultData,
+                count: resultCount,
+                IdxData: resultData
+              };
+              
+              resolve(standardResponse);
+            }
+          });
+        } else {
+          // 일반 검색
+          this.client.GetindexDataByFieldM(searchRequest, (error, response) => {
+            if (error) {
+              console.error(`❌ Fabric 데이터 검색 실패: ${error.message}`);
+              reject(error);
+            } else {
+              console.log(`✅ Fabric 데이터 검색 완료: ${searchRequest.IndexID}`);
+              console.log(`📊 검색 결과 수: ${response.IdxData ? response.IdxData.length : 0}`);
+              resolve(response);
+            }
+          });
+        }
       });
       
     } catch (error) {

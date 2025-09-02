@@ -1,31 +1,45 @@
 items:
-    - idxid: dt
-      idxname: fabric dt Index
-      keycol: CollectionDt
-      filepath: data/fabric/dt.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: speed
-      idxname: fabric speed Index (speed)
-      keycol: Speed
-      filepath: data/fabric/speed.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: bimatrix_f4a73d71
-      idxname: hardhat bimatrix Index (bimatrix)
-      keycol: IndexableData
-      filepath: data/hardhat-local/bimatrix_f4a73d71.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
+  - idxid: bimatrix_f4a73d71
+    idxname: hardhat bimatrix Index (bimatrix)
+    keycol: IndexableData
+    filepath: data/hardhat-local/bimatrix_f4a73d71.bf
+    blocknum: 0
+    keysize: 64
+    address: localhost:50052
+    callcnt: 0
+    keycnt: 0
+    indexdatacnt: 0
+    network: hardhat
+  - idxid: fabric_speed
+    idxname: File_Fabric_Speed
+    keycol: Speed
+    filepath: fabric_speed.bf
+    blocknum: 0
+    keysize: 5
+    address: localhost:50052
+    callcnt: 0
+    keycnt: 0
+    indexdatacnt: 0
+    network: fabric
+  - idxid: speed
+    idxname: fabric speed Index
+    keycol: Speed
+    filepath: data/fabric/speed.bf
+    blocknum: 0
+    keysize: 64
+    address: localhost:50052
+    callcnt: 0
+    keycnt: 0
+    indexdatacnt: 0
+    network: fabric
+  - idxid: dt
+    idxname: fabric dt Index
+    keycol: CollectionDt
+    filepath: data/fabric/dt.bf
+    network: fabric
+    blocknum: 0
+    keysize: 64
+    address: localhost:50052
+    callcnt: 0
+    keycnt: 0
+    indexdatacnt: 0

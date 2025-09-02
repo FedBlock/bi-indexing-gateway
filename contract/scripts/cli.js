@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+/#!/usr/bin/env node
 
 const { ethers } = require('hardhat');
 const path = require('path');
@@ -1152,6 +1152,155 @@ class PvdClient {
     });
   }
 
+  // client.go의 putDataWithIndexing 함수 (패브릭 데이터 저장 + 인덱싱 통합)
+  async putDataWithIndexing(obuId, speed) {
+    try {
+      console.log('🚀 PVD 데이터 저장 + 인덱싱 통합 시작');
+      console.log(`📝 OBU_ID: ${obuId}, Speed: ${speed}`);
+      
+      if (!this.grpcClient) {
+        throw new Error('gRPC 클라이언트가 연결되지 않음. connect() 메서드를 먼저 호출하세요.');
+      }
+      
+      // 1. PVD 데이터 생성 (client.go와 동일한 구조)
+      const chainInfo = {
+        ChannelName: 'pvdchannel',
+        Chaincode: 'pvd'
+      };
+      
+      const pvdData = {
+        Obu_id: obuId || 'OBU-TEST-001',
+        Collection_dt: '20250102120000000',
+        Startvector_latitude: '37.5665',
+        Startvector_longitude: '126.9780',
+        Transmisstion: 'D',
+        Speed: parseInt(speed) || 80,
+        Hazard_lights: 'OFF',
+        Left_turn_signal_on: 'OFF',
+        Right_turn_signal_on: 'OFF',
+        Steering: 0,
+        Rpm: 2000,
+        Footbrake: 'OFF',
+        Gear: 'D',
+        Accelator: 30,
+        Wipers: 'OFF',
+        Tire_warn_left_f: 'OK',
+        Tire_warn_left_r: 'OK',
+        Tire_warn_right_f: 'OK',
+        Tire_warn_right_r: 'OK',
+        Tire_psi_left_f: 32,
+        Tire_psi_left_r: 32,
+        Tire_psi_right_f: 32,
+        Tire_psi_right_r: 32,
+        Fuel_percent: 75,
+        Fuel_liter: 45,
+        Totaldist: 15000,
+        Rsu_id: 'RSU-TEST-001',
+        Msg_id: 'MSG-TEST-001',
+        Startvector_heading: 90
+      };
+      
+      const request = {
+        ChainInfo: chainInfo,
+        Pvd: pvdData
+      };
+      
+      console.log('📤 1. PVD 데이터를 Fabric에 저장 중...');
+      
+      // 2. PVD 데이터 저장 (gRPC putData 호출)
+      const putDataResult = await new Promise((resolve, reject) => {
+        this.grpcClient.putData(request, (error, response) => {
+          if (error) {
+            console.error('❌ PVD 데이터 저장 실패:', error);
+            reject(error);
+          } else {
+            console.log('✅ PVD 데이터 저장 성공:', response);
+            resolve(response);
+          }
+        });
+      });
+      
+      const txID = putDataResult.TxId;
+      if (!txID) {
+        throw new Error('TxID를 받지 못했습니다.');
+      }
+      
+      console.log(`✅ PVD 데이터 저장 성공: TxID = ${txID}`);
+      
+      // 3. 인덱싱 처리 (client.go와 동일한 방식)
+      console.log('📤 2. 인덱스에 데이터 삽입 중...');
+      
+      // 인덱싱 클라이언트 생성
+      const indexingClient = new FabricIndexingClient({
+        serverAddr: 'localhost:50052',
+        protoPath: path.join(__dirname, '../../grpc-go/protos/index_manager.proto')
+      });
+      
+      await indexingClient.connect();
+      console.log('✅ 인덱싱 클라이언트 연결 성공');
+      
+      // Speed 인덱스 삽입
+      const speedIndexData = {
+        IndexID: 'speed',
+        BcList: [{
+          TxId: txID,
+          KeyCol: 'Speed',
+          Pvd: {
+            ObuId: obuId,
+            Speed: parseInt(speed),
+            CollectionDt: pvdData.Collection_dt
+          }
+        }],
+        ColName: 'Speed',
+        TxId: txID,
+        OBU_ID: obuId,
+        FilePath: 'data/fabric/speed.bf',
+        Network: 'fabric'
+      };
+      
+      await indexingClient.insertData(speedIndexData);
+      console.log('✅ Speed 인덱스 삽입 성공');
+      
+      // DT 인덱스 삽입
+      const dtIndexData = {
+        IndexID: 'dt',
+        BcList: [{
+          TxId: txID,
+          KeyCol: 'CollectionDt',
+          Pvd: {
+            ObuId: obuId,
+            Speed: parseInt(speed),
+            CollectionDt: pvdData.Collection_dt
+          }
+        }],
+        ColName: 'CollectionDt',
+        TxId: txID,
+        OBU_ID: obuId,
+        FilePath: 'data/fabric/dt.bf',
+        Network: 'fabric'
+      };
+      
+      await indexingClient.insertData(dtIndexData);
+      console.log('✅ DT 인덱스 삽입 성공');
+      
+      // 인덱싱 클라이언트 연결 해제 (disconnect 함수가 없으므로 생략)
+      
+      console.log('🎉 PVD 데이터 저장 + 인덱싱 완료!');
+      
+      return {
+        success: true,
+        txId: txID,
+        message: 'PVD 데이터 저장 + 인덱싱 완료',
+        obuId: obuId,
+        speed: speed
+      };
+      
+    } catch (error) {
+      console.error('❌ putDataWithIndexing 실패:', error);
+      throw error;
+    }
+  }
+
     // client.go의 putData 함수 (실제 gRPC 호출)
   async putData(pvdData) {
     try {
@@ -1482,24 +1631,15 @@ async function callFabricChaincode(dataType, searchValue) {
       
       console.log(`📋 체인코드 정보:`, chainInfo);
       
-      // 2. 먼저 체인코드 상태 확인 (간단한 쿼리)
-      try {
-        console.log('🔍 체인코드 상태 확인 중...');
-        // 간단한 getWorldState 호출로 체인코드 상태 확인
-        const worldStateResult = await pvdClient.getWorldState(chainInfo);
-        console.log('✅ 체인코드 상태 확인 성공:', worldStateResult);
-      } catch (worldStateError) {
-        console.log('⚠️ 체인코드 상태 확인 실패 (계속 진행):', worldStateError.message);
-      }
+      // 체인코드 상태 확인 생략 (로그 제거)
       
       // 3. client.go의 실제 함수들 호출
       let result;
       
       switch (dataType) {
         case 'speed':
-          // 속도 데이터 조회: 실제 Fabric 체인코드에서 조회
-          console.log('🔍 속도 데이터 조회 중 (실시간 체인코드 호출)...');
-          result = await pvdClient.getWorldState(chainInfo);
+          // 속도 데이터 조회: 인덱스 검색 결과만 사용
+          console.log('🔍 속도 데이터 조회 - 인덱스 검색 결과 사용');
           // 속도 필터링 로직 추가
           if (result && result.PvdList) {
             const filteredData = result.PvdList.filter(pvd => {
@@ -1810,944 +1950,139 @@ async function searchFabricIndexAll(indexType) {
   try {
     console.log(`🔍 Fabric ${indexType} 인덱스 전체 조회 중...`);
     
-    // grpc-go를 거쳐서 처리 (search 명령어와 동일한 방식)
-    console.log('🔗 Fabric 네트워크 - grpc-go 서버 연결 중...');
+    // 인덱스 ID, 파일 경로, 필드명 설정
+    let indexID, filePath, fieldName;
     
-    try {
-      // PVD 클라이언트를 통해 grpc-go 서버 연결
-      const pvdClient = new PvdClient('localhost:19001');
-      await pvdClient.connect();
-      console.log('✅ PVD 서버 연결 성공');
-      
-      // 체인코드 정보
-      const chainInfo = {
-        channelName: FABRIC_CONFIG.channelName,
-        chaincode: FABRIC_CONFIG.chaincode
-      };
-      
-      // 1. 먼저 체인코드에서 전체 데이터 조회 (월드스테이트)
-      console.log('🔍 Fabric 체인코드에서 전체 데이터 조회 중...');
-      const worldStateResult = await pvdClient.getWorldState(chainInfo);
-      
-      if (!worldStateResult || !worldStateResult.PvdList) {
-        throw new Error('체인코드에서 데이터를 가져올 수 없습니다');
-      }
-      
-      console.log(`✅ 체인코드 조회 완료: ${worldStateResult.PvdList.length}개 데이터`);
-      
-      // 2. 인덱스에서도 전체 데이터 조회 (병렬로 처리)
-      console.log('🔍 Fabric 인덱스에서도 전체 데이터 조회 중...');
-      let indexResult = null;
-      
-      try {
-        // 인덱스 검색을 위한 별도 클라이언트 (idxmngr를 거쳐서)
-        const indexingClient = new FabricIndexingClient({
-          serverAddr: 'localhost:50052',
-          protoPath: PROTO_PATH
-        });
-        
-        await indexingClient.connect();
-        
-        // 인덱스 타입별 설정
-        let indexID, field, filePath;
-        
+    // 직접 파일명이 지정된 경우 (예: speed.bf, dt.bf)
+    if (indexType.includes('.bf')) {
+      const fileName = indexType.replace('.bf', '');
+      indexID = fileName;
+      filePath = `data/fabric/${indexType}`;
+      fieldName = fileName === 'speed' ? 'Speed' : fileName === 'dt' ? 'CollectionDt' : 'Speed';
+      console.log(`📁 직접 파일 지정: ${filePath}`);
+    } else {
+      // 기존 타입 매핑 방식
         switch (indexType) {
           case 'speed':
-            indexID = `speed`;
-            field = 'Speed';
-            filePath = `data/fabric/speed.bf`;
+          indexID = 'speed';
+          filePath = 'data/fabric/speed.bf';
+          fieldName = 'Speed';
             break;
-            
           case 'dt':
-          case 'collectiondt':
-            indexID = `dt`;
-            field = 'CollectionDt';
-            filePath = `data/fabric/dt.bf`;
+          indexID = 'dt';
+          filePath = 'data/fabric/dt.bf';
+          fieldName = 'CollectionDt';
             break;
-            
           default:
-            throw new Error(`지원하지 않는 인덱스 타입: ${indexType}`);
-        }
-        
-        // 전체 조회 요청 (Range 검색으로 모든 데이터 가져오기)
-        console.log('🔍 인덱스 전체 데이터를 Range 검색으로 가져오는 중...');
-        
-        let allIndexData = [];
-        
-        try {
-          const searchRequest = {
-            IndexID: indexID,
-            Field: field,
-            FilePath: filePath,
-            KeySize: 64,
-            ComOp: 'Range',  // Range 검색 사용
-            Begin: '-999999', // 시작값 (음수 포함, 더 넓은 범위)
-            End: '999999'     // 끝값 (더 큰 값으로 확장)
-          };
-          
-          console.log(`🔍 Range 검색 요청:`, searchRequest);
-          const response = await indexingClient.searchData(searchRequest);
-          
-          if (response.IdxData && response.IdxData.length > 0) {
-            console.log(`✅ Range 검색 완료: ${response.IdxData.length}개 데이터 발견`);
-            allIndexData = response.IdxData;
-          } else {
-            console.log(`⚠️ Range 검색 결과 없음, Eq 검색으로 대체...`);
-            // Range 검색이 실패하면 Eq 검색으로 대체
-            allIndexData = await performEqSearch(indexingClient, indexID, field, filePath);
-          }
-          
-        } catch (error) {
-          console.warn(`⚠️ Range 검색 실패, Eq 검색으로 대체:`, error.message);
-          allIndexData = await performEqSearch(indexingClient, indexID, field, filePath);
-        }
-        
-        console.log(`✅ 전체 인덱스 데이터 수집 완료: ${allIndexData.length}개`);
-        
-        // 중복 제거 (TxID 기준)
-        const uniqueData = [...new Set(allIndexData)];
-        console.log(`✅ 중복 제거 후: ${uniqueData.length}개`);
-        
-        // Eq 검색 헬퍼 함수
-        async function performEqSearch(indexingClient, indexID, field, filePath) {
-          console.log('🔍 Eq 검색으로 대체 실행 중...');
-          let allIndexData = [];
-          const speedValues = [0, 10, 20, 30, 40, 50, 60, 65, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
-          
-          for (const speedValue of speedValues) {
-            try {
-              const searchRequest = {
-                IndexID: indexID,
-                Field: field,
-                FilePath: filePath,
-                KeySize: 64,
-                ComOp: 'Eq',
-                Value: speedValue.toString()
-              };
-              
-              console.log(`🔍 Speed ${speedValue} 검색 중...`);
-              const response = await indexingClient.searchData(searchRequest);
-              
-              if (response.IdxData && response.IdxData.length > 0) {
-                console.log(`✅ Speed ${speedValue}: ${response.IdxData.length}개 데이터 발견`);
-                allIndexData = allIndexData.concat(response.IdxData);
-              }
-              
-              // 검색 간격을 두어 서버 부하 방지
-              await new Promise(resolve => setTimeout(resolve, 100));
-              
-            } catch (error) {
-              console.warn(`⚠️ Speed ${speedValue} 검색 실패:`, error.message);
-            }
-          }
-          
-          return allIndexData;
-        }
-        
-        indexResult = {
-          success: true,
-          indexId: indexID,
-          indexName: `Fabric ${indexType} Index`,
-          data: uniqueData,
-          count: uniqueData.length,
-          network: 'fabric',
-          indexType: indexType,
-          searchType: 'all',
-          timestamp: new Date().toISOString()
-        };
-        
-        await indexingClient.close();
-        
-      } catch (indexError) {
-        console.warn('⚠️ 인덱스 검색 실패 (체인코드 결과만 반환):', indexError.message);
+          indexID = indexType;
+          filePath = `data/fabric/${indexType}.bf`;
+          fieldName = 'Speed'; // 기본값
       }
-      
-      // 3. 체인코드 결과와 인덱스 결과를 합쳐서 반환
-      const finalResult = {
-        success: true,
-        network: 'fabric',
-        indexType: indexType,
-        searchType: 'all',
-        timestamp: new Date().toISOString(),
-        chaincodeResult: {
-          data: worldStateResult.PvdList,
-          count: worldStateResult.PvdList.length,
-          source: 'blockchain'
-        },
-        indexResult: indexResult
-      };
-      
-      console.log(`📊 전체 조회 결과:`);
-      console.log(`   🆔 인덱스 타입: ${indexType}`);
-      console.log(`   📊 체인코드 데이터: ${finalResult.chaincodeResult.count}개`);
-      console.log(`   📊 인덱스 데이터: ${indexResult ? indexResult.count : 0}개`);
-      console.log(`   🌐 네트워크: ${finalResult.network}`);
-      
-      // 체인코드 데이터 상세 출력
-      if (finalResult.chaincodeResult.data && finalResult.chaincodeResult.data.length > 0) {
-        console.log(`   📋 체인코드에서 조회된 PVD 데이터:`);
-        finalResult.chaincodeResult.data.forEach((pvd, index) => {
-          console.log(`      ${index + 1}. OBU_ID: ${pvd.Obu_id}, Speed: ${pvd.Speed}, CollectionDt: ${pvd.Collection_dt}`);
-        });
-      }
-      
-      // 인덱스 데이터 상세 출력
-      if (indexResult && indexResult.data && indexResult.data.length > 0) {
-        console.log(`   📋 인덱스에서 검색된 TxID들:`);
-        indexResult.data.forEach((txId, index) => {
-          console.log(`      ${index + 1}. ${txId}`);
-        });
-      } else {
-        console.log(`   ℹ️  인덱스 데이터가 없습니다 (인덱스가 비어있거나 ComOp: 'All'을 지원하지 않을 수 있습니다)`);
-      }
-      
-      pvdClient.close();
-      return finalResult;
-      
-    } catch (error) {
-      console.error('❌ Fabric 체인코드 조회 실패:', error.message);
-      throw error;
     }
     
-  } catch (error) {
-    console.error(`❌ Fabric 인덱스 전체 조회 실패: ${error.message}`);
-    throw error;
-  }
-}
-
-async function searchFabricIndex(dataType, searchValue) {
-  try {
-    console.log('🔍 Fabric 인덱스 검색 중...');
+    console.log(`🔍 인덱스 ID: ${indexID}, 파일 경로: ${filePath}`);
     
-    // Fabric 전용 인덱싱 클라이언트 사용
+    // 인덱싱 서버를 통해 전체 데이터 조회
+    console.log('🔗 Fabric 인덱싱 서버 연결 중...');
+    
     const indexingClient = new FabricIndexingClient({
       serverAddr: 'localhost:50052',
-      protoPath: PROTO_PATH
+      protoPath: path.join(__dirname, '../../grpc-go/protos/index_manager.proto')
     });
     
     await indexingClient.connect();
     console.log('✅ Fabric 인덱싱 서버 연결 성공');
     
-    // 데이터 타입별 인덱스 ID 및 검색 필드 설정
-    let indexID, field, filePath;
-    
-    switch (dataType) {
-      case 'speed':
-        indexID = `speed_001`;
-        field = 'Speed';
-        filePath = `data/fabric/speed_001.bf`;
-        break;
-        
-      case 'dt':
-      case 'collectiondt':
-        indexID = `dt_001`;
-        field = 'CollectionDt';
-        filePath = `data/fabric/dt_001.bf`;
-        break;
-        
-      case 'organization':
-        indexID = `pvd_org_001`;
-        field = 'OrganizationName';
-        filePath = `data/fabric/pvd_org_001.bf`;
-        break;
-        
-      case 'user':
-        indexID = `pvd_user_001`;
-        field = 'UserId';
-        filePath = `data/fabric/pvd_user_001.bf`;
-        break;
-        
-      case 'allblock':
-        // 전체 블록 조회를 위한 특별한 케이스
-        indexID = `speed_001`;  // 기본 인덱스 사용
-        field = 'Speed';
-        filePath = `data/fabric/speed_001.bf`;
-        break;
-        
-      default:
-        throw new Error(`지원하지 않는 데이터 타입: ${dataType}`);
-    }
-    
-    // 검색 요청 구성
+    // 전체 데이터 조회 요청 (Range로 모든 데이터 조회)
     const searchRequest = {
       IndexID: indexID,
-      Field: field,
-      Value: searchValue,
+      Field: fieldName, // 동적 필드명
+      Value: fieldName === 'Speed' ? '0' : '20000101000000000', // Speed는 0부터, DT는 날짜 시작값
+      ValueEnd: fieldName === 'Speed' ? '999999' : '30001231235959999', // Speed는 적당한 값, DT는 날짜 끝값
       FilePath: filePath,
       KeySize: 64,
-      ComOp: dataType === 'allblock' ? 'Range' : 'Eq',  // allblock이면 범위 검색, 아니면 동등 비교
-      ...(dataType === 'allblock' && { Begin: '-999999', End: '999999' })  // allblock일 때 범위 값 추가
+      ComOp: 'Range' // 범위 조회로 전체 데이터 조회
     };
     
-    console.log(`🔍 검색 요청:`, searchRequest);
+    console.log('🔍 전체 데이터 조회 요청:', searchRequest);
     
-    // 실제 인덱스 검색 수행
-    const response = await indexingClient.searchData(searchRequest);
-    console.log(`✅ Fabric 인덱스 검색 완료!`);
-    
-    // 검색 결과를 깔끔하게 정리
-    const cleanResult = {
+    try {
+      const result = await indexingClient.searchData(searchRequest);
+      console.log('✅ Fabric 인덱스 전체 조회 완료!');
+      
+      return {
       success: true,
-      indexId: response.idxInfo?.IndexID || searchRequest.IndexID,
-      indexName: response.idxInfo?.IndexName || 'Fabric Index',
-      data: response.IdxData || [],
-      count: response.IdxData?.length || 0,
+        indexId: indexID,
+        indexName: `Fabric ${indexType} Index`,
+        data: result.data || [],
+        count: result.count || 0,
+        filePath: filePath,
       network: 'fabric',
-      dataType: dataType,
-      searchValue: searchValue,
+        indexType: indexType,
       timestamp: new Date().toISOString()
     };
     
-    console.log(`📊 검색 결과:`);
-    console.log(`   🆔 인덱스 ID: ${cleanResult.indexId}`);
-    console.log(`   📝 인덱스 이름: ${cleanResult.indexName}`);
-    console.log(`   📊 데이터 개수: ${cleanResult.count}`);
-    console.log(`   🌐 네트워크: ${cleanResult.network}`);
-    console.log(`   🔍 검색 타입: ${cleanResult.dataType}`);
-    console.log(`   🔎 검색값: ${cleanResult.searchValue}`);
-    
-    if (cleanResult.data.length > 0) {
-      console.log(`   📋 검색된 데이터:`);
-      cleanResult.data.forEach((item, index) => {
-        console.log(`      ${index + 1}. ${item}`);
-      });
-    } else {
-      console.log(`   ℹ️  검색된 데이터가 없습니다.`);
-      console.log(`   💡 인덱스가 비어있거나 검색값과 일치하는 데이터가 없을 수 있습니다.`);
-    }
-    
-    indexingClient.close();
-    return cleanResult;
-    
-  } catch (error) {
-    console.error('❌ Fabric 인덱스 검색 실패:', error.message);
-    throw error;
-  }
-}
-
-// PVD 인덱스 생성 상태 추적 (중복 생성 방지)
-const createdIndexes = new Set();
-
-// 통합된 인덱스 생성 함수 (네트워크별 분기처리)
-async function createIdx(dataType, searchValue, network = 'fabric') {
-  try {
-    console.log(`📊 ${network} 네트워크 인덱스 생성 중...`);
-    
-    // 네트워크별 인덱싱 클라이언트 선택
-    let indexingClient;
-    if (network === 'fabric') {
-      // Fabric 전용 인덱싱 클라이언트
-      indexingClient = new FabricIndexingClient({
-        serverAddr: 'localhost:50052',
-        protoPath: PROTO_PATH
-      });
-    } else {
-      // EVM 계열 인덱싱 클라이언트
-      indexingClient = new (require('../../indexing-client-package/lib/indexing-client'))({
-        serverAddr: 'localhost:50052',
-        protoPath: path.join(__dirname, '../../idxmngr-go/protos/index_manager.proto')
-      });
-    }
-    
-    await indexingClient.connect();
-    console.log(`✅ ${network} 인덱싱 서버 연결 성공`);
-    
-    // 네트워크별 인덱스 ID 생성
-    let indexID, keyCol, colName, filePath;
-    
-    if (network === 'fabric') {
-      // Fabric 네트워크: speed, dt만 허용
-      if (dataType !== 'speed' && dataType !== 'dt' && dataType !== 'collectiondt') {
-        throw new Error(`Fabric 네트워크에서는 speed, dt만 지원됩니다. 입력된 타입: ${dataType}`);
-      }
+    } catch (searchError) {
+      console.error('❌ 인덱스 검색 실패:', searchError.message);
       
-      switch (dataType) {
-        case 'speed':
-          indexID = `speed`;
-          keyCol = 'Speed';
-          colName = 'Speed';
-          filePath = `data/fabric/speed.bf`;
-          break;
-          
-        case 'dt':
-        case 'collectiondt':
-          indexID = `dt`;
-          keyCol = 'CollectionDt';
-          colName = 'CollectionDt';
-          filePath = `data/fabric/dt.bf`;
-          break;
-          
-        default:
-          indexID = `dt`;
-          keyCol = 'CollectionDt';
-          colName = 'CollectionDt';
-          filePath = `data/fabric/dt.bf`;
-          break;
-      }
-    } else {
-      // EVM 계열: 모든 type 허용, 동적 해시값 생성
-      const shortHash = hashWalletAddress(searchValue || dataType);
-      
-      // 네트워크 경로 매핑 (hardhat -> hardhat-local)
-      const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
-      
-      // 특별한 타입별 처리
-      switch (dataType) {
-        case 'user':
-          // 사용자 인덱스: UserId 컬럼
-          indexID = `user_${shortHash}`;
-          keyCol = 'UserId';
-          colName = 'UserId';
-          filePath = `data/${networkDir}/user_${shortHash}.bf`;
-          break;
-          
-        case 'speed':
-          // Speed 인덱스: Speed 컬럼
-          indexID = `speed_${shortHash}`;
-          keyCol = 'Speed';
-          colName = 'Speed';
-          filePath = `data/${networkDir}/speed_${shortHash}.bf`;
-          break;
-          
-        default:
-          // 기타 모든 타입: IndexableData 컬럼 (동적 생성)
-          indexID = `${dataType}_${shortHash}`;
-          keyCol = 'IndexableData';
-          colName = 'IndexableData';
-          filePath = `data/${networkDir}/${dataType}_${shortHash}.bf`;
-          break;
-      }
-    }
-    
-    // 먼저 인덱스가 이미 존재하는지 확인
-    console.log(`🔍 인덱스 존재 여부 확인 중: ${indexID}`);
-    
-    try {
-      // 기존 인덱스 조회 시도
-      const existingIndex = await indexingClient.getIndex({ IndexID: indexID });
-      if (existingIndex && existingIndex.IndexID) {
-        console.log(`📁 인덱스 이미 존재함: ${indexID} (생성 건너뛰기)`);
-        console.log(`📁 기존 파일 경로: ${existingIndex.FilePath || filePath}`);
-        
-        indexingClient.close();
+      // 대안: fileidx 서버로 직접 조회 시도
+      console.log('🔄 대안 방법으로 fileidx 서버 직접 조회 시도...');
         
         return {
-          success: true,
-          message: '인덱스 이미 존재함 (생성 건너뛰기)',
-          indexID: indexID,
-          filePath: existingIndex.FilePath || filePath,
-          status: 'existing'
-        };
-      }
-    } catch (error) {
-      // 인덱스가 존재하지 않는 경우 (정상)
-      console.log(`📁 새 인덱스 생성 필요: ${indexID}`);
-    }
-    
-    // 새 인덱스 생성
-    try {
-      const indexInfo = {
-        IndexID: indexID,
-        IndexName: `${network} ${dataType} Index (${searchValue})`,
-        KeyCol: keyCol,
-        FilePath: filePath,
-        KeySize: 64,
-        Network: network
+        success: false,
+        error: searchError.message,
+        indexId: indexID,
+        filePath: filePath,
+        message: 'fileidx 서버로 직접 조회가 필요합니다',
+        suggestion: `cd fileindex-go && ./fileidx -file=${filePath} -cmd=getall`
       };
-      
-      const createResult = await indexingClient.createIndex(indexInfo);
-      console.log(`📥 인덱스 생성 응답:`, JSON.stringify(createResult, null, 2));
-      
-      if (createResult.ResponseCode === 200) {
-        console.log(`✅ ${network} 인덱스 생성 완료: ${indexID}`);
-        console.log(`📁 파일 경로: ${filePath}`);
-        
-        // config.yaml에 자동으로 인덱스 추가
-        await addIndexToConfigYaml(indexID, keyCol, filePath, network);
-        
-      } else if (createResult.ResponseMessage && createResult.ResponseMessage.includes('already exists')) {
-        console.log(`📁 인덱스 이미 존재함: ${indexID} (중복)`);
-        console.log(`📁 기존 파일 경로: ${filePath}`);
-      } else {
-        console.log(`⚠️ 인덱스 생성 결과:`, createResult);
-      }
+    }
       
     } catch (error) {
-      if (error.message.includes('already exists') || error.message.includes('duplicate')) {
-        console.log(`📁 인덱스 이미 존재함: ${indexID} (기존 것 사용)`);
-      } else {
+    console.error(`❌ Fabric ${indexType} 인덱스 전체 조회 실패: ${error.message}`);
         throw error;
       }
     }
     
-    indexingClient.close();
-    
-    return {
-      success: true,
-      message: `${network} 인덱스 생성 완료`,
-      indexID: indexID,
-      filePath: filePath
-    };
-    
-  } catch (error) {
-    console.error('❌ PVD 인덱스 생성 실패:', error.message);
-    throw error;
-  }
-}
-
-// config.yaml에 인덱스 추가하는 함수
-async function addIndexToConfigYaml(indexID, keyCol, filePath, network = 'unknown') {
+// 네트워크별 데이터 조회
+async function searchData(network, dataType, searchValue) {
   try {
-    console.log(`📝 config.yaml에 인덱스 추가 중: ${indexID}`);
+    console.log(`🔍 ${network} 네트워크에서 ${dataType} 데이터 조회 시작...`);
     
-    const fs = require('fs');
-    const yaml = require('js-yaml');
-    
-    // config.yaml 파일 읽기
-    const configPath = path.join(process.cwd(), '../../idxmngr-go/config.yaml');
-    if (!fs.existsSync(configPath)) {
-      console.log(`⚠️ config.yaml 파일이 없음: ${configPath}`);
-      return;
-    }
-    
-    const configContent = fs.readFileSync(configPath, 'utf8');
-    const config = yaml.load(configContent);
-    
-    // items 배열이 없으면 생성
-    if (!config.items) {
-      config.items = [];
-    }
-    
-    // 기존 항목들의 network 필드 보완 (파일 경로로 추론)
-    config.items.forEach(item => {
-      if (!item.network) {
-        if (item.filepath.includes('fabric')) {
-          item.network = 'fabric';
-        } else if (item.filepath.includes('hardhat-local')) {
-          item.network = 'hardhat';
-        } else if (item.filepath.includes('monad')) {
-          item.network = 'monad';
-        } else {
-          item.network = 'unknown';
-        }
-      }
-    });
-    
-    // 중복 체크 제거 - 항상 새로 추가하도록 변경
-    console.log(`📝 인덱스 추가 중: ${indexID} (${network})`);
-    
-    // 같은 파일 경로가 있다면 제거 (안전장치)
-    config.items = config.items.filter(item => item.filepath !== filePath);
-    
-    // 새 인덱스 추가
-    const newIndex = {
-      idxid: indexID,
-      idxname: `${network} ${indexID} Index`,
-      keycol: keyCol,
-      filepath: filePath,
-      network: network,
-      blocknum: 0,
-      keysize: 64,
-      address: 'localhost:50052',
-      callcnt: 0,
-      keycnt: 0,
-      indexdatacnt: 0
-    };
-    
-    config.items.push(newIndex);
-    
-    // config.yaml 파일에 저장
-    const updatedContent = yaml.dump(config, { indent: 2 });
-    fs.writeFileSync(configPath, updatedContent, 'utf8');
-    
-    console.log(`✅ config.yaml에 인덱스 추가 완료: ${indexID}`);
-    
-  } catch (error) {
-    console.error(`❌ config.yaml 업데이트 실패: ${error.message}`);
-  }
-}
-
-// PVD 데이터를 idxmngr-go에 인덱싱하는 함수 (트랜잭션과 인덱싱)
-async function indexPvdData(dataType, searchValue, pvdData) {
-  try {
-    console.log('📊 PVD 데이터 인덱싱 중...');
-    
-    // Fabric 전용 인덱싱 클라이언트 사용
-    const indexingClient = new FabricIndexingClient({
-      serverAddr: 'localhost:50052',
-      protoPath: PROTO_PATH
-    });
-    
-    await indexingClient.connect();
-    console.log('✅ Fabric 인덱싱 서버 연결 성공');
-    
-    // PVD 전용 인덱스 ID 생성 (speed, dt 중심)
-    let indexID, keyCol, colName;
-    
-    switch (dataType) {
-      case 'speed':
-        // Fabric 네트워크: speed
-        indexID = `speed`;
-        keyCol = 'Speed';
-        colName = 'Speed';
-        break;
-        
-      case 'dt':
-      case 'collectiondt':
-        // 수집 날짜/시간 인덱스: dt
-        indexID = `dt`;
-        keyCol = 'CollectionDt';
-        colName = 'CollectionDt';
-        break;
-        
-      case 'organization':
-        // 조직 인덱스: pvd_org
-        indexID = `pvd_org`;
-        keyCol = 'IndexableData';
-        colName = 'IndexableData';
-        break;
-        
-      case 'user':
-        // 사용자 인덱스: pvd_user
-        indexID = `pvd_user`;
-        keyCol = 'UserId';
-        colName = 'UserId';
-        break;
-        
-      default:
-        // 기본 인덱스: dt (CollectionDt 기반)
-        indexID = `dt`;
-        keyCol = 'CollectionDt';
-        colName = 'CollectionDt';
-        break;
-    }
-    
-    // 데이터 인덱싱 - fstree.go가 기대하는 Pvd 구조체 포함
-    const indexData = {
-      IndexID: indexID,
-      BcList: [{
-        TxId: pvdData.txId || `pvd_${Date.now()}`,
-        KeySize: 64,
-        KeyCol: keyCol,
-        // fstree.go가 기대하는 Pvd 구조체 추가 (정확한 필드명 사용)
-        Pvd: {
-          Speed: dataType === 'speed' ? parseInt(searchValue) || 60 : 0,
-          CollectionDt: dataType === 'dt' || dataType === 'collectiondt' ? searchValue : new Date().toISOString(),
-          OrganizationName: dataType === 'organization' ? searchValue : 'fabric_org',
-          UserId: dataType === 'user' ? searchValue : 'fabric_user',
-          Address: 'fabric_address',
-          ObuId: pvdData.txId || `pvd_${Date.now()}`,
-          StartvectorLatitude: 37.5665,
-          StartvectorLongitude: 126.9780,
-          Transmisstion: 'auto',
-          HazardLights: false,
-          LeftTurnSignalOn: false,
-          RightTurnSignalOn: false,
-          Steering: 0,
-          Rpm: 2000,
-          Footbrake: false,
-          Gear: 'P',
-          Accelator: 0,
-          Wipers: false,
-          TireWarnLeftF: false,
-          TireWarnLeftR: false,
-          TireWarnRightF: false,
-          TireWarnRightR: false,
-          TirePsiLeftF: 32,
-          TirePsiLeftR: 32,
-          TirePsiRightF: 32,
-          TirePsiRightR: 32,
-          FuelPercent: 80,
-          FuelLiter: 40,
-          Totaldist: 50000,
-          RsuId: 'rsu_001',
-          MsgId: 'msg_001',
-          StartvectorHeading: 0
-        },
-        IndexableData: {
-          TxId: pvdData.txId || `pvd_${Date.now()}`,
-          Network: 'fabric',
-          DataType: dataType,
-          SearchValue: searchValue,
-          Timestamp: new Date().toISOString(),
-          DynamicFields: {
-            "network": "fabric",
-            "dataType": dataType,
-            "searchValue": searchValue,
-            "chainInfo": pvdData.chainInfo,
-            "rawData": pvdData.data
-          },
-          SchemaVersion: "1.0"
-        }
-      }],
-      ColName: colName,
-      ColIndex: indexID,
-      FilePath: `data/fabric/${indexID}.bf`,
-      Network: 'fabric'
-    };
-    
-    await indexingClient.insertData(indexData);
-    console.log(`✅ PVD 데이터 인덱싱 완료: ${indexID}`);
-    console.log(`📁 인덱스 파일: data/fabric/${indexID}.bf`);
-    
-    indexingClient.close();
-    
-    return {
-      success: true,
-      message: 'PVD 데이터 인덱싱 완료',
-      indexID: indexID,
-      filePath: `data/fabric/${indexID}.bf`,
-      indexedData: indexData
-    };
-    
-  } catch (error) {
-    console.error('❌ PVD 데이터 인덱싱 실패:', error.message);
-    throw error;
-  }
-}
-
-// config.yaml 확인
-async function checkConfigYaml() {
-  console.log('🔍 config.yaml 직접 확인 시작\n');
-
-  try {
-    // config.yaml 파일 경로
-    const configPath = CONFIG_PATH;
-    
-    // 파일 존재 확인
-    if (!fs.existsSync(configPath)) {
-      console.error(`❌ config.yaml 파일을 찾을 수 없음: ${configPath}`);
-      return;
-    }
-
-    // 파일 읽기
-    const configContent = fs.readFileSync(configPath, 'utf8');
-    console.log('📁 config.yaml 내용:');
-    console.log(configContent);
-    console.log('');
-
-    // YAML 파싱
-    const config = yaml.load(configContent);
-    
-    if (config && config.items && Array.isArray(config.items)) {
-      console.log(`✅ 인덱스 개수: ${config.items.length}개\n`);
+    // Fabric 네트워크인 경우 grpc-go 서버를 통해 실시간 블록체인 조회
+    if (network === 'fabric') {
+      console.log('🔗 Fabric 네트워크 - grpc-go 서버 연결 중...');
       
-      config.items.forEach((item, index) => {
-        console.log(`📋 인덱스 ${index + 1}:`);
-        console.log(`   🆔 IndexID: ${item.idxid || 'N/A'}`);
-        console.log(`   📝 IndexName: ${item.idxname || 'N/A'}`);
-        console.log(`   🔑 KeyCol: ${item.keycol || 'N/A'}`);
-        console.log(`   📁 FilePath: ${item.filepath || 'N/A'}`);
-        console.log(`   📏 KeySize: ${item.keysize || 'N/A'}`);
-        console.log(`   📊 BlockNum: ${item.blocknum || 'N/A'}`);
-        console.log(`   📈 CallCnt: ${item.callcnt || 'N/A'}`);
-        console.log(`   🔑 KeyCnt: ${item.keycnt || 'N/A'}`);
-        console.log(`   📊 IndexDataCnt: ${item.indexdatacnt || 'N/A'}`);
-        console.log('');
-      });
-    } else {
-      console.log('❌ config.yaml에 items 배열이 없음');
-    }
-
-    console.log('🎉 config.yaml 확인 완료!');
-
-  } catch (error) {
-    console.error(`❌ config.yaml 확인 중 오류 발생: ${error.message}`);
-  }
-}
-
-// network_config.yaml 확인
-async function checkNetworkConfig() {
-  console.log('🔍 network_config.yaml 확인 시작\n');
-
-  try {
-    // network_config.yaml 파일 경로
-    const configPath = NETWORK_CONFIG_PATH;
-    
-    // 파일 존재 확인
-    if (!fs.existsSync(configPath)) {
-      console.error(`❌ network_config.yaml 파일을 찾을 수 없음: ${configPath}`);
-      return;
-    }
-
-    // 파일 읽기
-    const configContent = fs.readFileSync(configPath, 'utf8');
-    console.log('📁 network_config.yaml 내용:');
-    console.log(configContent);
-    console.log('');
-
-    // YAML 파싱
-    const config = yaml.load(configContent);
-    
-    if (config && config.networks) {
-      console.log(`✅ 네트워크 개수: ${Object.keys(config.networks).length}개\n`);
-      
-      Object.entries(config.networks).forEach(([networkName, networkConfig]) => {
-        console.log(`🌐 네트워크: ${networkName}`);
-        console.log(`   📝 이름: ${networkConfig.network_name || 'N/A'}`);
-        console.log(`   📍 컨트랙트 주소: ${networkConfig.contract_address || 'N/A'}`);
-        console.log(`   📁 파일 경로: ${networkConfig.file_index_path || '자동 생성됨'}`);
-        console.log('');
-      });
-    } else {
-      console.log('❌ network_config.yaml에 networks 설정이 없음');
-    }
-
-    console.log('🎉 network_config.yaml 확인 완료!');
-
-  } catch (error) {
-    console.error(`❌ network_config.yaml 확인 중 오류 발생: ${error.message}`);
-  }
-}
-
-// 네트워크 설정 업데이트
-async function updateNetworkConfig(network, contractAddress) {
-  console.log(`🔧 ${network} 네트워크 설정 업데이트 시작...`);
-  
-  try {
-    if (!contractAddress) {
-      throw new Error('컨트랙트 주소를 입력해주세요. (-contract=<주소>)');
-    }
-
-    // network_config.yaml 파일 경로
-    const configPath = NETWORK_CONFIG_PATH;
-    
-    // 파일 존재 확인
-    if (!fs.existsSync(configPath)) {
-      console.error(`❌ network_config.yaml 파일을 찾을 수 없음: ${configPath}`);
-      return;
-    }
-
-    // 기존 설정 읽기
-    const configContent = fs.readFileSync(configPath, 'utf8');
-    const config = yaml.load(configContent);
-    
-    if (!config.networks) {
-      config.networks = {};
-    }
-    
-    // 네트워크 설정 업데이트
-    if (!config.networks[network]) {
-      config.networks[network] = {
-        network_name: network,
-        contract_address: contractAddress
-      };
-    } else {
-      config.networks[network].contract_address = contractAddress;
-    }
-    
-    // 파일에 저장
-    const updatedContent = yaml.dump(config, { indent: 2 });
-    fs.writeFileSync(configPath, updatedContent, 'utf8');
-    
-    console.log(`✅ ${network} 네트워크 설정 업데이트 완료!`);
-    console.log(`   📍 컨트랙트 주소: ${contractAddress}`);
-    console.log(`   📁 설정 파일: ${configPath}`);
-    
-  } catch (error) {
-    console.error(`❌ 네트워크 설정 업데이트 실패: ${error.message}`);
-  }
-}
-
-// 인덱스 상태 확인 (실시간 서버 연결)
-async function checkIndexStatus() {
-  console.log('🔍 현재 인덱스 상태 확인 시작\n');
-
-  const indexingClient = new IndexingClient({
-    serverAddr: 'localhost:50052',
-    protoPath: PROTO_PATH
-  });
-
-  try {
-    // 연결 완료 대기
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 확인할 인덱스들 (주요 인덱스들)
-    const indexesToCheck = [
-      "samsung_575a3a49_001",  // Samsung 조직
-      "lg_eb5d27fd_001",       // LG 조직
-      "user_d8321319_001",     // 사용자1
-      "user_575a3a49_001",     // 사용자2
-      "user_eb5d27fd_001"      // 사용자3
-    ];
-
-    console.log('📊 인덱스 상태 확인 중...\n');
-
-    for (const indexID of indexesToCheck) {
       try {
-        const request = {
-          IndexID: indexID,
-          IndexName: "",
-          KeyCol: "",
-          FilePath: "",
-          KeySize: 0,
-          Network: ""
-        };
-
-        const response = await indexingClient.getIndexInfo(request);
+        // 1. grpc-go 서버를 통해 Fabric 체인코드에서 실시간 데이터 조회
+        const fabricResult = await callFabricChaincode(dataType, searchValue);
+        console.log('🔍 Fabric 체인코드 조회 결과:', fabricResult);
         
-        // 응답 코드 확인
-        const responseCode = response.responseCode || response.code || 0;
-        
-        if (responseCode === 100) {
-          // ✅ 성공 응답
-          console.log(`✅ ${indexID}:`);
-          
-          // 값이 있을 때만 표시 (N/A 제거)
-          if (response.IndexName && response.IndexName.trim()) {
-            console.log(`   📝 IndexName: ${response.IndexName}`);
-          }
-          if (response.KeyCol && response.KeyCol.trim()) {
-            console.log(`   🔑 KeyCol: ${response.KeyCol}`);
-          }
-          if (response.FilePath && response.FilePath.trim()) {
-            console.log(`   📁 FilePath: ${response.FilePath}`);
-          }
-          if (response.KeySize && response.KeySize > 0) {
-            console.log(`   📏 KeySize: ${response.KeySize}`);
-          }
-          if (response.KeyCnt !== undefined && response.KeyCnt !== null) {
-            console.log(`   📊 KeyCnt: ${response.KeyCnt}`);
-          }
-          if (response.IndexDataCnt !== undefined && response.IndexDataCnt !== null) {
-            console.log(`   📈 IndexDataCnt: ${response.IndexDataCnt}`);
-          }
-          
-        } else {
-          // ❌ 오류 응답
-          console.log(`❌ ${indexID}: 응답 코드 ${responseCode}`);
-          
-          if (responseCode === 500) {
-            console.log(`   🔍 문제: 내부 서버 오류 (인덱스가 존재하지 않을 수 있음)`);
-          } else if (responseCode === 404) {
-            console.log(`   🔍 문제: 인덱스를 찾을 수 없음`);
-          } else {
-            console.log(`   🔍 문제: 알 수 없는 오류 (코드: ${responseCode})`);
-          }
-        }
-        
-        console.log('');
-
-      } catch (error) {
-        console.error(`❌ ${indexID} 조회 실패: ${error.message}`);
-      }
-    }
-
-    console.log('🎉 인덱스 상태 확인 완료!');
-
-  } catch (error) {
-    console.error(`❌ 인덱스 상태 확인 중 오류 발생: ${error.message}`);
-  } finally {
-    indexingClient.close();
-  }
-}
-
-// 트랜잭션 상세 정보 조회 (블록체인에서 실제 데이터 가져오기)
-async function getTransactionDetails(network, dataType, searchValue) {
-  try {
-    console.log(`🔍 ${network} 네트워크에서 트랜잭션 상세 정보 조회 시작...`);
+        // 2. 인덱스에서도 검색 (병렬 수행)
+        console.log('🔍 Fabric 인덱스에서도 검색 시작...');
+        const indexResult = await searchFabricIndex(dataType, searchValue);
+        console.log('🔍 Fabric 인덱스 검색 결과:', indexResult);
     
-    // 1. 먼저 인덱스에서 트랜잭션 ID들 가져오기
+    return {
+      success: true,
+          fabricData: fabricResult,
+          indexData: indexResult,
+          network: network,
+          dataType: dataType,
+          searchValue: searchValue,
+          timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+        console.error(`❌ Fabric 데이터 조회 실패: ${error.message}`);
+    throw error;
+      }
+      
+    } else {
+      // EVM 계열 네트워크 처리
+      console.log(`📊 ${network} 네트워크에서 ${dataType} 데이터 조회...`);
+      
+      // EVM 네트워크별 조회 로직 (기존 코드 유지)
     const indexingClient = new IndexingClient({
       serverAddr: 'localhost:50052',
       protoPath: PROTO_PATH
@@ -2756,782 +2091,23 @@ async function getTransactionDetails(network, dataType, searchValue) {
     await indexingClient.connect();
     console.log('✅ 인덱싱 서버 연결 성공');
     
-    // 2. 인덱스 검색으로 트랜잭션 ID들 수집
-    let txIds = [];
-    
-    if (dataType) {
-      // 특정 타입으로 검색 (조직, 사용자 등)
-      console.log(`🔍 ${dataType} 타입으로 ${searchValue} 검색 중...`);
-      const searchResult = await searchData(network, dataType, searchValue);
-      if (searchResult && searchResult.data && searchResult.data.length > 0) {
-        txIds = searchResult.data.map(item => item.TxId || item.txId).filter(Boolean);
-        console.log(`📊 인덱스에서 ${txIds.length}개의 트랜잭션 ID 발견`);
-      } else {
-        console.log(`ℹ️  ${dataType} 타입으로 ${searchValue} 검색 결과가 없습니다.`);
-      }
-    } else {
-      // 직접 트랜잭션 ID로 검색
-      if (searchValue.startsWith('0x') && searchValue.length === 66) {
-        txIds = [searchValue];
-        console.log(`📊 직접 입력된 트랜잭션 ID: ${searchValue}`);
-      } else {
-        console.error(`❌ 유효하지 않은 트랜잭션 해시 형식: ${searchValue}`);
-        console.log(`   올바른 형식: 0x로 시작하고 66자리 (예: 0x1234...)`);
-        return;
-      }
-    }
-    
-    if (txIds.length === 0) {
-      console.log('ℹ️  조회할 트랜잭션이 없습니다.');
-      return;
-    }
-    
-    console.log(`📊 ${txIds.length}개의 트랜잭션 ID 발견`);
-    
-    // 3. Hardhat 네트워크에서 각 트랜잭션의 상세 정보 조회
-    if (network === 'hardhat' || network === 'hardhat-local') {
-      let provider;
-      let signerAddress;
+      const result = await indexingClient.searchData({
+        network: network,
+        dataType: dataType,
+        searchValue: searchValue
+      });
       
-      if (network === 'hardhat-local') {
-        // hardhat-local 네트워크용 provider 설정
-        provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
-        signerAddress = 'Hardhat Local Node';
-      } else {
-        // 기존 Hardhat 네트워크
-        const [signer] = await ethers.getSigners();
-        provider = ethers.provider;
-        signerAddress = signer.address;
-      }
-      
-      console.log(`🔗 ${network} 네트워크 연결: ${signerAddress}`);
-      
-      for (let i = 0; i < txIds.length; i++) {
-        const txId = txIds[i];
-        console.log(`\n📋 트랜잭션 ${i + 1}/${txIds.length}: ${txId}`);
-        
-        try {
-          // 트랜잭션 영수증 가져오기
-          const receipt = await provider.getTransactionReceipt(txId);
-          
-          if (receipt) {
-            console.log(`   ✅ 트랜잭션 영수증:`);
-            console.log(`      🔗 해시: ${receipt.hash}`);
-            console.log(`      📊 블록 번호: ${receipt.blockNumber}`);
-            console.log(`      ⛽ 가스 사용량: ${receipt.gasUsed.toString()}`);
-            console.log(`      💰 가스 가격: ${ethers.formatUnits(receipt.gasPrice, 'gwei')} gwei`);
-            console.log(`      📝 상태: ${receipt.status === 1 ? '성공' : '실패'}`);
-            console.log(`      👤 발신자: ${receipt.from}`);
-            console.log(`      👥 수신자: ${receipt.to || '컨트랙트 생성'}`);
-            
-            // 로그 이벤트 확인
-            if (receipt.logs && receipt.logs.length > 0) {
-              console.log(`      📋 이벤트 로그: ${receipt.logs.length}개`);
-              receipt.logs.forEach((log, index) => {
-                console.log(`         ${index + 1}. 주소: ${log.address}, 토픽: ${log.topics[0]}`);
-                
-                // AccessRequestsSaved 이벤트 디코딩 시도
-                try {
-                  // AccessRequestsSaved 이벤트 시그니처
-                  const eventSignature = "AccessRequestsSaved(address,string,string)";
-                  const eventTopic = ethers.id(eventSignature);
-                  
-                  if (log.topics[0] === eventTopic) {
-                    console.log(`         🎯 AccessRequestsSaved 이벤트 발견!`);
-                    
-                    // 이벤트 데이터 디코딩
-                    const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-                      ['address', 'string', 'string'],
-                      log.data
-                    );
-                    
-                    console.log(`            👤 userId: ${decodedData[0]}`);
-                    console.log(`            📝 purpose: ${decodedData[1]}`);
-                    console.log(`            🏢 organizationName: ${decodedData[2]}`);
-                  } else {
-                    // 다른 이벤트들도 확인
-                    console.log(`         🔍 다른 이벤트: 토픽 ${log.topics[0]}`);
-                    if (log.data && log.data !== '0x') {
-                      console.log(`         📊 이벤트 데이터: ${log.data}`);
-                      
-                      // AccessRequestsSaved 이벤트인지 확인 (토픽으로)
-                      const eventSignature = "AccessRequestsSaved(uint256,address,address,string,string)";
-                      const eventTopic = ethers.id(eventSignature);
-                      
-                      console.log(`         🔍 이벤트 분석:`);
-                      console.log(`            • 예상 토픽: ${eventTopic}`);
-                      console.log(`            • 실제 토픽: ${log.topics[0]}`);
-                      console.log(`            • 토픽 일치: ${log.topics[0] === eventTopic ? '✅' : '❌'}`);
-                      
-                      if (log.topics[0] === eventTopic) {
-                        console.log(`         🎯 AccessRequestsSaved 이벤트 발견! (토픽 매칭)`);
-                        
-                        // ABI 파일 기반 디코딩 시도 (더 정확함)
-                        console.log(`         🔧 ABI 파일 기반 디코딩 시도...`);
-                        try {
-                          // ABI 파일 로드
-                          const abiPath = path.join(__dirname, '../artifacts/contracts/AccessManagement.sol/AccessManagement.json');
-                          const abiContent = fs.readFileSync(abiPath, 'utf8');
-                          const abi = JSON.parse(abiContent).abi;
-                          
-                          // AccessRequestsSaved 이벤트 찾기
-                          const eventAbi = abi.find(item => item.type === 'event' && item.name === 'AccessRequestsSaved');
-                          
-                          if (eventAbi) {
-                            console.log(`         🎯 ABI에서 AccessRequestsSaved 이벤트 발견!`);
-                            
-                            // ABI 기반으로 이벤트 디코딩
-                            const iface = new ethers.Interface(abi);
-                            const decodedLog = iface.parseLog(log);
-                            
-                            console.log(`            🆔 requestId: ${decodedLog.args.requestId}`);
-                            console.log(`            👤 requester: ${decodedLog.args.requester}`);
-                            console.log(`            👥 resourceOwner: ${decodedLog.args.resourceOwner}`);
-                            console.log(`            📝 purpose: ${decodedLog.args.purpose}`);
-                            console.log(`            🏢 organizationName: ${decodedLog.args.organizationName}`);
-                            
-                          } else {
-                            console.log(`         ⚠️  ABI에서 AccessRequestsSaved 이벤트를 찾을 수 없음`);
-                          }
-                          
-                        } catch (abiError) {
-                          console.log(`         ❌ ABI 기반 디코딩 실패: ${abiError.message}`);
-                          console.log(`         🔧 수동 디코딩 시도...`);
-                          
-                          try {
-                            // 수동 디코딩 (fallback)
-                            const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-                              ['uint256', 'address', 'address', 'string', 'string'],
-                              log.data
-                            );
-                            
-                            console.log(`            🆔 requestId: ${decodedData[0]}`);
-                            console.log(`            👤 requester: ${decodedData[1]}`);
-                            console.log(`            👥 resourceOwner: ${decodedData[2]}`);
-                            console.log(`            📝 purpose: ${decodedData[3]}`);
-                            console.log(`            🏢 organizationName: ${decodedData[4]}`);
-                          } catch (decodeError) {
-                            console.log(`            ❌ 수동 디코딩도 실패: ${decodeError.message}`);
-                          }
-                        }
-                      } else {
-                        // ABI 파일 기반 디코딩 시도
-                        console.log(`         🔧 ABI 파일 기반 디코딩 시도...`);
-                        try {
-                          // ABI 파일 로드
-                          const abiPath = path.join(__dirname, '../artifacts/contracts/AccessManagement.sol/AccessManagement.json');
-                          const abiContent = fs.readFileSync(abiPath, 'utf8');
-                          const abi = JSON.parse(abiContent).abi;
-                          
-                          // AccessRequestsSaved 이벤트 찾기
-                          const eventAbi = abi.find(item => item.type === 'event' && item.name === 'AccessRequestsSaved');
-                          
-                          if (eventAbi) {
-                            console.log(`         🎯 ABI에서 AccessRequestsSaved 이벤트 발견!`);
-                            
-                            // ABI 기반으로 이벤트 디코딩
-                            const iface = new ethers.Interface(abi);
-                            const decodedLog = iface.parseLog(log);
-                            
-                            console.log(`            🆔 requestId: ${decodedLog.args.requestId}`);
-                            console.log(`            👤 requester: ${decodedLog.args.requester}`);
-                            console.log(`            👥 resourceOwner: ${decodedLog.args.resourceOwner}`);
-                            console.log(`            📝 purpose: ${decodedLog.args.purpose}`);
-                            console.log(`            🏢 organizationName: ${decodedLog.args.organizationName}`);
-                            
-                          } else {
-                            console.log(`         ⚠️  ABI에서 AccessRequestsSaved 이벤트를 찾을 수 없음`);
-                          }
-                          
-                        } catch (abiError) {
-                          console.log(`         ❌ ABI 기반 디코딩 실패: ${abiError.message}`);
-                          console.log(`         🔧 수동 디코딩 시도...`);
-                          
-                          try {
-                            // 수동 디코딩 (fallback)
-                            const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-                              ['uint256', 'address', 'address', 'string', 'string'],
-                              log.data
-                            );
-                            
-                            console.log(`            🆔 requestId: ${decodedData[0]}`);
-                            console.log(`            👤 requester: ${decodedData[1]}`);
-                            console.log(`            👥 resourceOwner: ${decodedData[2]}`);
-                            console.log(`            📝 purpose: ${decodedData[3]}`);
-                            console.log(`            🏢 organizationName: ${decodedData[4]}`);
-                          } catch (decodeError) {
-                            console.log(`            ❌ 수동 디코딩도 실패: ${decodeError.message}`);
-                          }
-                        }
-                      }
-                    }
-                  }
-                } catch (decodeError) {
-                  console.log(`         ⚠️  이벤트 디코딩 실패: ${decodeError.message}`);
-                }
-              });
-            } else {
-              console.log(`      📋 이벤트 로그: 없음`);
-              console.log(`      🔍 이벤트가 없는 이유 분석:`);
-              console.log(`         • 컨트랙트가 아직 배포되지 않음`);
-              console.log(`         • 이벤트를 발생시키는 함수가 호출되지 않음`);
-              console.log(`         • 트랜잭션이 실패했거나 다른 함수 호출`);
-            }
-            
-            // 블록 정보 가져오기
-            const block = await provider.getBlock(receipt.blockNumber);
-            if (block) {
-              console.log(`      📅 블록 정보:`);
-              console.log(`         시간: ${new Date(block.timestamp * 1000).toLocaleString()}`);
-              console.log(`         트랜잭션 수: ${block.transactions.length}`);
-              console.log(`         가스 제한: ${block.gasLimit.toString()}`);
-            }
-            
-          } else {
-            console.log(`   ❌ 트랜잭션을 찾을 수 없음: ${txId}`);
-          }
-          
-        } catch (error) {
-          console.error(`   ❌ 트랜잭션 조회 실패: ${error.message}`);
-        }
-      }
-      
-    } else {
-      console.log(`⚠️  ${network} 네트워크는 아직 지원하지 않습니다.`);
-    }
-    
-    console.log('\n🎉 트랜잭션 상세 정보 조회 완료!');
-    
-  } catch (error) {
-    console.error(`❌ 트랜잭션 상세 정보 조회 실패: ${error.message}`);
-  } finally {
-    // indexingClient가 정의된 경우에만 close 호출
-    try {
-      if (typeof indexingClient !== 'undefined' && indexingClient && indexingClient.close) {
         indexingClient.close();
-      }
-    } catch (closeError) {
-      console.log('🔌 인덱싱 클라이언트 연결 종료 중 오류:', closeError.message);
+      return result;
     }
-  }
-}
-
-// Samsung 조직 인덱스 생성
-async function createSamsungIndex(network) {
-  console.log(`🚀 ${network} 네트워크에 Samsung 조직 인덱스 생성 시작\n`);
-
-  const indexingClient = new IndexingClient({
-    serverAddr: 'localhost:50052',
-    protoPath: PROTO_PATH
-  });
-
-  try {
-    // 연결 완료 대기
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 네트워크별 Samsung 계정 주소 설정
-    let samsungAddress;
-    if (network === 'monad') {
-      samsungAddress = "0x2630ffE517DFC9b0112317a2EC0AB4cE2a59CEb8";  // Monad Samsung
-    } else {
-      samsungAddress = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";  // Hardhat Samsung (계정 2번)
-    }
-    
-    const orgShortHash = hashWalletAddress(samsungAddress);
-    
-    // 네트워크 경로 매핑 (hardhat -> hardhat-local)
-    const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
-    
-    const indexInfo = {
-      IndexID: `samsung_${orgShortHash}_001`,
-      IndexName: `Samsung Organization Index (${samsungAddress.slice(0, 10)}...)`,
-      KeyCol: 'IndexableData',
-      FilePath: `data/${networkDir}/samsung_${orgShortHash}_001.bf`,
-      KeySize: 64,
-      Network: network
-    };
-    
-    console.log(`📋 생성할 Samsung 인덱스 정보:`);
-    console.log(`   🆔 IndexID: ${indexInfo.IndexID}`);
-    console.log(`   📝 IndexName: ${indexInfo.IndexName}`);
-    console.log(`   🔑 KeyCol: ${indexInfo.KeyCol}`);
-    console.log(`   📁 FilePath: ${indexInfo.FilePath}`);
-    console.log(`   📏 KeySize: ${indexInfo.KeySize}`);
-    console.log(`   🌐 Network: ${indexInfo.Network}\n`);
-    
-    try {
-      await indexingClient.createIndex(indexInfo);
-      console.log(`✅ Samsung 인덱스 생성 성공: ${indexInfo.IndexID}`);
       
     } catch (error) {
-      console.error(`❌ Samsung 인덱스 생성 실패: ${error.message}`);
-    }
-    
-  } catch (error) {
-    console.error(`❌ Samsung 인덱스 생성 중 오류 발생: ${error.message}`);
-  } finally {
-    indexingClient.close();
+    console.error(`❌ ${network} 네트워크 데이터 조회 실패: ${error.message}`);
+    throw error;
   }
 }
 
-// LG 조직 인덱스 생성
-async function createLgIndex(network) {
-  console.log(`🚀 ${network} 네트워크에 LG 조직 인덱스 생성 시작\n`);
-
-  const indexingClient = new IndexingClient({
-    serverAddr: 'localhost:50052',
-    protoPath: PROTO_PATH
-  });
-
-  try {
-    // 연결 완료 대기
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 네트워크별 LG 계정 주소 설정
-    let lgAddress;
-    if (network === 'monad') {
-      lgAddress = "0xa5cc9D9F1f68546060852f7c685B99f0cD532229";  // Monad LG
-    } else {
-      lgAddress = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";  // Hardhat LG (계정 3번)
-    }
-    
-    const orgShortHash = hashWalletAddress(lgAddress);
-    
-    // 네트워크 경로 매핑 (hardhat -> hardhat-local)
-    const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
-    
-    const indexInfo = {
-      IndexID: `lg_${orgShortHash}_001`,
-      IndexName: `LG Organization Index (${lgAddress.slice(0, 10)}...)`,
-      KeyCol: 'IndexableData',
-      FilePath: `data/${networkDir}/lg_${orgShortHash}_001.bf`,
-      KeySize: 64,
-      Network: network
-    };
-    
-    console.log(`📋 생성할 LG 인덱스 정보:`);
-    console.log(`   🆔 IndexID: ${indexInfo.IndexID}`);
-    console.log(`   📝 IndexName: ${indexInfo.IndexName}`);
-    console.log(`   🔑 KeyCol: ${indexInfo.KeyCol}`);
-    console.log(`   📁 FilePath: ${indexInfo.FilePath}`);
-    console.log(`   📏 KeySize: ${indexInfo.KeySize}`);
-    console.log(`   🌐 Network: ${indexInfo.Network}\n`);
-    
-    try {
-      await indexingClient.createIndex(indexInfo);
-      console.log(`✅ LG 인덱스 생성 성공: ${indexInfo.IndexID}`);
-      
-    } catch (error) {
-      console.error(`❌ LG 인덱스 생성 실패: ${error.message}`);
-    }
-    
-  } catch (error) {
-    console.error(`❌ LG 인덱스 생성 중 오류 발생: ${error.message}`);
-  } finally {
-    indexingClient.close();
-  }
-}
-
-// 사용자별 인덱스 생성
-async function createUserIndexes(network) {
-  console.log(`🚀 ${network} 네트워크에 사용자별 인덱스 생성 시작\n`);
-
-  const indexingClient = new IndexingClient({
-    serverAddr: 'localhost:50052',
-    protoPath: PROTO_PATH
-  });
-
-  try {
-    // 연결 완료 대기
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 네트워크별 테스트 계정들
-    let testAddresses;
-    
-    if (network === 'monad') {
-      // Monad 네트워크용 사용자 계정들
-      testAddresses = [
-        "0xa5cc9D9F1f68546060852f7c685B99f0cD532229"  // Monad 사용자 계정
-      ];
-    } else {
-      // Hardhat 네트워크용 테스트 계정들 (기존)
-      testAddresses = [
-        "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",  // Hardhat Account #0
-        "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",  // Hardhat Account #1
-        "0x90F79bf6EB2c4f870365E785982E1f101E93b906",  // Hardhat Account #2
-        "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",  // Hardhat Account #3
-        "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"   // Hardhat Account #4 (사용자4)
-      ];
-    }
-
-    console.log(`📋 생성할 사용자 인덱스들:`);
-    testAddresses.forEach((address, index) => {
-      const shortHash = hashWalletAddress(address);
-      console.log(`   ${index + 1}. ${address.slice(0, 10)}... → user_${shortHash}_001`);
-    });
-    console.log('');
-
-    // 네트워크 경로 매핑 (hardhat -> hardhat-local)
-    const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
-    
-    // 각 사용자별 인덱스 생성
-    for (let i = 0; i < testAddresses.length; i++) {
-      const address = testAddresses[i];
-      const shortHash = hashWalletAddress(address);
-      
-      const userIndexInfo = {
-        IndexID: `user_${shortHash}_001`,
-        IndexName: `User ${address.slice(0, 10)}... Personal Index`,
-        KeyCol: 'UserId',
-        FilePath: `data/${networkDir}/user_${shortHash}_001.bf`,
-        KeySize: 64,
-        Network: network
-      };
-      
-      console.log(`🔨 사용자 ${i + 1} 인덱스 생성 중: ${userIndexInfo.IndexID}`);
-      
-      try {
-        await indexingClient.createIndex(userIndexInfo);
-        console.log(`   ✅ 생성 성공: ${userIndexInfo.IndexID}`);
-        
-        // 인덱스 생성 간격
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-      } catch (error) {
-        console.error(`   ❌ 생성 실패: ${error.message}`);
-      }
-    }
-    
-    console.log('\n🎉 사용자별 인덱스 생성 완료!');
-    
-  } catch (error) {
-    console.error(`❌ 사용자별 인덱스 생성 중 오류 발생: ${error.message}`);
-  } finally {
-    indexingClient.close();
-  }
-}
-
-// 데이터 요청 생성 및 양방향 인덱싱
-async function requestData(network) {
-      console.log(`🚀 ${network} 네트워크에서 데이터 요청 생성 및 양방향 인덱싱 시작\n`);
-
-  try {
-    // 1. 네트워크별 계정 설정
-    let deployer, samsungOrg;
-    
-    if (network === 'monad') {
-      // Monad 네트워크용 계정 설정
-      const networkConfig = hre.config.networks[network];
-      const provider = new ethers.JsonRpcProvider(networkConfig.url);
-      deployer = new ethers.Wallet(networkConfig.accounts[0], provider);
-      
-      // Samsung 조직 계정만 설정
-      samsungOrg = new ethers.Wallet("0x2630ffE517DFC9b0112317a2EC0AB4cE2a59CEb8", provider); // Monad Samsung
-      
-      console.log('👥 Monad 테스트 계정들:');
-      console.log(`   🏗️  배포자: ${deployer.address}`);
-      console.log(`   🏢 Samsung 조직: ${samsungOrg.address}\n`);
-    } else if (network === 'hardhat-local') {
-      // hardhat-local 네트워크용 계정 설정 (실행 중인 Hardhat 노드 사용)
-      const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
-      
-      // Hardhat 노드의 계정들 사용 (let으로 선언하여 나중에 사용 가능)
-      deployer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
-      user1 = new ethers.Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d', provider);
-      user2 = new ethers.Wallet('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a', provider);
-      user3 = new ethers.Wallet('0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6', provider);
-      user4 = new ethers.Wallet('0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a', provider);
-      user5 = new ethers.Wallet('0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba', provider);
-      
-      samsungOrg = user2; // 계정 2번을 Samsung 조직으로 사용
-      
-      console.log('👥 Hardhat-Local 노드 계정들:');
-      console.log(`   🏗️  배포자: ${deployer.address}`);
-      console.log(`   🏢 Samsung 조직: ${samsungOrg.address} (계정 2번)`);
-      console.log(`   👤 사용자1: ${user1.address} (계정 1번)`);
-      console.log(`   👤 사용자3: ${user3.address} (계정 3번)`);
-      console.log(`   👤 사용자4: ${user4.address} (계정 4번)`);
-      console.log(`   👤 사용자5: ${user5.address} (계정 5번)\n`);
-    } else {
-      // 기존 Hardhat 네트워크용 계정 설정 (Samsung만)
-      [deployer, user1, user2, user3, user4, user5] = await ethers.getSigners();
-      samsungOrg = user2; // 계정 2번을 Samsung 조직으로 사용
-      
-      console.log('👥 Hardhat 테스트 계정들:');
-      console.log(`   🏗️  배포자: ${deployer.address}`);
-      console.log(`   🏢 Samsung 조직: ${samsungOrg.address} (계정 2번)`);
-      console.log(`   👤 사용자1: ${user1.address} (계정 1번)`);
-      console.log(`   👤 사용자3: ${user3.address} (계정 3번)`);
-      console.log(`   👤 사용자4: ${user4.address} (계정 4번)`);
-      console.log(`   👤 사용자5: ${user5.address} (계정 5번)\n`);
-    }                         // 2. 기존 배포된 AccessManagement 컨트랙트 사용
-                     console.log('🔍 기존 배포된 AccessManagement 컨트랙트 사용...');
-                     
-                     let accessManagement, contractAddress;
-                     
-                     // network_config.yaml에서 컨트랙트 주소 가져오기
-                     const networkConfigPath = NETWORK_CONFIG_PATH;
-                     if (fs.existsSync(networkConfigPath)) {
-                       const configContent = fs.readFileSync(networkConfigPath, 'utf8');
-                       const config = yaml.load(configContent);
-                       contractAddress = config.networks?.[network]?.contract_address;
-                       
-                       if (!contractAddress) {
-                         throw new Error(`${network} 네트워크의 컨트랙트 주소를 찾을 수 없습니다. 먼저 'node deploy-contract.js --network=${network}'로 컨트랙트를 배포해주세요.`);
-                       }
-                     } else {
-                       throw new Error('network_config.yaml 파일을 찾을 수 없습니다. 먼저 컨트랙트를 배포해주세요.');
-                     }
-                     
-                     // 기존 컨트랙트 인스턴스 생성
-                     const AccessManagement = await ethers.getContractFactory('AccessManagement');
-                     accessManagement = AccessManagement.attach(contractAddress);
-                     
-                     console.log(`📍 사용할 컨트랙트 주소: ${contractAddress}\n`);
-
-    // 3. IndexingClient 연결
-    const indexingClient = new IndexingClient({
-      serverAddr: 'localhost:50052',
-      protoPath: PROTO_PATH
-    });
-
-    // 연결 완료 대기
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 4. 실제 트랜잭션으로 데이터 요청 생성
-    console.log('📝 실제 트랜잭션으로 데이터 요청 생성 중...\n');
-    
-    // 네트워크별 테스트 데이터 설정
-    let testRequests, users;
-    
-    if (network === 'monad') {
-      // Monad 네트워크용 테스트 데이터
-      testRequests = [
-        {
-          organizationName: "samsung",
-          purpose: "데이터 공유 요청",
-          description: "삼성이 Monad 사용자에게 데이터 공유 요청"
-        },
-        {
-          organizationName: "samsung", 
-          purpose: "데이터 접근 요청",
-          description: "삼성이 Monad 사용자에게 데이터 접근 요청"
-        }
-      ];
-      
-      // Monad 계정들 사용
-      users = [
-        { address: "0xa5cc9D9F1f68546060852f7c685B99f0cD532229" }  // Monad 사용자
-      ];
-    } else {
-      // Hardhat 네트워크용 테스트 데이터 (기존)
-      testRequests = [
-        {
-          organizationName: "samsung",
-          purpose: "데이터 공유 요청",
-          description: "삼성이 사용자1에게 데이터 공유 요청"
-        },
-        {
-          organizationName: "samsung", 
-          purpose: "데이터 접근 요청",
-          description: "삼성이 사용자2에게 데이터 접근 요청"
-        },
-        {
-          organizationName: "samsung",
-          purpose: "데이터 수정 요청", 
-          description: "삼성이 사용자3에게 데이터 수정 요청"
-        },
-        {
-          organizationName: "samsung",
-          purpose: "데이터 삭제 요청",
-          description: "삼성이 사용자4에게 데이터 삭제 요청"
-        }
-      ];
-      
-      users = [user1, user2, user3, user4];
-    }
-    
-    for (let i = 0; i < testRequests.length; i++) {
-      const request = testRequests[i];
-      const user = users[i];
-      
-      console.log(`📋 테스트 요청 ${i + 1}:`);
-      console.log(`   🏢 조직: ${request.organizationName}`);
-      console.log(`   👤 사용자: ${user.address.slice(0, 10)}...`);
-      console.log(`   📝 목적: ${request.purpose}`);
-      
-      try {
-        // 5. 실제 컨트랙트 호출
-        console.log(`   🔗 컨트랙트 호출 중...`);
-        // Samsung 조직만 사용
-        const requestingOrg = samsungOrg;
-        
-        const tx = await accessManagement.connect(requestingOrg).saveRequest(
-          user.address,
-          request.purpose,
-          request.organizationName
-        );
-        
-                                 // 6. 트랜잭션 완료 대기 (더 긴 대기 시간)
-                         console.log(`   ⏳ 트랜잭션 완료 대기 중...`);
-                         const receipt = await tx.wait();
-                         const requestId = i + 1;
-                         
-                         // 트랜잭션 완료 후 추가 대기 (nonce 안정화)
-                         await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        console.log(`   ✅ 트랜잭션 성공: ${tx.hash}`);
-        console.log(`   🔍 트랜잭션 해시 확인: ${tx.hash}`);
-        
-        // 7. 양방향 인덱싱 데이터 저장
-        console.log(`   💾 양방향 인덱싱 데이터 저장 중...`);
-        
-        // 조직별 인덱스에 저장 (요청자 주소 해시로 구분)
-        const orgShortHash = hashWalletAddress(requestingOrg.address);
-        const orgData = {
-          IndexID: `${request.organizationName}_${orgShortHash}_001`,
-          BcList: [{
-            TxId: tx.hash,
-            KeySize: 64,
-            KeyCol: 'IndexableData',
-            IndexableData: {
-              TxId: tx.hash,
-              ContractAddress: contractAddress,
-              EventName: 'AccessRequestsSaved',
-              Timestamp: new Date().toISOString(),
-              BlockNumber: receipt.blockNumber,
-              DynamicFields: {
-                "organizationName": request.organizationName,
-                "requestingOrgAddress": requestingOrg.address,  // 요청자 주소 추가
-                "targetUserId": user.address,
-                "requestType": request.purpose,
-                "description": request.description,
-                "requestId": requestId.toString(),
-                "timestamp": new Date().toISOString()
-              },
-              SchemaVersion: "1.0"
-            }
-          }],
-          ColName: 'IndexableData',
-          ColIndex: `${request.organizationName}_${orgShortHash}_001`,
-          FilePath: `data/${network === 'hardhat' ? 'hardhat-local' : network}/${request.organizationName}_${orgShortHash}_001.bf`,
-          Network: network
-        };
-        
-        await indexingClient.insertData(orgData);
-        console.log(`   ✅ 조직별 인덱스 저장 완료`);
-        
-        // 사용자별 인덱스에 저장
-        const shortHash = hashWalletAddress(user.address);
-        const userData = {
-          IndexID: `user_${shortHash}_001`,
-          BcList: [{
-            TxId: tx.hash,
-            KeySize: 64,
-            KeyCol: 'UserId',
-            IndexableData: {
-              TxId: tx.hash,
-              ContractAddress: contractAddress,
-              EventName: 'AccessRequestsSaved',
-              Timestamp: new Date().toISOString(),
-              BlockNumber: receipt.blockNumber,
-              DynamicFields: {
-                "userId": user.address,
-                "requestingOrg": request.organizationName,
-                "requestType": request.purpose,
-                "description": request.description,
-                "requestId": requestId.toString(),
-                "timestamp": new Date().toISOString()
-              },
-              SchemaVersion: "1.0"
-            }
-          }],
-          ColName: 'UserId',
-          ColIndex: `user_${shortHash}_001`,
-          FilePath: `data/${network === 'hardhat' ? 'hardhat-local' : network}/user_${shortHash}_001.bf`,
-          Network: network
-        };
-        
-        await indexingClient.insertData(userData);
-        console.log(`   ✅ 사용자별 인덱스 저장 완료`);
-        
-                                 console.log(`   🎯 양방향 인덱싱 완료: ${requestId}번 요청`);
-                         console.log('');
-                         
-                         // 트랜잭션 간 지연 시간 추가 (nonce 꼬임 방지)
-                         if (i < testRequests.length - 1) {
-                           console.log(`   ⏳ 다음 요청을 위해 2초 대기 중...`);
-                           await new Promise(resolve => setTimeout(resolve, 2000));
-                         }
-                         
-                       } catch (error) {
-                         console.error(`   ❌ 요청 ${i + 1} 처리 실패: ${error.message}`);
-                       }
-    }
-    
-    console.log('🎉 데이터 요청 생성 및 양방향 인덱싱 완료!');
-    
-  } catch (error) {
-    console.error(`❌ 양방향 인덱싱 테스트 중 오류 발생: ${error.message}`);
-  }
-}
-
-
-
-// 도움말 표시
-function showHelp() {
-  console.log(`
-🔧 BI-Index CLI - Hardhat + Monad + Fabric 네트워크 지원
-
-사용법:
-  node cli.js -cmd=<명령어> [-network=<네트워크>] [-type=<타입>] [-value=<값>]
-
-명령어 (-cmd=):
-  deploy                    - 네트워크별 AccessManagement 컨트랙트 배포
-  create-samsung           - Samsung 조직 인덱스 생성 (요청자 주소 기반)
-  create-lg                - LG 조직 인덱스 생성
-  create-user-indexes      - 사용자별 인덱스들 생성
-  create-fabric-index      - Fabric 전용 인덱스 생성 (speed, dt 등)
-  search                   - 데이터 검색 (조직/사용자 주소로 검색)
-  request-data             - 데이터 요청 및 양방향 인덱싱 (핵심!)
-  large-scale-test         - 대규모 건강 데이터 테스트 (100개 요청)
-  check-config             - config.yaml 확인
-  check-network-config     - network_config.yaml 확인
-  check-index-status       - 인덱스 실시간 상태 확인
-  get-tx-details           - 트랜잭션 상세 정보 조회 (블록체인)
-  update-network           - 네트워크 설정 업데이트
-  help                     - 도움말 표시
-
-옵션:
-  -network=<네트워크>      - hardhat, monad, fabric (기본값: hardhat)
-  -type=<타입>             - 인덱스 타입 (일부 명령어에서 사용)
-  -value=<값>              - 검색값 (검색 명령어에서 사용)
-  -contract=<주소>         - 컨트랙트 주소 (배포 또는 설정 업데이트용)
-
-예시:
-  node cli.js -cmd=deploy -network=hardhat
-  node cli.js -cmd=create-samsung -network=monad
-  node cli.js -cmd=create-user-indexes -network=hardhat
-  node cli.js -cmd=create-fabric-index -type=speed -network=fabric
-  node cli.js -cmd=create-fabric-index -type=dt -network=fabric
-  node cli.js -cmd=search -type=organization -value=0x2630ffE517DFC9b0112317a2EC0AB4cE2a59CEb8 -network=monad
-  node cli.js -cmd=search -type=user -value=0xa5cc9D9F1f68546060852f7c685B99f0cD532229 -network=monad
-  node cli.js -cmd=search -type=speed -value=60 -network=fabric
-  node cli.js -cmd=search -type=dt -value=20250101 -network=fabric
-
-Fabric 네트워크 명령어 구분:
-  create-fabric-index: Fabric 인덱스 생성 (speed_001, dt_001 등)
-  search: Fabric 데이터 검색 (기존 인덱스에서 조회)
-  node cli.js -cmd=request-data -network=hardhat
-  node cli.js -cmd=large-scale-test
-  node cli.js -cmd=check-config
-  node cli.js -cmd=check-network-config
-  node cli.js -cmd=update-network -network=hardhat -contract=0x1234...
-  node cli.js -cmd=help
-    `);
-}
-
-// 메인 CLI 함수
+// ===== 메인 함수 =====
 async function main() {
   console.log(`🔧 BI-Index CLI - 명령어: ${cmd}, 네트워크: ${network}`);
   console.log('=====================================');
@@ -3540,37 +2116,68 @@ async function main() {
     switch (cmd) {
       // ===== 컨트랙트 배포 =====
       case 'deploy':
+        if (!network) {
+          console.error('❌ deploy 명령어는 -network가 필요합니다');
+          return;
+        }
         await deployContract(network);
         break;
         
-      // ===== 인덱스 생성 (EVM/Fabric 통합) =====
-      case 'create-index':
-        if (!type) {
-          console.error('❌ create-index 명령어는 -type이 필요합니다');
-          console.log('예시: node cli.js -cmd=create-index -type=lg -network=hardhat');
-          console.log('      node cli.js -cmd=create-index -type=speed -network=fabric');
+      // ===== Samsung 인덱스 생성 =====
+      case 'create-samsung':
+        if (!network) {
+          console.error('❌ create-samsung 명령어는 -network가 필요합니다');
           return;
         }
-        await createIndexUnified(network, type);
-        break;
-        
-      // ===== 개별 인덱스 생성 (기존 호환성) =====
-      case 'create-samsung':
         await createSamsungIndex(network);
         break;
-      case 'create-lg':
-        await createLgIndex(network);
-        break;
+        
+      // ===== 사용자 인덱스 생성 =====
       case 'create-user-indexes':
+        if (!network) {
+          console.error('❌ create-user-indexes 명령어는 -network가 필요합니다');
+          return;
+        }
         await createUserIndexes(network);
         break;
+        
+      // ===== Fabric 인덱스 생성 =====
       case 'create-fabric-index':
         if (!type) {
           console.error('❌ create-fabric-index 명령어는 -type이 필요합니다');
-          console.log('예시: node cli.js -cmd=create-fabric-index -type=speed');
+          console.log('예시: node cli.js -cmd=create-fabric-index -type=speed -network=fabric');
           return;
         }
-        await callFabricChaincode('create-index', type);
+        await createFabricIndex(network, type);
+        break;
+        
+      // ===== PVD 데이터 저장 =====
+      case 'putdata':
+        if (type === 'with-indexing') {
+          // PVD 데이터 저장 + 인덱싱 통합 (client.go putDataWithIndexing 방식)
+          const obuId = value || 'OBU-TEST-001';
+          const speed = process.argv.find(arg => arg.startsWith('-speed='))?.split('=')[1] || '80';
+          await putPvdDataWithIndexing(network, obuId, parseInt(speed));
+        } else if (type === 'single-csv') {
+          // CSV 파일의 첫 번째 행만 단건으로 저장
+          const csvFile = value || 'pvd_test_10.csv';
+          await putPvdSingleCsvData(network, csvFile);
+        } else if (type === 'individual' || type === 'multi' || type === 'batch' || type === 'csv') {
+          // CSV 데이터 넣기 (개별 또는 배치)
+          const csvFile = value || 'pvd_hist_10.csv';
+          const batchSize = process.argv.find(arg => arg.startsWith('-batch='))?.split('=')[1] || '1000';
+          await putPvdMultiData(network, csvFile, parseInt(batchSize));
+        } else {
+          // 단건 데이터 넣기
+          if (!value) {
+            console.error('❌ putdata 명령어는 -value가 필요합니다');
+            console.log('예시: node cli.js -cmd=putdata -value=OBU-TEST-001 -network=fabric');
+            console.log('     node cli.js -cmd=putdata -type=single-csv -value=pvd_test_10.csv -network=fabric');
+            console.log('     node cli.js -cmd=putdata -type=with-indexing -value=OBU-TEST-001 -speed=80 -network=fabric');
+            return;
+          }
+          await putPvdData(network, value);
+        }
         break;
         
       // ===== 데이터 조회 =====
@@ -3584,98 +2191,62 @@ async function main() {
         break;
         
       // ===== 인덱스 전체 조회 =====
+      case 'search-all':
       case 'search-index':
         if (!type) {
-          console.error('❌ search-index 명령어는 -type이 필요합니다');
-          console.log('예시: node cli.js -cmd=search-index -type=speed -network=fabric');
+          console.error('❌ search-all 명령어는 -type이 필요합니다');
+          console.log('예시: node cli.js -cmd=search-all -type=speed -network=fabric');
           return;
         }
         await searchIndexAll(network, type);
         break;
         
-      // ===== PVD 데이터 저장 =====
-      case 'putdata':
-        if (type === 'single-csv') {
-          // CSV 파일의 첫 번째 행만 단건으로 저장
-          const csvFile = value || 'pvd_test_10.csv';
-          await putPvdSingleCsvData(network, csvFile);
-        } else if (type === 'individual' || type === 'multi' || type === 'batch' || type === 'csv') {
-          // CSV 데이터 넣기 (개별 또는 배치)
-          const csvFile = value || 'pvd_hist_100.csv';
-          const batchSize = process.argv.find(arg => arg.startsWith('-batch='))?.split('=')[1] || '1000';
-          await putPvdMultiData(network, csvFile, parseInt(batchSize));
-        } else {
-          // 단건 데이터 넣기
-          if (!value) {
-            console.error('❌ putdata 명령어는 -value가 필요합니다');
-            console.log('예시: node cli.js -cmd=putdata -value=OBU-TEST-001 -network=fabric');
-            console.log('     node cli.js -cmd=putdata -type=single-csv -value=pvd_test_10.csv -network=fabric');
-            console.log('     node cli.js -cmd=putdata -type=individual -value=pvd_data.csv -network=fabric');
-            console.log('     node cli.js -cmd=putdata -type=batch -value=pvd_data.csv -network=fabric');
-            return;
-          }
-          await putPvdData(network, value);
-        }
-        break;
-        
-      // ===== 수동 인덱싱 =====
-      case 'reindex':
-        if (!type || !value) {
-          console.error('❌ reindex 명령어는 -type과 -value가 필요합니다');
-          console.log('예시: node cli.js -cmd=reindex -type=speed -value=OBU-TEST-001 -network=fabric');
-          console.log('     node cli.js -cmd=reindex -type=dt -value=OBU-TEST-001 -network=fabric');
-          console.log('     node cli.js -cmd=reindex -type=both -value=OBU-TEST-001 -network=fabric');
+      // ===== 데이터 요청 =====
+             case 'request-data':
+        if (!network) {
+          console.error('❌ request-data 명령어는 -network가 필요합니다');
           return;
         }
-        await reindexPvdData(network, type, value);
-        break;
-        
-             // ===== 데이터 요청 및 양방향 인덱싱 =====
-             case 'request-data':
         await requestData(network);
         break;
+        
+      // ===== 대규모 테스트 =====
        case 'large-scale-test':
-         await runLargeScaleTest();
+        await largeScaleTest();
          break;
         
-      // ===== config.yaml 확인 =====
+      // ===== 설정 확인 =====
       case 'check-config':
-        await checkConfigYaml();
+        checkConfig();
         break;
         
-      // ===== network_config.yaml 확인 =====
+      // ===== 네트워크 설정 확인 =====
       case 'check-network-config':
-        await checkNetworkConfig();
-        break;
-        
-      // ===== 인덱스 상태 확인 =====
-      case 'check-index-status':
-        await checkIndexStatus();
-        break;
-        
-      // ===== 트랜잭션 상세 정보 조회 =====
-      case 'get-tx-details':
-        if (!value) {
-          console.error('❌ get-tx-details 명령어는 -value가 필요합니다');
-          console.log('예시: node cli.js -cmd=get-tx-details -value=0x1234... -network=hardhat');
+        if (!network) {
+          console.error('❌ check-network-config 명령어는 -network가 필요합니다');
           return;
         }
-        await getTransactionDetails(network, type, value);
+        checkNetworkConfig(network);
         break;
         
-      // ===== 네트워크 설정 업데이트 =====
+      // ===== 네트워크 업데이트 =====
       case 'update-network':
-        if (!contractAddress) {
-          console.error('❌ 컨트랙트 주소를 입력해주세요. (-contract=<주소>)');
-          break;
+        if (!network || !contract) {
+          console.error('❌ update-network 명령어는 -network와 -contract가 필요합니다');
+          console.log('예시: node cli.js -cmd=update-network -network=hardhat -contract=0x1234...');
+          return;
         }
-        await updateNetworkConfig(network, contractAddress);
+        updateNetworkConfig(network, contract);
         break;
         
       // ===== 도움말 =====
       case 'help':
-      default:
         showHelp();
+        break;
+        
+      default:
+        console.error(`❌ 알 수 없는 명령어: ${cmd}`);
+        console.log('사용 가능한 명령어: deploy, create-samsung, create-user-indexes, create-fabric-index, putdata, search, search-all, request-data, large-scale-test, check-config, check-network-config, update-network, help');
         break;
     }
     
@@ -3690,9 +2261,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  deployContract,
-  createSamsungIndex,
-  createUserIndexes,
   searchData,
-  requestData
+  searchIndexAll,
+  searchFabricIndexAll
 };
