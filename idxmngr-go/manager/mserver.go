@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -101,10 +102,25 @@ func ReadIndexConfig() {
 }
 
 func insertIndexConfig(idx IndexInfo) {
-	data, err := ioutil.ReadFile("./config.yaml")
+	log.Printf("🔍 insertIndexConfig 시작: %s", idx.IdxID)
+	
+	// 절대 경로로 config.yaml 읽기
+	configPath := "./config.yaml"
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// 현재 디렉토리에 없으면 상위 디렉토리에서 찾기
+		configPath = "../config.yaml"
+		log.Printf("📁 config.yaml 경로 변경: %s", configPath)
+	}
+	
+	log.Printf("📁 config.yaml 읽기 시도: %s", configPath)
+	
+	data, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		log.Fatalf("YAML 파일을 읽을 수 없습니다: %v", err)
 	}
+	
+	log.Printf("📄 config.yaml 읽기 성공, 크기: %d bytes", len(data))
+	log.Printf("📄 config.yaml 내용: %s", string(data))
 
 	// YAML 데이터 언마샬링
 	var list Config
@@ -112,22 +128,34 @@ func insertIndexConfig(idx IndexInfo) {
 	if err != nil {
 		log.Fatalf("YAML 데이터를 언마샬링할 수 없습니다: %v", err)
 	}
+	
+	log.Printf("📊 기존 items 개수: %d", len(list.Items))
 
-	idx.Address = "localhost:50053"
+	// 포트를 50052로 수정
+	idx.Address = "localhost:50052"
+	
+	log.Printf("➕ 새 인덱스 추가: %+v", idx)
 
 	list.Items = append(list.Items, idx)
+	
+	log.Printf("📊 추가 후 items 개수: %d", len(list.Items))
 
 	// 수정된 데이터 마샬링
 	newData, err := yaml.Marshal(&list)
 	if err != nil {
 		log.Fatalf("수정된 데이터를 마샬링할 수 없습니다: %v", err)
 	}
+	
+	log.Printf("📝 마샬링된 데이터 크기: %d bytes", len(newData))
 
 	// 수정된 데이터 파일에 쓰기
-	err = ioutil.WriteFile("./config.yaml", newData, 0644)
+	err = ioutil.WriteFile(configPath, newData, 0644)
 	if err != nil {
 		log.Fatalf("수정된 데이터를 파일에 쓸 수 없습니다: %v", err)
 	}
+	
+	log.Printf("✅ config.yaml에 인덱스 추가 완료: %s", idx.IdxID)
+	log.Printf("📁 파일 경로: %s", configPath)
 }
 
 func updateIndexConfig(idx IndexInfo) {
