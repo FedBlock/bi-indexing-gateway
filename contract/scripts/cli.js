@@ -726,6 +726,8 @@ async function createIndexUnified(network, indexType) {
   }
 }
 
+
+
 // 지갑 주소별 데이터 검색 (EVM 전용)
 async function searchByWalletAddress(network, searchType, walletAddress) {
   try {
@@ -2385,14 +2387,7 @@ async function main() {
         await createIndexUnified(network, 'samsung');
         break;
         
-      // ===== 사용자 인덱스 생성 =====
-      case 'create-user-indexes':
-        if (!network) {
-          console.error('❌ create-user-indexes 명령어는 -network가 필요합니다');
-          return;
-        }
-        await createUserIndexes(network);
-        break;
+
         
       // ===== Fabric 인덱스 생성 =====
       case 'create-fabric-index':
@@ -2512,7 +2507,7 @@ async function main() {
         
       default:
         console.error(`❌ 알 수 없는 명령어: ${cmd}`);
-        console.log('사용 가능한 명령어: deploy, create-index, create-samsung, create-user-indexes, create-fabric-index, putdata, search-index, get-tx-details, request-data, large-scale-test, check-config, check-network-config, update-network, help');
+        console.log('사용 가능한 명령어: deploy, create-index, create-samsung, create-fabric-index, putdata, search-index, get-tx-details, request-data, large-scale-test, check-config, check-network-config, update-network, help');
         break;
     }
     

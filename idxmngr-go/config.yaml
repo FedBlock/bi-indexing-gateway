@@ -1,24 +1,4 @@
 items:
-    - idxid: samsung_575a3a49
-      idxname: HARDHAT-LOCAL SAMSUNG Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/samsung_575a3a49.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: lg_eb5d27fd
-      idxname: HARDHAT-LOCAL LG Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/lg_eb5d27fd.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
     - idxid: user1_d8321319
       idxname: HARDHAT-LOCAL USER1 Index
       keycol: IndexableData
@@ -49,10 +29,40 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: samsung_575a3a49
+      idxname: HARDHAT-LOCAL SAMSUNG Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/samsung_575a3a49.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: lg_eb5d27fd
+      idxname: HARDHAT-LOCAL LG Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/lg_eb5d27fd.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
     - idxid: speed
       idxname: ""
       keycol: IndexableData
       filepath: data/fabric/speed.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: dt
+      idxname: ""
+      keycol: IndexableData
+      filepath: data/fabric/dt.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
