@@ -89,3 +89,13 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: dt
+      idxname: ""
+      keycol: IndexableData
+      filepath: data/fabric/dt.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
