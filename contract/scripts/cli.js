@@ -202,7 +202,7 @@ async function putPvdMultiData(network, csvFile, batchSize = 1000) {
               // 트랜잭션 ID를 PVD 데이터에 추가 (인덱싱용)
               pvdData.txId = result.txId;
               
-              // PVD 클라이언트를 통해 인덱싱 처리 (single-csv와 동일한 방식)
+              // PVD 클라이언트를 통해 인덱싱 처리
               const pvdClient = new PvdClient('localhost:19001');
               await pvdClient.connect();
               
@@ -2311,16 +2311,7 @@ async function main() {
         
       // ===== PVD 데이터 저장 =====
       case 'putdata':
-        if (type === 'with-indexing') {
-          // PVD 데이터 저장 + 인덱싱 통합 (client.go putDataWithIndexing 방식)
-          const obuId = value || 'OBU-TEST-001';
-          const speed = process.argv.find(arg => arg.startsWith('-speed='))?.split('=')[1] || '80';
-          await putPvdDataWithIndexing(network, obuId, parseInt(speed));
-        } else if (type === 'single-csv') {
-          // CSV 파일의 첫 번째 행만 단건으로 저장
-          const csvFile = value || 'pvd_test_10.csv';
-          await putPvdSingleCsvData(network, csvFile);
-        } else if (type === 'individual' || type === 'multi' || type === 'batch' || type === 'csv') {
+        if (type === 'individual' || type === 'multi' || type === 'batch' || type === 'csv') {
           // CSV 데이터 넣기 (개별 또는 배치)
           const csvFile = value || 'pvd_hist_10.csv';
           const batchSize = process.argv.find(arg => arg.startsWith('-batch='))?.split('=')[1] || '1000';
@@ -2330,8 +2321,7 @@ async function main() {
           if (!value) {
             console.error('❌ putdata 명령어는 -value가 필요합니다');
             console.log('예시: node cli.js -cmd=putdata -value=OBU-TEST-001 -network=fabric');
-            console.log('     node cli.js -cmd=putdata -type=single-csv -value=pvd_test_10.csv -network=fabric');
-            console.log('     node cli.js -cmd=putdata -type=with-indexing -value=OBU-TEST-001 -speed=80 -network=fabric');
+            console.log('     node cli.js -cmd=putdata -type=individual -value=scripts/pvd_hist_10.csv -network=fabric');
             return;
           }
           await putPvdData(network, value);
