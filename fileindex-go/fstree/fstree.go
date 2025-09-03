@@ -356,7 +356,7 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 					log.Printf("IndexableData or DynamicFields is nil at index: %d", idx)
 					continue
 				}
-				case "IndexableData":  // 범용 데이터용 인덱싱
+			case "IndexableData":  // 범용 데이터용 인덱싱
 		// 동적으로 해당 인덱스의 트리 사용
 		indexID := recvDatas.GetColIndex()
 		log.Printf("IndexableData 인덱싱 - IndexID: %s, IndexableDataTrees 크기: %d", indexID, len(IndexableDataTrees))
@@ -372,14 +372,13 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 		}
 		log.Printf("IndexableData 트리 찾음: %s", indexID)
 		targetTree = &tree
-		// IndexableData에서 DynamicFields의 timestamp 추출
+		// IndexableData에서 DynamicFields의 key 필드만 확인
 		if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
-			if timestamp, exists := rec.IndexableData.DynamicFields["timestamp"]; exists {
-				// 새로운 방식: timestamp를 키로 사용 (유니크한 키)
-				key = stringToFixedBytes(timestamp, keySize)
-				log.Printf("Using timestamp as key: %s for TxId: %s", timestamp, rec.TxId)
+			if keyValue, exists := rec.IndexableData.DynamicFields["key"]; exists {
+				key = stringToFixedBytes(keyValue, keySize)
+				log.Printf("Using key field as key: %s for TxId: %s", keyValue, rec.TxId)
 			} else {
-				log.Printf("timestamp not found in DynamicFields at index: %d", idx)
+				log.Printf("key field not found in DynamicFields at index: %d", idx)
 				continue
 			}
 		} else {
@@ -957,9 +956,14 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 					if err1 != nil {
 						log.Fatal("Error while fetching data:", err1)
 					}
-					// 현재 값을 먼저 추가
-					txlist = append(txlist, string(value1))
-					log.Printf("Added tx: %s", string(value1))
+					
+					// 값이 비어있지 않은 경우만 추가
+					if len(value1) > 0 {
+						txlist = append(txlist, string(value1))
+						log.Printf("Added tx: %s", string(value1))
+					} else {
+						log.Printf("⚠️ Skipped empty value")
+					}
 					
 					if nextPointer == nil {
 						log.Println("End of pointer chain")

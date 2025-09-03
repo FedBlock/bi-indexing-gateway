@@ -135,14 +135,14 @@ class IndexingClient {
             console.log(`✅ Search successful: ${response.IdxData ? response.IdxData.length : 0} items found`);
             
             // 상세한 결과 로그 추가
-            if (response.IdxData && response.IdxData.length > 0) {
-              console.log(`📋 상세 결과:`);
-              response.IdxData.forEach((item, index) => {
-                console.log(`   ${index + 1}. ${item || '(빈 값)'}`);
-              });
-            } else {
-              console.log(`⚠️ 검색 결과가 없습니다.`);
-            }
+            // if (response.IdxData && response.IdxData.length > 0) {
+            //   console.log(`📋 상세 결과:`);
+            //   response.IdxData.forEach((item, index) => {
+            //     console.log(`   ${index + 1}. ${item || '(빈 값)'}`);
+            //   });
+            // } else {
+            //   console.log(`⚠️ 검색 결과가 없습니다.`);
+            // }
             
             resolve(response);
           }

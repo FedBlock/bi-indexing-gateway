@@ -1,58 +1,8 @@
 items:
-    - idxid: wallet_575a3a49
-      idxname: HARDHAT-LOCAL WALLET Index
+    - idxid: purpose
+      idxname: HARDHAT-LOCAL Purpose Index
       keycol: IndexableData
-      filepath: data/hardhat-local/wallet_575a3a49.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: wallet_eb5d27fd
-      idxname: HARDHAT-LOCAL WALLET Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/wallet_eb5d27fd.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: wallet_d8321319
-      idxname: HARDHAT-LOCAL WALLET Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/wallet_d8321319.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: wallet_519b178b
-      idxname: HARDHAT-LOCAL WALLET Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/wallet_519b178b.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: wallet_21bc2424
-      idxname: HARDHAT-LOCAL WALLET Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/wallet_21bc2424.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: wallet_575a3a49
-      idxname: HARDHAT-LOCAL WALLET Index
-      keycol: IndexableData
-      filepath: data/hardhat-local/wallet_575a3a49.bf
+      filepath: data/hardhat-local/purpose.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052

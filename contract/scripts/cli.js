@@ -581,12 +581,14 @@ async function putPvdData(network, obuId, pvdData = null) {
               Timestamp: csvPvdData.collectionDt,
               BlockNumber: 0,
               DynamicFields: {
+                "key": csvPvdData.obuId,  // obuId를 직접 키로 사용
                 "obuId": csvPvdData.obuId,
                 "speed": csvPvdData.speed,
                 "collectionDt": csvPvdData.collectionDt,
                 "latitude": csvPvdData.startvectorLatitude,
                 "longitude": csvPvdData.startvectorLongitude,
-                "network": "fabric"
+                "network": "fabric",
+                "timestamp": new Date().toISOString()
               },
               SchemaVersion: "1.0"
             }
@@ -1980,11 +1982,12 @@ async function addToWalletIndex(walletAddress, txHash, network, organizationName
           Timestamp: new Date().toISOString(),
           BlockNumber: 0,
           DynamicFields: {
-            "timestamp": new Date().toISOString(),  // 유니크한 키로 사용
+            "key": walletAddress,  // walletAddress를 직접 키로 사용
             "walletAddress": walletAddress,
             "organizationName": organizationName,
             "purpose": 'health_data_request',
             "status": 'PENDING',
+            "timestamp": new Date().toISOString(),
             "createdAt": new Date().toISOString()
           },
           SchemaVersion: "1.0"
@@ -2046,62 +2049,40 @@ async function requestData(network) {
     console.log(`📝 요청자 주소: ${signer.address}`);
     console.log(`🔗 컨트랙트 주소: ${contractAddress}`);
     
-    // 수면 & 스트레스 데이터 요청: Samsung(1,1,1) + LG(1,2,3) = 총 9개 요청
+    // 수면 & 심박수 데이터 요청: 총 5개 요청 (수면 3개, 심박수 2개)
     const requests = [
-      // Samsung → User1 (1개) - 수면 데이터
+      // Samsung → User1 - 수면 데이터
       {
         resourceOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // user1 주소
-        purpose: 'sleep_quality_monitoring',
+        purpose: '수면',
         organizationName: 'Samsung'
       },
       
-      // Samsung → User2 (1개) - 수면 패턴
+      // Samsung → User2 - 수면 데이터
       {
         resourceOwner: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65', // user2 주소
-        purpose: 'sleep_duration_tracking',
+        purpose: '수면',
         organizationName: 'Samsung'
       },
       
-      // Samsung → User3 (1개) - 수면 분석
+      // Samsung → User3 - 수면 데이터
       {
         resourceOwner: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc', // user3 주소
-        purpose: 'sleep_stage_analysis',
+        purpose: '수면',
         organizationName: 'Samsung'
       },
       
-      // LG → User1 (1개) - 스트레스 기본
+      // LG → User1 - 심박수 데이터
       {
         resourceOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // user1 주소
-        purpose: 'stress_level_monitoring',
+        purpose: '심박수',
         organizationName: 'LG'
       },
       
-      // LG → User2 (2개) - 스트레스 관리
+      // LG → User2 - 심박수 데이터
       {
         resourceOwner: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65', // user2 주소
-        purpose: 'stress_pattern_analysis',
-        organizationName: 'LG'
-      },
-      {
-        resourceOwner: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65', // user2 주소 (2번째)
-        purpose: 'stress_relief_recommendations',
-        organizationName: 'LG'
-      },
-      
-      // LG → User3 (3개) - 종합 스트레스 관리
-      {
-        resourceOwner: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc', // user3 주소
-        purpose: 'stress_trigger_identification',
-        organizationName: 'LG'
-      },
-      {
-        resourceOwner: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc', // user3 주소 (2번째)
-        purpose: 'stress_recovery_tracking',
-        organizationName: 'LG'
-      },
-      {
-        resourceOwner: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc', // user3 주소 (3번째)
-        purpose: 'stress_sleep_correlation',
+        purpose: '심박수',
         organizationName: 'LG'
       }
     ];
@@ -2110,41 +2091,39 @@ async function requestData(network) {
     
     for (let i = 0; i < requests.length; i++) {
       const req = requests[i];
-      console.log(`\n📋 데이터 요청 ${i + 1}/9: ${req.organizationName} → ${req.resourceOwner.slice(0,10)}... (${req.purpose})`);
+      console.log(`\n📋 데이터 요청 ${i + 1}/5: ${req.organizationName} → ${req.resourceOwner.slice(0,10)}... (${req.purpose})`);
       
       try {
         // 컨트랙트의 saveRequest 함수 호출
+        console.log(`📤 트랜잭션 요청: ${req.organizationName} → ${req.purpose}`);
         const tx = await contract.saveRequest(
           req.resourceOwner,  // _resourceOwner (사용자 wallet 주소)
           req.purpose,        // _purpose (목적)
           req.organizationName // _organizationName (조직명)
         );
         
+        if (!tx) {
+          throw new Error('트랜잭션 생성 실패: tx가 undefined');
+        }
+        
         console.log(`⏳ 트랜잭션 전송: ${tx.hash}`);
         const receipt = await tx.wait();
+        
+        if (!receipt) {
+          throw new Error('트랜잭션 영수증 수신 실패');
+        }
+        
         console.log(`✅ 트랜잭션 확인됨 (블록 ${receipt.blockNumber})`);
         
         // 트랜잭션 생성 후 인덱싱 수행
         console.log(`📊 인덱싱 시작: ${tx.hash}`);
         
         try {
-          // 1. 데이터 소유자(User) 주소에 인덱싱
-          await addToWalletIndex(req.resourceOwner, tx.hash, network, req.organizationName);
-          await new Promise(resolve => setTimeout(resolve, 300)); // 0.3초 대기
+          // Purpose 기반 인덱싱만 수행
+          await addToPurposeIndexEVM(req.purpose, tx.hash, network, req.organizationName);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
           
-          // 2. 요청 조직 주소에도 인덱싱
-          const orgAddressMapping = {
-            'Samsung': '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-            'LG': '0x90F79bf6EB2c4f870365E785982E1f101E93b906'
-          };
-          
-          const orgAddress = orgAddressMapping[req.organizationName];
-          if (orgAddress) {
-            await addToWalletIndex(orgAddress, tx.hash, network, req.organizationName);
-            await new Promise(resolve => setTimeout(resolve, 300)); // 0.3초 대기
-          }
-          
-          console.log(`✅ 인덱싱 완료: ${tx.hash}`);
+          console.log(`✅ Purpose 인덱싱 완료: ${tx.hash}`);
           
         } catch (indexError) {
           console.warn(`⚠️ 인덱싱 실패 (트랜잭션은 성공): ${indexError.message}`);
@@ -2159,8 +2138,8 @@ async function requestData(network) {
           success: true
         });
         
-        // 인덱싱을 위한 잠시 대기
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 트랜잭션 간 충분한 대기 (블록 생성 시간 고려)
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
       } catch (error) {
         console.error(`❌ ${req.organizationName} 요청 실패:`, error.message);
@@ -2177,18 +2156,18 @@ async function requestData(network) {
     console.log('\n📊 데이터 요청 결과 요약:');
     console.log(`총 ${results.length}개 요청 처리 완료\n`);
     
-    // 조직별 요약
-    const samsungResults = results.filter(r => r.organizationName === 'samsung');
-    const lgResults = results.filter(r => r.organizationName === 'lg');
+    // 목적별 요약
+    const sleepResults = results.filter(r => r.purpose === '수면');
+    const heartResults = results.filter(r => r.purpose === '심박수');
     
-    console.log('🏢 Samsung 요청:');
-    samsungResults.forEach((result, index) => {
+    console.log('😴 수면 데이터 요청 (Samsung):');
+    sleepResults.forEach((result, index) => {
       console.log(`   ${index + 1}. ${result.resourceOwner.slice(0,10)}... → ${result.purpose}: ${result.success ? '✅' : '❌'}`);
       if (result.success) console.log(`      트랜잭션: ${result.txHash}`);
     });
     
-    console.log('\n🏢 LG 요청:');
-    lgResults.forEach((result, index) => {
+    console.log('\n💓 심박수 데이터 요청 (LG):');
+    heartResults.forEach((result, index) => {
       console.log(`   ${index + 1}. ${result.resourceOwner.slice(0,10)}... → ${result.purpose}: ${result.success ? '✅' : '❌'}`);
       if (result.success) console.log(`      트랜잭션: ${result.txHash}`);
     });
@@ -2398,6 +2377,31 @@ async function main() {
         await getTxDetails(network, value);
         break;
         
+      // ===== Purpose 인덱스 생성 =====
+      case 'create-purpose-index':
+        if (network === 'fabric') {
+          console.error('❌ create-purpose-index는 EVM 네트워크에서만 지원됩니다');
+          console.log('예시: node cli.js -cmd=create-purpose-index -network=hardhat');
+          return;
+        }
+        await createPurposeIndexEVM(network);
+        break;
+        
+      // ===== Purpose 기반 검색 =====
+      case 'search-purpose':
+        if (network === 'fabric') {
+          console.error('❌ search-purpose는 EVM 네트워크에서만 지원됩니다');
+          console.log('예시: node cli.js -cmd=search-purpose -value="수면_품질_모니터링" -network=hardhat');
+          return;
+        }
+        if (!value) {
+          console.error('❌ search-purpose 명령어는 -value(목적)가 필요합니다');
+          console.log('예시: node cli.js -cmd=search-purpose -value="수면_품질_모니터링" -network=hardhat');
+          return;
+        }
+        await searchByPurposeEVM(network, value);
+        break;
+        
       // ===== 데이터 요청 =====
              case 'request-data':
         if (!network) {
@@ -2405,6 +2409,15 @@ async function main() {
           return;
         }
         await requestData(network);
+        break;
+        
+      // ===== 단건 테스트 =====
+      case 'test-single':
+        if (!network) {
+          console.error('❌ test-single 명령어는 -network가 필요합니다');
+          return;
+        }
+        await testSingleRequest(network);
         break;
         
       // ===== 대규모 테스트 =====
@@ -2460,11 +2473,12 @@ function showHelp() {
   console.log('\n📋 사용 가능한 명령어:');
   console.log('  deploy                    - 컨트랙트 배포');
   console.log('  create-index              - 인덱스 생성');
-
+  console.log('  create-purpose-index      - Purpose 인덱스 생성 (EVM 전용)');
   console.log('  create-fabric-index       - Fabric 인덱스 생성');
   console.log('  putdata                   - PVD 데이터 저장');
   console.log('  search                    - 지갑 주소별 데이터 조회');
   console.log('  search-index              - 인덱스 전체 조회');
+  console.log('  search-purpose            - Purpose 기반 데이터 검색 (EVM 전용)');
   console.log('  get-tx-details            - 트랜잭션 상세 조회');
   console.log('  request-data              - 샘플 데이터 생성');
   console.log('  large-scale-test          - 대규모 테스트');
@@ -2487,7 +2501,9 @@ function showHelp() {
   console.log('');
   console.log('  # EVM 네트워크');
   console.log('  node scripts/cli.js -cmd=create-index -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
+  console.log('  node scripts/cli.js -cmd=create-purpose-index -network=hardhat');
   console.log('  node scripts/cli.js -cmd=search -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
+  console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" -network=hardhat');
   console.log('  node scripts/cli.js -cmd=get-tx-details -value=0x123... -network=hardhat');
   
   console.log('\n💡 팁:');
@@ -2609,8 +2625,197 @@ async function getEvmTxDetails(network, txHash) {
   }
 }
 
+// EVM 전용 Purpose 인덱스 생성 함수
+async function createPurposeIndexEVM(network) {
+  try {
+    console.log(`🔧 ${network} 네트워크에 Purpose 인덱스 생성 중...`);
+    
+    // EVM 네트워크만 지원
+    if (network === 'fabric') {
+      throw new Error('Fabric 네트워크는 지원하지 않습니다. EVM 네트워크를 사용하세요.');
+    }
+    
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: PROTO_PATH
+    });
+    
+    await indexingClient.connect();
+    console.log('✅ 인덱싱 서버 연결 성공');
+    
+    const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
+    const indexID = 'purpose';
+    const filePath = `data/${networkDir}/purpose.bf`;
+    
+    const createRequest = {
+      IndexID: indexID,
+      IndexName: `${network.toUpperCase()} Purpose Index`,
+      KeyCol: 'IndexableData',
+      FilePath: filePath,
+      KeySize: 64
+    };
+    
+    console.log(`🔧 인덱스 생성 요청:`, createRequest);
+    
+    const response = await indexingClient.createIndex(createRequest);
+    console.log(`✅ Purpose 인덱스 생성 완료!`);
+    console.log(`📁 인덱스 파일: ${filePath}`);
+    
+    indexingClient.close();
+    
+    return {
+      success: true,
+      network: network,
+      indexType: 'purpose',
+      indexId: indexID,
+      filePath: filePath,
+      message: `${network} Purpose 인덱스 생성 완료`
+    };
+    
+  } catch (error) {
+    console.error(`❌ Purpose 인덱스 생성 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// EVM 전용 Purpose 기반 인덱싱 함수
+async function addToPurposeIndexEVM(purpose, txHash, network, organizationName = null) {
+  try {
+    console.log(`📝 Purpose 인덱스에 저장 중: ${purpose} → ${txHash}`);
+    
+    // EVM 네트워크만 지원
+    if (network === 'fabric') {
+      throw new Error('Fabric 네트워크는 지원하지 않습니다. EVM 네트워크를 사용하세요.');
+    }
+    
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: PROTO_PATH
+    });
+    
+    await indexingClient.connect();
+    
+    const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
+    const indexID = 'purpose';
+    const filePath = `data/${networkDir}/purpose.bf`;
+    
+    // IndexableData 안에 purpose를 포함하여 동적 인덱싱
+    const insertRequest = {
+      IndexID: indexID,
+      BcList: [{
+        TxId: txHash,
+        KeyCol: 'IndexableData',
+        IndexableData: {
+          TxId: txHash,
+          ContractAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+          EventName: 'AccessRequestsSaved',
+          Timestamp: new Date().toISOString(),
+          BlockNumber: 0,
+          DynamicFields: {
+            "key": purpose,  // purpose를 직접 키로 사용
+            "purpose": purpose,
+            "organizationName": organizationName || 'Unknown',
+            "network": network,
+            "timestamp": new Date().toISOString()
+          },
+          SchemaVersion: "1.0"
+        }
+      }],
+      ColName: 'IndexableData',
+      ColIndex: indexID,
+      FilePath: filePath,
+      Network: network
+    };
+    
+    console.log(`  📝 Purpose 인덱스 저장: ${purpose} → ${txHash}`);
+    await indexingClient.insertData(insertRequest);
+    
+    // 안전한 인덱싱을 위한 대기
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    indexingClient.close();
+    
+  } catch (error) {
+    console.error(`❌ Purpose 인덱스 추가 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// EVM 전용 Purpose 기반 검색 함수
+async function searchByPurposeEVM(network, purpose) {
+  try {
+    console.log(`🔍 ${network} 네트워크에서 Purpose 기반 검색 시작...`);
+    console.log(`🎯 검색 목적: ${purpose}`);
+    
+    // EVM 네트워크만 지원
+    if (network === 'fabric') {
+      throw new Error('Fabric 네트워크는 지원하지 않습니다. EVM 네트워크를 사용하세요.');
+    }
+    
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: PROTO_PATH
+    });
+    
+    await indexingClient.connect();
+    console.log('✅ 인덱싱 서버 연결 성공');
+    
+    const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
+    const indexID = 'purpose';
+    const filePath = `data/${networkDir}/purpose.bf`;
+    
+    // IndexableData 안의 purpose 필드로 검색
+    const searchRequest = {
+      IndexID: indexID,
+      Field: 'IndexableData',
+      Value: purpose,
+      FilePath: filePath,
+      KeySize: 64,
+      ComOp: 'Eq'
+    };
+    
+    console.log(`🔧 검색 요청:`, searchRequest);
+    
+    const result = await indexingClient.searchData(searchRequest);
+    
+    // 결과 정리 및 출력
+    const cleanResult = {
+      success: true,
+      purpose: purpose,
+      indexId: indexID,
+      data: result.IdxData || [],
+      count: result.IdxData?.length || 0,
+      network: network,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log(`\n📊 검색 결과:`);
+    console.log(`   🎯 목적: ${purpose}`);
+    console.log(`   🆔 인덱스 ID: ${indexID}`);
+    console.log(`   📊 데이터 개수: ${cleanResult.count}`);
+    
+    if (cleanResult.data.length > 0) {
+      console.log(`   📋 트랜잭션 목록:`);
+      cleanResult.data.forEach((txHash, index) => {
+        console.log(`      ${index + 1}. ${txHash}`);
+      });
+    } else {
+      console.log(`   ℹ️  해당 목적과 관련된 데이터가 없습니다.`);
+    }
+    
+    indexingClient.close();
+    return cleanResult;
+    
+  } catch (error) {
+    console.error(`❌ Purpose 기반 검색 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   searchIndexAll,
   searchFabricIndexAll,
-  getEvmTxDetails
+  getEvmTxDetails,
+  createPurposeIndexEVM,
+  searchByPurposeEVM
 };
