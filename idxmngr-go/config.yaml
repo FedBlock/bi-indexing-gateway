@@ -1,98 +1,58 @@
 items:
-    - idxid: user1_d8321319
-      idxname: HARDHAT-LOCAL USER1 Index
+    - idxid: wallet_575a3a49
+      idxname: HARDHAT-LOCAL WALLET Index
       keycol: IndexableData
-      filepath: data/hardhat-local/user1_d8321319.bf
+      filepath: data/hardhat-local/wallet_575a3a49.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: user2_519b178b
-      idxname: HARDHAT-LOCAL USER2 Index
+    - idxid: wallet_eb5d27fd
+      idxname: HARDHAT-LOCAL WALLET Index
       keycol: IndexableData
-      filepath: data/hardhat-local/user2_519b178b.bf
+      filepath: data/hardhat-local/wallet_eb5d27fd.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: user3_21bc2424
-      idxname: HARDHAT-LOCAL USER3 Index
+    - idxid: wallet_d8321319
+      idxname: HARDHAT-LOCAL WALLET Index
       keycol: IndexableData
-      filepath: data/hardhat-local/user3_21bc2424.bf
+      filepath: data/hardhat-local/wallet_d8321319.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: samsung_575a3a49
-      idxname: HARDHAT-LOCAL SAMSUNG Index
+    - idxid: wallet_519b178b
+      idxname: HARDHAT-LOCAL WALLET Index
       keycol: IndexableData
-      filepath: data/hardhat-local/samsung_575a3a49.bf
+      filepath: data/hardhat-local/wallet_519b178b.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: lg_eb5d27fd
-      idxname: HARDHAT-LOCAL LG Index
+    - idxid: wallet_21bc2424
+      idxname: HARDHAT-LOCAL WALLET Index
       keycol: IndexableData
-      filepath: data/hardhat-local/lg_eb5d27fd.bf
+      filepath: data/hardhat-local/wallet_21bc2424.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: speed
-      idxname: ""
+    - idxid: wallet_575a3a49
+      idxname: HARDHAT-LOCAL WALLET Index
       keycol: IndexableData
-      filepath: data/fabric/speed.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: dt
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/dt.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: dt
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/dt.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: dt
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/dt.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: dt
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/dt.bf
+      filepath: data/hardhat-local/wallet_575a3a49.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052

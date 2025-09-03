@@ -205,7 +205,7 @@ func (h IndexServer) CreateIndex(ctx context.Context, idxinfo *fsindex.CreateReq
 			log.Printf("IndexableData 트리 생성 완료: %s -> %s", idxinfo.IndexID, idxinfo.FilePath)
 		}
 
-	case "BidirectionalIndex":  // 양방향 인덱싱용 인덱스
+	case "PublicIndex":  // Public 블록체인용 인덱스 (EVM 계열)
 		// 양방향 인덱싱은 별도 인덱스 생성 없이 기존 인덱스들을 활용
 		// 실제 인덱스 생성은 create-user-specific-indexes.js에서 처리
 		log.Printf("양방향 인덱싱 인덱스 생성: %s", idxinfo.IndexID)
@@ -372,14 +372,14 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 		}
 		log.Printf("IndexableData 트리 찾음: %s", indexID)
 		targetTree = &tree
-		// IndexableData에서 DynamicFields의 organizationName 추출
+		// IndexableData에서 DynamicFields의 timestamp 추출
 		if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
-			if orgName, exists := rec.IndexableData.DynamicFields["organizationName"]; exists {
-				// 원래 방식: 조직명을 키로 사용 (B+Tree가 중복 키를 체인으로 처리해야 함)
-				key = stringToFixedBytes(orgName, keySize)
-				log.Printf("Using organization name as key: %s for TxId: %s", orgName, rec.TxId)
+			if timestamp, exists := rec.IndexableData.DynamicFields["timestamp"]; exists {
+				// 새로운 방식: timestamp를 키로 사용 (유니크한 키)
+				key = stringToFixedBytes(timestamp, keySize)
+				log.Printf("Using timestamp as key: %s for TxId: %s", timestamp, rec.TxId)
 			} else {
-				log.Printf("organizationName not found in DynamicFields at index: %d", idx)
+				log.Printf("timestamp not found in DynamicFields at index: %d", idx)
 				continue
 			}
 		} else {
@@ -387,19 +387,19 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 			continue
 		}
 
-	case "BidirectionalIndex":  // 양방향 인덱싱
+	case "PublicIndex":  // Public 블록체인 인덱싱 (EVM 계열)
 		// 조직 인덱스와 사용자 인덱스에 동시 저장
 		if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
-			// 1. 조직 인덱스에 저장 - 동적으로 찾기
-			if orgName, exists := rec.IndexableData.DynamicFields["organizationName"]; exists {
-				// 기존에 생성된 조직 인덱스 찾기
+			// 1. timestamp 인덱스에 저장 - 동적으로 찾기
+			if timestamp, exists := rec.IndexableData.DynamicFields["timestamp"]; exists {
+				// timestamp를 키로 사용하여 인덱스에 저장
 				for indexID, tree := range IndexableDataTrees {
-					if strings.Contains(indexID, orgName) && tree != nil {
-						orgKey := stringToFixedBytes(orgName, keySize)
-						if err := tree.Add(orgKey, []byte(rec.TxId)); err != nil {
-							log.Printf("조직 인덱스 저장 실패: %s -> %v", indexID, err)
+					if strings.HasPrefix(indexID, "wallet_") && tree != nil {
+						timestampKey := stringToFixedBytes(timestamp, keySize)
+						if err := tree.Add(timestampKey, []byte(rec.TxId)); err != nil {
+							log.Printf("인덱스 저장 실패: %s -> %v", indexID, err)
 						} else {
-							log.Printf("✅ 조직 인덱스 저장 성공: %s -> %s", orgName, rec.TxId)
+							log.Printf("✅ 인덱스 저장 성공: %s -> %s (key: %s)", indexID, rec.TxId, timestamp)
 						}
 						break
 					}
