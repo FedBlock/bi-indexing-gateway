@@ -2049,41 +2049,41 @@ async function requestData(network) {
     console.log(`📝 요청자 주소: ${signer.address}`);
     console.log(`🔗 컨트랙트 주소: ${contractAddress}`);
     
-    // 수면 & 심박수 데이터 요청: 총 5개 요청 (수면 3개, 심박수 2개)
+    // BIMATRIX 기업의 수면 & 심박수 데이터 요청: 총 5개 요청 (수면 3개, 심박수 2개)
     const requests = [
-      // Samsung → User1 - 수면 데이터
+      // BIMATRIX → User1 - 수면 데이터
       {
         resourceOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // user1 주소
         purpose: '수면',
-        organizationName: 'Samsung'
+        organizationName: 'BIMATRIX'
       },
       
-      // Samsung → User2 - 수면 데이터
+      // BIMATRIX → User2 - 수면 데이터
       {
         resourceOwner: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65', // user2 주소
         purpose: '수면',
-        organizationName: 'Samsung'
+        organizationName: 'BIMATRIX'
       },
       
-      // Samsung → User3 - 수면 데이터
+      // BIMATRIX → User3 - 수면 데이터
       {
         resourceOwner: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc', // user3 주소
         purpose: '수면',
-        organizationName: 'Samsung'
+        organizationName: 'BIMATRIX'
       },
       
-      // LG → User1 - 심박수 데이터
+      // BIMATRIX → User1 - 심박수 데이터
       {
         resourceOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // user1 주소
         purpose: '심박수',
-        organizationName: 'LG'
+        organizationName: 'BIMATRIX'
       },
       
-      // LG → User2 - 심박수 데이터
+      // BIMATRIX → User2 - 심박수 데이터
       {
         resourceOwner: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65', // user2 주소
         purpose: '심박수',
-        organizationName: 'LG'
+        organizationName: 'BIMATRIX'
       }
     ];
     

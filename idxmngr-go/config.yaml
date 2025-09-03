@@ -9,3 +9,23 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: purpose
+      idxname: HARDHAT-LOCAL Purpose Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/purpose.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: purpose
+      idxname: HARDHAT-LOCAL Purpose Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/purpose.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

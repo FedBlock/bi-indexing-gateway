@@ -146,7 +146,6 @@ func insertIndexConfig(idx IndexInfo) {
 		log.Fatalf("수정된 데이터를 마샬링할 수 없습니다: %v", err)
 	}
 	
-	log.Printf("📝 마샬링된 데이터 크기: %d bytes", len(newData))
 
 	// 수정된 데이터 파일에 쓰기
 	err = ioutil.WriteFile(configPath, newData, 0644)
@@ -154,8 +153,8 @@ func insertIndexConfig(idx IndexInfo) {
 		log.Fatalf("수정된 데이터를 파일에 쓸 수 없습니다: %v", err)
 	}
 	
-	log.Printf("✅ config.yaml에 인덱스 추가 완료: %s", idx.IdxID)
-	log.Printf("📁 파일 경로: %s", configPath)
+	log.Printf("✅ 인덱스 추가 완료: %s", idx.IdxID)
+	// log.Printf("📁 파일 경로: %s", configPath)
 }
 
 func updateIndexConfig(idx IndexInfo) {
@@ -569,7 +568,7 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 		log.Printf("📥 데이터 수신 대기 중... (루프 %d)", idx+1)
 		recvDatas, r_err := stream.Recv()
 		if r_err == io.EOF {
-			log.Printf("✅ 스트림 종료 - 모든 데이터 수신 완료")
+			log.Printf("✅ 스트림 종료 - 데이터 수신 완료")
 			return stream.SendAndClose(&mngr.IdxMngrResponse{
 				ResponseMessage: "All data received",
 				Duration:        int64(time.Since(start)),
