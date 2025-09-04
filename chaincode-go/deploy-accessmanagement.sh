@@ -16,7 +16,7 @@ NC='\033[0m'
 CHANNEL_NAME="pvdchannel"
 CHAINCODE_NAME="accessmanagement"
 CHAINCODE_VERSION="1.1"
-CHAINCODE_SEQUENCE="2"
+CHAINCODE_SEQUENCE="7"
 CHAINCODE_PATH="."
 
 # 조직 설정 (기존 pvd 네트워크와 동일)
@@ -108,7 +108,6 @@ peer lifecycle chaincode approveformyorg \
     --package-id $PACKAGE_ID \
     --sequence $CHAINCODE_SEQUENCE \
     --signature-policy "OR('Org1MSP.peer','Org2MSP.peer')"
-
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ Org1 체인코드 승인 완료${NC}"
 else

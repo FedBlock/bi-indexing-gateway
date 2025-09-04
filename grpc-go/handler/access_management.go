@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"strings"
 	"time"
 
 	accessapi "grpc-go/accessapi"
@@ -51,7 +50,7 @@ func NewAccessManagementHandler() *AccessManagementHandler {
 	// Fabric 네트워크 연결 (AccessManagement용 profile 사용)
 	// config-accessmanagement.yaml을 로드하고 첫 번째 프로파일 사용
 	handler.contract = ClientConnect(configuration.RuntimeConf.Profile[0])
-	log.Printf("Successfully connected to Fabric netwo
+	log.Printf("Successfully connected to Fabric network")
 	
 	// idxmngr 서버에 연결
 	idxmngrAddr := "localhost:50052"
@@ -77,11 +76,13 @@ func (h *AccessManagementHandler) SaveAccessRequest(ctx context.Context, req *ac
 	log.Printf("AccessManagement 요청 저장: ResourceOwner=%s, Purpose=%s, Organization=%s", 
 		req.ResourceOwner, req.Purpose, req.OrganizationName)
 
-	// Fabric 연결 (AccessManagement용 설정 사용)
-	contract := ClientConnect(configuration.RuntimeConf.Profile[0])
-
-	// 체인코드 호출
-	result, err := contract.SubmitTransaction("SaveRequest", 
+	// pvd와 동일한 방식: configuration.MyContracts[0] 사용
+	log.Printf("🔍 pvd와 동일한 방식으로 체인코드 호출...")
+	
+	// pvd처럼 SubmitTransaction 반환값이 실제 TxId인지 확인
+	log.Printf("🎯 pvd 방식으로 SubmitTransaction 반환값 분석...")
+	
+	result, err := configuration.MyContracts[0].SubmitTransaction("SaveRequest", 
 		req.ResourceOwner, req.Purpose, req.OrganizationName)
 	if err != nil {
 		return &accessapi.AccessResponse{
@@ -90,20 +91,32 @@ func (h *AccessManagementHandler) SaveAccessRequest(ctx context.Context, req *ac
 		}, err
 	}
 
-	// 요청 ID 추출
-	requestId, err := strconv.ParseUint(string(result), 10, 64)
-	if err != nil {
-		return &accessapi.AccessResponse{
-			Success: false,
-			Message: fmt.Sprintf("요청 ID 파싱 실패: %v", err),
-		}, err
+	resultStr := string(result)
+	log.Printf("🔍 SubmitTransaction 반환값: '%s' (길이: %d)", resultStr, len(resultStr))
+
+	// pvd처럼 반환값이 실제 TxId인지 확인
+	var requestId uint64
+	var realTxId string
+	
+	if len(resultStr) == 64 {
+		// 64자리면 실제 Fabric TxId일 가능성
+		realTxId = resultStr
+		requestId = uint64(time.Now().Unix()) // 임시 RequestId
+		log.Printf("🎯 64자리 반환값, 실제 TxId로 추정: %s", realTxId)
+	} else if parsedId, err := strconv.ParseUint(resultStr, 10, 64); err == nil {
+		// 숫자면 RequestId
+		requestId = parsedId
+		realTxId = fmt.Sprintf("fabric_access_%d_%d", requestId, time.Now().UnixNano())
+		log.Printf("✅ RequestId 파싱: %d, 임시 TxId 생성: %s", requestId, realTxId)
+	} else {
+		// 기타
+		requestId = uint64(time.Now().Unix())
+		realTxId = resultStr // 일단 그대로 사용
+		log.Printf("⚠️ 예상과 다른 반환값, 그대로 TxId로 사용: %s", realTxId)
 	}
 
-	log.Printf("AccessManagement 요청 저장 완료: RequestID=%d", requestId)
-
-	// 트랜잭션 성공 후 인덱싱을 위해 idxmngr로 데이터 전송
-	// 실제 트랜잭션 데이터를 가져와서 인덱싱
-	go h.sendIndexingRequestAfterTransaction(requestId)
+	// 트랜잭션 성공 후 인덱싱을 위해 idxmngr로 데이터 전송 (실제 TxId 사용)
+	go h.sendIndexingRequestAfterTransaction(requestId, realTxId)
 
 	return &accessapi.AccessResponse{
 		Success:   true,
@@ -212,12 +225,12 @@ func (h *AccessManagementHandler) GetAccessRequestsByOwner(ctx context.Context, 
 func (h *AccessManagementHandler) SearchAccessRequestsByPurpose(ctx context.Context, req *accessapi.SearchByPurposeRequest) (*accessapi.SearchByPurposeResponse, error) {
 	log.Printf("Purpose 검색 요청: %s", req.Purpose)
 
-	// 1. idxmngr에서 Purpose로 TxId들 검색
+	// 1. idxmngr에서 Purpose로 TxId들 검색 (정확한 매칭)
 	searchReq := &idxmngr.SearchRequestM{
 		IndexID: "purpose",
 		Field:   "IndexableData", 
 		Value:   req.Purpose,
-		FilePath: "data/fabric/purpose.bf",
+		FilePath: "/home/blockchain/bi-index-migration/bi-index/fileindex-go/data/fabric/purpose.bf",
 		KeySize: 64,
 		ComOp:   idxmngr.ComparisonOps_Eq,
 	}
@@ -233,78 +246,101 @@ func (h *AccessManagementHandler) SearchAccessRequestsByPurpose(ctx context.Cont
 
 	log.Printf("인덱스 검색 결과: %d개 발견", len(searchResp.IdxData))
 
+	// 인덱스에서 찾은 TxId들 출력
+	for i, idxData := range searchResp.IdxData {
+		log.Printf("🔍 인덱스 TxId[%d]: %s", i, idxData)
+	}
+
 	// 2. 검색된 TxId들로부터 RequestId 추출하고 블록체인에서 상세 정보 조회
 	var requests []*accessapi.AccessRequestData
 	
-	for _, txId := range searchResp.IdxData {
-		// TxId에서 RequestId 추출 (예: "access_13_1756974027" -> "13")
-		parts := strings.Split(txId, "_")
-		if len(parts) < 2 {
-			log.Printf("잘못된 TxId 형식: %s", txId)
-			continue
+	// 2. 검색된 각 TxId에 대해 상세 정보 조회
+	// 모든 요청을 조회한 후 Purpose로 필터링 (간단한 방식)
+	allRequestsResult, err := h.contract.EvaluateTransaction("GetAllRequests")
+	if err != nil {
+		log.Printf("모든 요청 조회 실패: %v", err)
+		return &accessapi.SearchByPurposeResponse{
+			Success: false,
+			Message: fmt.Sprintf("블록체인 조회 실패: %v", err),
+		}, nil
+	}
+	
+	var allRequests []*RequestDetail
+	err = json.Unmarshal(allRequestsResult, &allRequests)
+	if err != nil {
+		log.Printf("요청 목록 JSON 파싱 실패: %v", err)
+		return &accessapi.SearchByPurposeResponse{
+			Success: false,
+			Message: fmt.Sprintf("데이터 파싱 실패: %v", err),
+		}, nil
+	}
+	
+	// Purpose로 필터링하여 매칭되는 모든 요청 수집
+	for _, request := range allRequests {
+		if request.Purpose == req.Purpose {
+			// AccessRequestData로 변환
+			accessReq := &accessapi.AccessRequestData{
+				ResourceOwner:    request.ResourceOwner,
+				Purpose:          request.Purpose,
+				OrganizationName: request.OrganizationName,
+			}
+			
+			requests = append(requests, accessReq)
+			log.Printf("검색 결과 추가: Purpose=%s, Owner=%s, Org=%s", 
+				request.Purpose, request.ResourceOwner, request.OrganizationName)
 		}
-		
-		requestIdStr := parts[1]
-		requestId, err := strconv.ParseUint(requestIdStr, 10, 64)
-		if err != nil {
-			log.Printf("RequestId 파싱 실패: %s", requestIdStr)
-			continue
-		}
+	}
 
-		// 3. 블록체인에서 상세 정보 조회
-		result, err := h.contract.EvaluateTransaction("GetRequestById", fmt.Sprintf("%d", requestId))
-		if err != nil {
-			log.Printf("블록체인 조회 실패 (RequestId: %d): %v", requestId, err)
-			continue
-		}
-
-		var requestDetail RequestDetail
-		err = json.Unmarshal(result, &requestDetail)
-		if err != nil {
-			log.Printf("JSON 파싱 실패: %v", err)
-			continue
-		}
-
-		// AccessRequestData로 변환
-		accessReq := &accessapi.AccessRequestData{
-			ResourceOwner:    requestDetail.ResourceOwner,
-			Purpose:          requestDetail.Purpose,
-			OrganizationName: requestDetail.OrganizationName,
-		}
-		
-		requests = append(requests, accessReq)
-		log.Printf("검색 결과 추가: RequestId=%d, Purpose=%s", requestId, requestDetail.Purpose)
+	// 인덱스에서 찾은 TxId 목록 수집
+	var txIds []string
+	for _, idxData := range searchResp.IdxData {
+		txIds = append(txIds, idxData)
 	}
 
 	return &accessapi.SearchByPurposeResponse{
 		Success:  true,
-		Message:  fmt.Sprintf("%d개의 요청을 찾았습니다", len(requests)),
+		Message:  fmt.Sprintf("%d개의 요청을 찾았습니다 (인덱스 TxId: %d개)", len(requests), len(txIds)),
 		Requests: requests,
+		TxIds:    txIds,
 	}, nil
 }
 
 // sendIndexingRequestAfterTransaction - 트랜잭션 성공 후 블록체인에서 데이터를 가져와서 인덱싱
-func (h *AccessManagementHandler) sendIndexingRequestAfterTransaction(requestId uint64) {
-	log.Printf("Processing indexing for RequestID: %d", requestId)
+func (h *AccessManagementHandler) sendIndexingRequestAfterTransaction(requestId uint64, realTxId string) {
+	log.Printf("Processing indexing for RequestID: %d, TxID: %s", requestId, realTxId)
 	
 	if h.idxmngrConn == nil {
 		log.Printf("idxmngr connection is not available")
 		return
 	}
 
-	// 1. 블록체인에서 실제 저장된 데이터 조회
+	// 1. 블록체인에서 모든 데이터 조회하여 가장 최근 데이터 찾기
 	contract := ClientConnect(configuration.RuntimeConf.Profile[0])
-	result, err := contract.EvaluateTransaction("GetRequestById", strconv.FormatUint(requestId, 10))
+	result, err := contract.EvaluateTransaction("GetAllRequests")
 	if err != nil {
-		log.Printf("Failed to get transaction data for indexing: %v", err)
+		log.Printf("Failed to get all requests for indexing: %v", err)
 		return
 	}
 
-	// 2. JSON 파싱
-	var accessReq AccessRequest
-	if err := json.Unmarshal(result, &accessReq); err != nil {
-		log.Printf("Failed to parse transaction data: %v", err)
+	// 2. JSON 파싱 - 배열로 파싱
+	var allRequests []RequestDetail
+	if err := json.Unmarshal(result, &allRequests); err != nil {
+		log.Printf("Failed to parse all requests data: %v", err)
 		return
+	}
+
+	// 3. 가장 최근 데이터 (배열의 마지막) 사용
+	if len(allRequests) == 0 {
+		log.Printf("No requests found for indexing")
+		return
+	}
+	
+	latestRequest := allRequests[len(allRequests)-1]
+	accessReq := AccessRequest{
+		ResourceOwner:    latestRequest.ResourceOwner,
+		Purpose:          latestRequest.Purpose,
+		OrganizationName: latestRequest.OrganizationName,
+		Status:           latestRequest.Status,
 	}
 
 	log.Printf("Retrieved transaction data for indexing: Owner=%s, Purpose=%s, Org=%s, Status=%d", 
@@ -314,8 +350,8 @@ func (h *AccessManagementHandler) sendIndexingRequestAfterTransaction(requestId 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// 트랜잭션 ID 생성 (실제로는 패브릭에서 받아와야 하지만 여기서는 생성)
-	txID := fmt.Sprintf("access_%d_%d", requestId, time.Now().Unix())
+	// 실제 Fabric 트랜잭션 ID 사용
+	txID := realTxId
 
 	// IndexableData 사용으로 변경 (cli.js의 EVM 방식 참고)
 	indexableData := &idxmngr.IndexableDataM{
@@ -325,7 +361,7 @@ func (h *AccessManagementHandler) sendIndexingRequestAfterTransaction(requestId 
 		Timestamp:       time.Now().Format("2006-01-02 15:04:05"),
 		BlockNumber:     0,
 		DynamicFields: map[string]string{
-			"key":              accessReq.Purpose,          // Purpose를 키로 사용
+			"key":              accessReq.Purpose,          // Purpose를 키로 사용 (단순하게)
 			"purpose":          accessReq.Purpose,
 			"organizationName": accessReq.OrganizationName,
 			"resourceOwner":    accessReq.ResourceOwner,
@@ -333,6 +369,7 @@ func (h *AccessManagementHandler) sendIndexingRequestAfterTransaction(requestId 
 			"requestId":        fmt.Sprintf("%d", requestId),
 			"network":          "fabric",
 			"timestamp":        time.Now().Format("2006-01-02 15:04:05"),
+			"realTxId":         realTxId,                   // 실제 TxId 저장
 		},
 		SchemaVersion: "1.0",
 	}

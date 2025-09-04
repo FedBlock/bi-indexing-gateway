@@ -77,4 +77,5 @@ message SearchByPurposeResponse {
     bool success = 1;
     string message = 2;
     repeated AccessRequestData requests = 3;
+    repeated string txIds = 4;  // 인덱스에서 찾은 TxId 목록
 }

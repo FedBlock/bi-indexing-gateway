@@ -162,10 +162,19 @@ func testSearchRequestsByPurpose(client accessapi.AccessManagementServiceClient,
 	}
 	
 	log.Printf("검색 응답: Success=%t, Message=%s", resp.Success, resp.Message)
+
+	// 인덱스에서 찾은 TxId 목록 출력
+	if len(resp.TxIds) > 0 {
+		log.Printf("🔍 인덱스에서 찾은 TxId 목록 (%d개):", len(resp.TxIds))
+		for i, txId := range resp.TxIds {
+			log.Printf("  TxId[%d]: %s", i+1, txId)
+		}
+	}
+	
 	if resp.Success && len(resp.Requests) > 0 {
-		log.Printf("검색된 요청 수: %d", len(resp.Requests))
+		log.Printf("📊 블록체인에서 조회된 요청 수: %d", len(resp.Requests))
 		for i, req := range resp.Requests {
-			log.Printf("요청 %d: Owner=%s, Purpose=%s, Org=%s", 
+			log.Printf("요청 %d: Owner=%s, Purpose=%s, Org=%s",
 				i+1, req.ResourceOwner, req.Purpose, req.OrganizationName)
 		}
 	}

@@ -467,6 +467,7 @@ type SearchByPurposeResponse struct {
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Requests      []*AccessRequestData   `protobuf:"bytes,3,rep,name=requests,proto3" json:"requests,omitempty"`
+	TxIds         []string               `protobuf:"bytes,4,rep,name=txIds,proto3" json:"txIds,omitempty"` // 인덱스에서 찾은 TxId 목록
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -522,6 +523,13 @@ func (x *SearchByPurposeResponse) GetRequests() []*AccessRequestData {
 	return nil
 }
 
+func (x *SearchByPurposeResponse) GetTxIds() []string {
+	if x != nil {
+		return x.TxIds
+	}
+	return nil
+}
+
 var File_accessapi_access_management_proto protoreflect.FileDescriptor
 
 const file_accessapi_access_management_proto_rawDesc = "" +
@@ -555,11 +563,12 @@ const file_accessapi_access_management_proto_rawDesc = "" +
 	"requestIds\x18\x03 \x03(\x04R\n" +
 	"requestIds\"2\n" +
 	"\x16SearchByPurposeRequest\x12\x18\n" +
-	"\apurpose\x18\x01 \x01(\tR\apurpose\"\x87\x01\n" +
+	"\apurpose\x18\x01 \x01(\tR\apurpose\"\x9d\x01\n" +
 	"\x17SearchByPurposeResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x128\n" +
-	"\brequests\x18\x03 \x03(\v2\x1c.accessapi.AccessRequestDataR\brequests2\xc9\x03\n" +
+	"\brequests\x18\x03 \x03(\v2\x1c.accessapi.AccessRequestDataR\brequests\x12\x14\n" +
+	"\x05txIds\x18\x04 \x03(\tR\x05txIds2\xc9\x03\n" +
 	"\x17AccessManagementService\x12L\n" +
 	"\x11SaveAccessRequest\x12\x1c.accessapi.AccessRequestData\x1a\x19.accessapi.AccessResponse\x12V\n" +
 	"\x19UpdateAccessRequestStatus\x12\x1e.accessapi.StatusUpdateRequest\x1a\x19.accessapi.AccessResponse\x12M\n" +

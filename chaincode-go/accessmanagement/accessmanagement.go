@@ -41,12 +41,12 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 	return nil
 }
 
-// 접근 요청 생성
+// 접근 요청 생성 - pvd처럼 실제 TxId 반환
 func (s *SmartContract) SaveRequest(ctx contractapi.TransactionContextInterface,
-	resourceOwner,purpose, organizationName string)(uint64, error){
+	resourceOwner,purpose, organizationName string)(string, error){
 		//1. 입력값 검증
 		if resourceOwner ==""|| purpose == "" || organizationName ==""{
-			return 0, fmt.Errorf("모든 필드를 입력해주세요")
+			return "", fmt.Errorf("모든 필드를 입력해주세요")
 		}
 
 		//2. 새로운 요청 id 생성
@@ -57,15 +57,39 @@ func (s *SmartContract) SaveRequest(ctx contractapi.TransactionContextInterface,
 			requestId = counter + 1
 		}
 
-		//3. 요청 정보 생성
-		requesterID, err := ctx.GetClientIdentity().GetID()
+		//3. 요청 정보 생성 - 클라이언트 ID 상세 분석
+		clientIdentity := ctx.GetClientIdentity()
+		
+		// 전체 클라이언트 ID
+		requesterID, err := clientIdentity.GetID()
 		if err != nil {
-			return 0, fmt.Errorf("클라이언트 ID 가져오기 실패: %v", err)
+			return "", fmt.Errorf("클라이언트 ID 가져오기 실패: %v", err)
 		}
 		
+		// MSPID (조직 정보)
+		mspID, err := clientIdentity.GetMSPID()
+		if err != nil {
+			fmt.Printf("MSPID 가져오기 실패: %v\n", err)
+		} else {
+			fmt.Printf("🏢 클라이언트 조직 MSPID: %s\n", mspID)
+		}
+		
+		// 속성 정보 (있는 경우)
+		attrs, found, _ := clientIdentity.GetAttributeValue("role")
+		if !found {
+			attrs = "없음"
+		}
+		fmt.Printf("👤 클라이언트 ID: %s\n", requesterID)
+		fmt.Printf("🎭 클라이언트 역할: %s\n", attrs)
+		fmt.Printf("📝 요청된 resourceOwner: %s\n", resourceOwner)
+		
+		// 올바른 구분: requester(요청자) ≠ resourceOwner(리소스 소유자)
+		fmt.Printf("✅ 요청자(requester): %s\n", requesterID)
+		fmt.Printf("✅ 리소스 소유자(resourceOwner): %s\n", resourceOwner)
+		
 		request := RequestDetail{
-			Requester: requesterID,  // 수정된 부분
-			ResourceOwner: resourceOwner,
+			Requester: requesterID,        // 실제 클라이언트 ID (요청자)
+			ResourceOwner: resourceOwner,  // 입력받은 리소스 소유자
 			Status: PENDING,
 			Purpose: purpose,
 			OrganizationName: organizationName,
@@ -94,8 +118,12 @@ func (s *SmartContract) SaveRequest(ctx contractapi.TransactionContextInterface,
 		ownerRequestsJSON, _ := json.Marshal(requestIdArray)
 		ctx.GetStub().PutState(ownerKey, ownerRequestsJSON)
 
-		fmt.Printf("요청 생성 완료: ID=%d, 소유자=%s\n", requestId, resourceOwner)
-		return requestId, nil
+		// 실제 Fabric TxId 반환 (pvd 방식처럼)
+		txId := ctx.GetStub().GetTxID()
+		fmt.Printf("요청 생성 완료: ID=%d, 소유자=%s, TxId=%s\n", requestId, resourceOwner, txId)
+		
+		// pvd처럼 실제 TxId를 반환하도록 수정
+		return txId, nil
 }
 
 // 요청 상태 변경 (승인/거부)
