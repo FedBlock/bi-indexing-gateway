@@ -9,6 +9,7 @@ import (
 	"grpc-go/configuration"
 	"grpc-go/handler"
 	"grpc-go/pvdapi/grpc-go/pvdapi"
+	accessapi "grpc-go/accessapi"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
@@ -90,9 +91,17 @@ func main() {
 		grpc.Creds(nil), // TLS 자격 증명 명시적 비활성화
 	)
 	
+	// PVD 서비스 등록
 	pvdapi.RegisterPvdServer(grpcServer, handler.NewPvdServer())
+	
+	// AccessManagement 서비스 등록
+	accessHandler := handler.NewAccessManagementHandler()
+	accessapi.RegisterAccessManagementServiceServer(grpcServer, accessHandler)
 
 	log.Println("Grpc Server will be start. Listen : 19001 (TLS disabled)")
+	log.Println("등록된 서비스:")
+	log.Println("  - PVD Service")
+	log.Println("  - AccessManagement Service")
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatal("An error has occurred while retriving on launch: ", err)
 	}

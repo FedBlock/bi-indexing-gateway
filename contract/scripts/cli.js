@@ -642,7 +642,7 @@ async function createIndexUnified(network, indexType, walletAddress = null) {
       console.log(`📊 Fabric 네트워크 - ${indexType} 인덱스 생성...`);
       
       // Fabric에서 허용된 인덱스 타입 검증
-      const allowedTypes = ['dt', 'speed'];
+      const allowedTypes = ['dt', 'speed', 'purpose'];
       if (!allowedTypes.includes(indexType.toLowerCase())) {
         throw new Error(`Fabric 네트워크에서는 ${allowedTypes.join(', ')} 인덱스만 생성할 수 있습니다. 요청된 타입: ${indexType}`);
       }
@@ -662,9 +662,9 @@ async function createIndexUnified(network, indexType, walletAddress = null) {
         // Fabric 인덱스 생성 요청 (데이터 없이 인덱스만)
         const indexRequest = {
           IndexID: indexType,
-          ColName: 'IndexableData',
+          ColName: indexType === 'purpose' ? 'IndexableData' : 'IndexableData',
           ColIndex: indexType,
-          KeyCol: 'IndexableData',
+          KeyCol: indexType === 'purpose' ? 'IndexableData' : 'IndexableData',
           FilePath: `data/fabric/${indexType}.bf`,
           Network: 'fabric',
           KeySize: 64
@@ -1862,6 +1862,11 @@ async function searchFabricIndexAll(indexType) {
           filePath = 'data/fabric/dt.bf';
           fieldName = 'CollectionDt';
             break;
+          case 'purpose':
+          indexID = 'purpose';
+          filePath = 'data/fabric/purpose.bf';
+          fieldName = 'IndexableData';
+            break;
           default:
           indexID = indexType;
           filePath = `data/fabric/${indexType}.bf`;
@@ -2307,7 +2312,7 @@ async function main() {
             console.error('❌ Fabric 네트워크에서 create-index 명령어는 -type이 필요합니다');
             console.log('예시: node cli.js -cmd=create-index -type=dt -network=fabric');
             console.log('예시: node cli.js -cmd=create-index -type=speed -network=fabric');
-            console.log('📝 Fabric 네트워크에서는 dt, speed 인덱스만 생성 가능합니다');
+            console.log('📝 Fabric 네트워크에서는 dt, speed, purpose 인덱스 생성 가능합니다');
             return;
           }
           await createIndexUnified(network, type);
@@ -2647,59 +2652,6 @@ async function getEvmTxDetails(network, txHash) {
   }
 }
 
-// EVM 전용 Purpose 인덱스 생성 함수
-async function createPurposeIndexEVM(network) {
-  try {
-    console.log(`🔧 ${network} 네트워크에 Purpose 인덱스 생성 중...`);
-    
-    // EVM 네트워크만 지원
-    if (network === 'fabric') {
-      throw new Error('Fabric 네트워크는 지원하지 않습니다. EVM 네트워크를 사용하세요.');
-    }
-    
-    const indexingClient = new IndexingClient({
-      serverAddr: 'localhost:50052',
-      protoPath: PROTO_PATH
-    });
-    
-    await indexingClient.connect();
-    console.log('✅ 인덱싱 서버 연결 성공');
-    
-    const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
-    const indexID = 'purpose';
-    const filePath = `data/${networkDir}/purpose.bf`;
-    
-    const createRequest = {
-      IndexID: indexID,
-      IndexName: `${network.toUpperCase()} Purpose Index`,
-      KeyCol: 'IndexableData',
-      FilePath: filePath,
-      KeySize: 64
-    };
-    
-    console.log(`🔧 인덱스 생성 요청:`, createRequest);
-    
-    const response = await indexingClient.createIndex(createRequest);
-    console.log(`✅ Purpose 인덱스 생성 완료!`);
-    console.log(`📁 인덱스 파일: ${filePath}`);
-    
-    indexingClient.close();
-    
-    return {
-      success: true,
-      network: network,
-      indexType: 'purpose',
-      indexId: indexID,
-      filePath: filePath,
-      message: `${network} Purpose 인덱스 생성 완료`
-    };
-    
-  } catch (error) {
-    console.error(`❌ Purpose 인덱스 생성 실패: ${error.message}`);
-    throw error;
-  }
-}
-
 // EVM 전용 Purpose 기반 인덱싱 함수
 async function addToPurposeIndexEVM(purpose, txHash, network, organizationName = null) {
   try {
@@ -2830,6 +2782,59 @@ async function searchByPurposeEVM(network, purpose) {
     
   } catch (error) {
     console.error(`❌ Purpose 기반 검색 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// EVM 전용 Purpose 인덱스 생성 함수
+async function createPurposeIndexEVM(network) {
+  try {
+    console.log(`🔧 ${network} 네트워크에 Purpose 인덱스 생성 중...`);
+    
+    // EVM 네트워크만 지원
+    if (network === 'fabric') {
+      throw new Error('Fabric 네트워크는 지원하지 않습니다. EVM 네트워크를 사용하세요.');
+    }
+    
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: PROTO_PATH
+    });
+    
+    await indexingClient.connect();
+    console.log('✅ 인덱싱 서버 연결 성공');
+    
+    const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
+    const indexID = 'purpose';
+    const filePath = `data/${networkDir}/purpose.bf`;
+    
+    const createRequest = {
+      IndexID: indexID,
+      IndexName: `${network.toUpperCase()} Purpose Index`,
+      KeyCol: 'IndexableData',
+      FilePath: filePath,
+      KeySize: 64
+    };
+    
+    console.log(`🔧 인덱스 생성 요청:`, createRequest);
+    
+    const response = await indexingClient.createIndex(createRequest);
+    console.log(`✅ Purpose 인덱스 생성 완료!`);
+    console.log(`📁 인덱스 파일: ${filePath}`);
+    
+    indexingClient.close();
+    
+    return {
+      success: true,
+      network: network,
+      indexType: 'purpose',
+      indexId: indexID,
+      filePath: filePath,
+      message: `${network} Purpose 인덱스 생성 완료`
+    };
+    
+  } catch (error) {
+    console.error(`❌ Purpose 인덱스 생성 실패: ${error.message}`);
     throw error;
   }
 }

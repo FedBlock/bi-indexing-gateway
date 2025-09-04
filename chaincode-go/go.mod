@@ -1,4 +1,4 @@
-module pvd
+module chaincode-gotkrwp
 
 go 1.23
 

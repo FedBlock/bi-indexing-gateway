@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package accessapi;
+
+option go_package = "./accessapi";
+
+// AccessManagement 서비스 정의
+service AccessManagementService {
+    // 접근 요청 저장
+    rpc SaveAccessRequest(AccessRequestData) returns (AccessResponse);
+    
+    // 접근 요청 상태 변경
+    rpc UpdateAccessRequestStatus(StatusUpdateRequest) returns (AccessResponse);
+    
+    // 접근 요청 조회
+    rpc GetAccessRequest(RequestQuery) returns (AccessRequestResponse);
+    
+    // 소유자별 요청 목록 조회
+    rpc GetAccessRequestsByOwner(OwnerQuery) returns (RequestListResponse);
+    
+    // Purpose로 요청 검색
+    rpc SearchAccessRequestsByPurpose(SearchByPurposeRequest) returns (SearchByPurposeResponse);
+}
+
+// 접근 요청 데이터
+message AccessRequestData {
+    string resourceOwner = 1;     // 데이터 소유자
+    string purpose = 2;           // 사용 목적
+    string organizationName = 3;  // 조직명
+}
+
+// 상태 변경 요청
+message StatusUpdateRequest {
+    uint64 requestId = 1;  // 요청 ID
+    string status = 2;     // 상태 (APPROVED, REJECTED)
+}
+
+// 요청 조회
+message RequestQuery {
+    uint64 requestId = 1;  // 요청 ID
+}
+
+// 소유자별 조회
+message OwnerQuery {
+    string resourceOwner = 1;  // 데이터 소유자
+}
+
+// 기본 응답
+message AccessResponse {
+    bool success = 1;      // 성공 여부
+    string message = 2;    // 응답 메시지
+    uint64 requestId = 3;  // 요청 ID (생성시에만)
+}
+
+// 요청 상세 응답
+message AccessRequestResponse {
+    bool success = 1;
+    string message = 2;
+    AccessRequestData request = 3;
+    int32 status = 4;  // 0:PENDING, 1:APPROVED, 2:REJECTED
+}
+
+// 요청 목록 응답
+message RequestListResponse {
+    bool success = 1;
+    string message = 2;
+    repeated uint64 requestIds = 3;
+}
+
+// Purpose 검색 요청
+message SearchByPurposeRequest {
+    string purpose = 1;
+}
+
+// Purpose 검색 응답
+message SearchByPurposeResponse {
+    bool success = 1;
+    string message = 2;
+    repeated AccessRequestData requests = 3;
+}

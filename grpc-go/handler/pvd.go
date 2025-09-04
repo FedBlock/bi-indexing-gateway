@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 
-	idxmngr "grpc-go/protos"
+	idxmngr "grpc-go/idxmngr-go/mngrapi"
 )
 
 type PVD_CSV struct {

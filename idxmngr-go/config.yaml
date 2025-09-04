@@ -29,3 +29,33 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: fileidx_org
+      idxname: File_Organization
+      keycol: OrganizationName
+      filepath: organization_file.bf
+      blocknum: 0
+      keysize: 32
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: purpose
+      idxname: ""
+      keycol: IndexableData
+      filepath: data/fabric/purpose.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: purpose
+      idxname: ""
+      keycol: IndexableData
+      filepath: data/fabric/purpose.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

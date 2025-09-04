@@ -17,7 +17,7 @@ import (
 
 	pvd "grpc-go/pvdapi/grpc-go/pvdapi"
 
-	idxmngr "../../idxmngr-go/protos"
+	idxmngr "grpc-go/idxmngr-go/mngrapi"
 
 	"github.com/diegoholiveira/jsonlogic/v3"
 	"github.com/gocarina/gocsv"

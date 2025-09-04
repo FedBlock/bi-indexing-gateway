@@ -1,0 +1,19 @@
+profile:
+  - mspID: Org1MSP
+    cryptoPath: /home/blockchain/fabric-samples/pvd-network/organizations/peerOrganizations/org1.example.com
+    certPath: /users/User1@org1.example.com/msp/signcerts/cert.pem
+    keyPath: /users/User1@org1.example.com/msp/keystore/
+    tlsCertPath: /peers/peer0.org1.example.com/tls/ca.crt
+    peerEndpoint: localhost:7051
+    gatewayPeer: peer0.org1.example.com
+    channelName: pvdchannel
+    chaincodeName: accessmanagement
+  - mspID: Org2MSP
+    cryptoPath: /home/blockchain/fabric-samples/pvd-network/organizations/peerOrganizations/org2.example.com
+    certPath: /users/User1@org2.example.com/msp/signcerts/cert.pem
+    keyPath: /users/User1@org2.example.com/msp/keystore/
+    tlsCertPath: /peers/peer0.org2.example.com/tls/ca.crt
+    peerEndpoint: localhost:9051
+    gatewayPeer: peer0.org2.example.com
+    channelName: pvdchannel
+    chaincodeName: accessmanagement
