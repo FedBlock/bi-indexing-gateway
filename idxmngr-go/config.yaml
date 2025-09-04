@@ -1,28 +1,28 @@
 items:
     - idxid: purpose
-      idxname: HARDHAT-LOCAL Purpose Index
+      idxname: MONAD Purpose Index
       keycol: IndexableData
-      filepath: data/hardhat-local/purpose.bf
+      filepath: data/monad/purpose.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: purpose
-      idxname: HARDHAT-LOCAL Purpose Index
+    - idxid: dt
+      idxname: ""
       keycol: IndexableData
-      filepath: data/hardhat-local/purpose.bf
+      filepath: data/fabric/dt.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: purpose
-      idxname: HARDHAT-LOCAL Purpose Index
+    - idxid: speed
+      idxname: ""
       keycol: IndexableData
-      filepath: data/hardhat-local/purpose.bf
+      filepath: data/fabric/speed.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052

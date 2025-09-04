@@ -962,7 +962,7 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 						txlist = append(txlist, string(value1))
 						log.Printf("Added tx: %s", string(value1))
 					} else {
-						log.Printf("⚠️ Skipped empty value")
+						// log.Printf("⚠️ Skipped empty value")
 					}
 					
 					if nextPointer == nil {

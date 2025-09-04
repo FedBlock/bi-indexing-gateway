@@ -77,8 +77,8 @@ async function runLargeScaleTest() {
     
     console.log('👥 테스트 계정들:');
     console.log(`   🏗️  배포자: ${deployer.address}`);
-    console.log(`   🏢 조직1 (Samsung): ${org1.address}`);
-    console.log(`   🏢 조직2 (LG): ${org2.address}`);
+    // console.log(`   🏢 조직1 (Samsung): ${org1.address}`);
+    // console.log(`   🏢 조직2 (LG): ${org2.address}`);
     console.log(`   👤 사용자1: ${user1.address}`);
     console.log(`   👤 사용자2: ${user2.address}`);
     console.log(`   👤 사용자3: ${user3.address}`);

@@ -156,7 +156,7 @@ func (h PvdServer) PutData(ctx context.Context, req *pvd.SinglePvd) (*pvd.PvdRes
 
 		// 인덱싱은 외부에서 별도로 처리 (mclient.go 사용)
 		// 순환 의존성 방지를 위해 pvd.go에서는 인덱싱하지 않음
-		log.Printf("PVD 데이터 저장 완료. 인덱싱은 mclient.go에서 별도 처리 필요")
+		log.Printf("PVD 데이터 저장 완료")
 
 		return &pvd.PvdResponse{
 			ResponseCode: 200,

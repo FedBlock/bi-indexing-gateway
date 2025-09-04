@@ -96,9 +96,9 @@ async function deployContract(network) {
 
 // PVD 멀티 데이터 저장 (CSV 파일 읽기, Fabric 네트워크)
 async function putPvdMultiData(network, csvFile, batchSize = 1000) {
-  console.log(`🚀 ${network} 네트워크에 CSV 멀티 데이터 저장 시작`);
+  console.log(`🚀 ${network} 네트워크에 CSV 데이터 저장 시작`);
   console.log(`📁 CSV 파일: ${csvFile}`);
-  console.log(`📦 배치 크기: ${batchSize}개씩\n`);
+  // console.log(`📦 배치 크기: ${batchSize}개씩\n`);
 
   if (network !== 'fabric') {
     throw new Error('CSV 멀티 데이터는 Fabric 네트워크에서만 지원됩니다');
@@ -124,7 +124,7 @@ async function putPvdMultiData(network, csvFile, batchSize = 1000) {
     }
     
     const headers = lines[0].split(',');
-    console.log(`📋 CSV 헤더: ${headers.join(', ')}`);
+    // console.log(`📋 CSV 헤더: ${headers.join(', ')}`);
     console.log(`📊 총 데이터 라인: ${lines.length - 1}개\n`);
     
     // 배치로 나누어서 저장
@@ -133,14 +133,14 @@ async function putPvdMultiData(network, csvFile, batchSize = 1000) {
     const totalLines = lines.length - 1;
     const totalBatches = Math.ceil(totalLines / batchSize);
     
-    console.log(`🔄 ${totalBatches}개 배치로 나누어서 저장 시작...\n`);
+    // console.log(`🔄 ${totalBatches}개 배치로 나누어서 저장 시작...\n`);
     
     for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
       const start = batchIndex * batchSize + 1; // +1 to skip header
       const end = Math.min(start + batchSize, lines.length);
       const batchLines = lines.slice(start, end);
       
-      console.log(`📦 배치 ${batchIndex + 1}/${totalBatches}: ${batchLines.length}개 데이터 저장 중...`);
+      // console.log(`📦 배치 ${batchIndex + 1}/${totalBatches}: ${batchLines.length}개 데이터 저장 중...`);
       
       // 개별 방식으로 처리
       if (type === 'single') {
@@ -203,13 +203,13 @@ async function putPvdMultiData(network, csvFile, batchSize = 1000) {
               
               try {
                 // 순차적으로 인덱싱 처리 (동시 연결 문제 방지)
-                console.log(`🔄 OBU ${pvdData.obuId} Speed 인덱싱 시작...`);
+                // console.log(`🔄 OBU ${pvdData.obuId} Speed 인덱싱 시작...`);
                 const speedResult = await pvdClient.putSpeedIndex(pvdData);
                 
                                 // 짧은 지연 후 DT 인덱싱 (연결 충돌 방지)
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                console.log(`🔄 OBU ${pvdData.obuId} DT 인덱싱 시작...`);
+                // console.log(`🔄 OBU ${pvdData.obuId} DT 인덱싱 시작...`);
                 const dtResult = await pvdClient.putDtIndex(pvdData);
                 
                 console.log(`📊 OBU ${pvdData.obuId} 인덱싱 처리 완료:`);
@@ -241,10 +241,10 @@ async function putPvdMultiData(network, csvFile, batchSize = 1000) {
         }
       }
       
-      console.log(`\n✅ 배치 ${batchIndex + 1} 완료\n`);
+      // console.log(`\n✅ 배치 ${batchIndex + 1} 완료\n`);
     }
     
-    console.log('\n🎉 CSV 멀티 데이터 저장 완료!');
+    // console.log('\n🎉 CSV 멀티 데이터 저장 완료!');
     console.log(`📊 총 ${totalLines}개 중 ${successCount}개 성공, ${errorCount}개 실패`);
     
     return {
@@ -373,9 +373,9 @@ async function putPvdSingleCsvData(network, csvFile) {
             pvdClient.putSpeedIndex(pvdData),
             pvdClient.putDtIndex(pvdData)
           ]).then((results) => {
-            console.log(`📊 인덱싱 처리 완료:`);
-            console.log(`   - Speed: ${results[0].status === 'fulfilled' ? '✅' : '❌'}`);
-            console.log(`   - DT: ${results[1].status === 'fulfilled' ? '✅' : '❌'}`);
+            // console.log(`📊 인덱싱 처리 완료:`);
+            // console.log(`   - Speed: ${results[0].status === 'fulfilled' ? '✅' : '❌'}`);
+            // console.log(`   - DT: ${results[1].status === 'fulfilled' ? '✅' : '❌'}`);
           }).catch((error) => {
             console.warn(`⚠️ 인덱싱 처리 중 오류: ${error.message}`);
           });
@@ -469,15 +469,15 @@ async function reindexPvdData(network, indexType, obuId) {
 // PVD 데이터 저장 함수
 async function putPvdData(network, obuId, pvdData = null) {
   try {
-    console.log(`📝 ${network} 네트워크에 PVD 데이터 저장 중...`);
+    // console.log(`📝 ${network} 네트워크에 PVD 데이터 저장 중...`);
     
     if (network === 'fabric') {
-      console.log('🔗 Fabric 네트워크 - PVD 서버 연결 중...');
+      // console.log('🔗 Fabric 네트워크 - PVD 서버 연결 중...');
       
       // PVD 클라이언트 사용
       const pvdClient = new PvdClient('localhost:19001');
       await pvdClient.connect();
-      console.log('✅ PVD 서버 연결 성공');
+      // console.log('✅ PVD 서버 연결 성공');
       
       // CSV 데이터가 있으면 사용, 없으면 기본값 생성
       let csvPvdData;
@@ -553,7 +553,7 @@ async function putPvdData(network, obuId, pvdData = null) {
       const result = await pvdClient.putData(csvPvdData);
       
       pvdClient.close();
-      console.log('✅ PVD 데이터 저장 완료:', result);
+      // console.log('✅ PVD 데이터 저장 완료:', result);
       
       // idxmngr 서버에도 데이터 전송 (인덱싱용)
       try {
@@ -568,10 +568,10 @@ async function putPvdData(network, obuId, pvdData = null) {
         await indexingClient.connect();
         console.log('✅ idxmngr 서버 연결 성공');
         
-        // 인덱싱 요청 데이터 구성 (putPvdMultiData와 동일한 구조)
+        // pvd_data 인덱싱 제거됨 - speed와 dt 인덱스만 사용
         const indexRequest = {
-          IndexID: 'pvd_data',
-          BcList: [{
+          IndexID: 'pvd_data', // 제거됨
+          BcList: [{ // 제거됨
             TxId: `pvd_${csvPvdData.obuId}_${Date.now()}`,
             KeyCol: 'IndexableData',
             IndexableData: {
@@ -600,19 +600,19 @@ async function putPvdData(network, obuId, pvdData = null) {
           Network: 'fabric'
         };
         
-        console.log('🔧 인덱싱 요청 데이터 검증:', {
-          IndexID: indexRequest.IndexID,
-          ColName: indexRequest.ColName,
-          KeySize: indexRequest.KeySize,
-          FilePath: indexRequest.FilePath,
-          Network: indexRequest.Network
-        });
+        // console.log('🔧 인덱싱 요청 데이터 검증:', {
+        //   IndexID: indexRequest.IndexID,
+        //   ColName: indexRequest.ColName,
+        //   KeySize: indexRequest.KeySize,
+        //   FilePath: indexRequest.FilePath,
+        //   Network: indexRequest.Network
+        // });
         
         console.log('📤 idxmngr 서버에 인덱싱 요청 전송 중...');
         
         // putPvdMultiData와 동일한 방식으로 insertData 호출
-        const indexResult = await indexingClient.insertData(indexRequest);
-        console.log('✅ idxmngr 서버 인덱싱 완료:', indexResult);
+        // const indexResult = await indexingClient.insertData(indexRequest); // pvd_data 인덱싱 제거
+        // console.log('ℹ️ pvd_data 인덱싱은 건너뜁니다.');
         
         await indexingClient.close();
         
@@ -657,7 +657,7 @@ async function createIndexUnified(network, indexType, walletAddress = null) {
       
       try {
         await indexingClient.connect();
-        console.log('✅ Fabric 인덱싱 서버 연결 성공');
+        // console.log('✅ Fabric 인덱싱 서버 연결 성공');
         
         // Fabric 인덱스 생성 요청 (데이터 없이 인덱스만)
         const indexRequest = {
@@ -964,7 +964,7 @@ class PvdClient {
         serverAddr: this.serverAddr
       };
       
-      console.log('✅ PVD gRPC 서버 연결 성공');
+      // console.log('✅ PVD gRPC 서버 연결 성공');
       return true;
       
     } catch (error) {
@@ -1051,7 +1051,7 @@ class PvdClient {
       TxId: Array.isArray(txId) ? txId : [txId]
     };
     
-    console.log('📤 gRPC 요청 데이터:', JSON.stringify(request, null, 2));
+    // console.log('📤 gRPC 요청 데이터:', JSON.stringify(request, null, 2));
     
     return new Promise((resolve, reject) => {
       // getDataByTxID는 스트리밍 메서드 (proto에서 소문자로 정의됨)
@@ -1173,7 +1173,7 @@ class PvdClient {
       });
       
       await indexingClient.connect();
-      console.log('✅ 인덱싱 클라이언트 연결 성공');
+      // console.log('✅ 인덱싱 클라이언트 연결 성공');
       
       // Speed 인덱스 삽입
       const speedIndexData = {
@@ -1240,14 +1240,14 @@ class PvdClient {
     // client.go의 putData 함수 (실제 gRPC 호출)
   async putData(pvdData) {
     try {
-      console.log('📝 PVD 데이터 저장 중...');
+      // console.log('📝 PVD 데이터 저장 중...');
       
       if (!this.grpcClient) {
         throw new Error('gRPC 클라이언트가 연결되지 않음. connect() 메서드를 먼저 호출하세요.');
       }
       
       // client.go의 createData 함수와 동일한 방식으로 요청
-      console.log('📝 client.go createData 방식으로 PVD 데이터 저장 중...');
+      // console.log('📝 client.go createData 방식으로 PVD 데이터 저장 중...');
       
       const chainInfo = {
         ChannelName: 'pvdchannel',
@@ -1294,10 +1294,10 @@ class PvdClient {
         Pvd: grpcPvdData
       };
       
-      console.log('📤 client.go createData 요청 구조:', JSON.stringify(request, null, 2));
+      // console.log('📤 client.go createData 요청 구조:', JSON.stringify(request, null, 2));
       
       // 실제 gRPC putData 호출
-      console.log('📤 gRPC 요청 데이터:', JSON.stringify(request, null, 2));
+      // console.log('📤 gRPC 요청 데이터:', JSON.stringify(request, null, 2));
       
       return new Promise((resolve, reject) => {
         this.grpcClient.putData(request, (error, response) => {
@@ -1386,7 +1386,7 @@ class PvdClient {
   // Speed 인덱스에 데이터 저장
   async putSpeedIndex(pvdData) {
     try {
-      console.log(`🔍 Speed 인덱스에 저장 중: ${pvdData.speed}`);
+      // console.log(`🔍 Speed 인덱스에 저장 중: ${pvdData.speed}`);
       
       // 인덱싱 서버를 통해 Speed 인덱스에 저장
       const indexingClient = new FabricIndexingClient({
@@ -1395,7 +1395,7 @@ class PvdClient {
       });
       
       await indexingClient.connect();
-      console.log(`✅ Speed 인덱싱 클라이언트 연결 성공`);
+      // console.log(`✅ Speed 인덱싱 클라이언트 연결 성공`);
       
       // 타임아웃 설정 (10초)
       const timeoutPromise = new Promise((_, reject) => {
@@ -1415,7 +1415,7 @@ class PvdClient {
         Network: 'fabric'
       };
       
-      console.log(`📤 Speed 인덱싱 요청 전송 중...`);
+      // console.log(`📤 Speed 인덱싱 요청 전송 중...`);
       
       // 타임아웃과 함께 실행
       const result = await Promise.race([
@@ -1423,7 +1423,7 @@ class PvdClient {
         timeoutPromise
       ]);
       
-      console.log(`📥 Speed 인덱싱 응답:`, JSON.stringify(result, null, 2));
+      // console.log(`📥 Speed 인덱싱 응답:`, JSON.stringify(result, null, 2));
       
       // 명시적으로 연결 종료
       await indexingClient.close();
@@ -1440,9 +1440,9 @@ class PvdClient {
   // Speed 인덱싱 처리 (재시도 로직 포함)
   async processSpeedIndex(pvdData) {
     try {
-      console.log(`🔄 Speed 인덱싱 처리 시작...`);
+      // console.log(`🔄 Speed 인덱싱 처리 시작...`);ㄴㄴ
       const result = await this.retryIndexing(pvdData, 'speed', 3);
-      console.log(`📊 Speed 인덱싱 처리 완료:`, result.success ? '✅' : '❌');
+      // console.log(`📊 Speed 인덱싱 처리 완료:`, result.success ? '✅' : '❌');
       return result;
     } catch (error) {
       console.error(`❌ Speed 인덱싱 처리 실패:`, error.message);
@@ -1453,9 +1453,9 @@ class PvdClient {
   // DT 인덱싱 처리 (재시도 로직 포함)
   async processDtIndex(pvdData) {
     try {
-      console.log(`🔄 DT 인덱싱 처리 시작...`);
+      // console.log(`🔄 DT 인덱싱 처리 시작...`);
       const result = await this.retryIndexing(pvdData, 'dt', 3);
-      console.log(`📊 DT 인덱싱 처리 완료:`, result.success ? '✅' : '❌');
+      // console.log(`📊 DT 인덱싱 처리 완료:`, result.success ? '✅' : '❌');
       return result;
     } catch (error) {
       console.error(`❌ DT 인덱싱 처리 실패:`, error.message);
@@ -1499,7 +1499,7 @@ class PvdClient {
   // DT 인덱스에 데이터 저장 (Speed와 동일한 로직)
   async putDtIndex(pvdData) {
     try {
-      console.log(`🔍 DT 인덱스에 저장 중: ${pvdData.collectionDt}`);
+      // console.log(`🔍 DT 인덱스에 저장 중: ${pvdData.collectionDt}`);
       
       // 인덱싱 서버를 통해 DT 인덱스에 저장
       const indexingClient = new FabricIndexingClient({
@@ -1508,7 +1508,7 @@ class PvdClient {
       });
       
       await indexingClient.connect();
-      console.log(`✅ DT 인덱싱 클라이언트 연결 성공`);
+      // console.log(`✅ DT 인덱싱 클라이언트 연결 성공`);
       
       const indexRequest = {
         IndexID: 'dt',
@@ -1523,13 +1523,13 @@ class PvdClient {
         Network: 'fabric'
       };
       
-      console.log(`📤 DT 인덱싱 요청 전송 중...`);
+      // console.log(`📤 DT 인덱싱 요청 전송 중...`);
       const result = await indexingClient.insertData(indexRequest);
-      console.log(`📥 DT 인덱싱 응답:`, JSON.stringify(result, null, 2));
+      // console.log(`📥 DT 인덱싱 응답:`, JSON.stringify(result, null, 2));
       
       // 명시적으로 연결 종료
       await indexingClient.close();
-      console.log(`🔌 DT 인덱싱 클라이언트 연결 종료`);
+      // console.log(`🔌 DT 인덱싱 클라이언트 연결 종료`);
       
       return { success: true, message: 'DT 인덱스 저장 완료' };
       
@@ -1542,7 +1542,7 @@ class PvdClient {
   close() {
     if (this.client) {
       this.client.connected = false;
-      console.log('🔌 PVD 서버 연결 종료');
+      // console.log('🔌 PVD 서버 연결 종료');
     }
   }
 }
@@ -1880,7 +1880,7 @@ async function searchFabricIndexAll(indexType) {
     });
     
     await indexingClient.connect();
-    console.log('✅ Fabric 인덱싱 서버 연결 성공');
+    // console.log('✅ Fabric 인덱싱 서버 연결 성공');
     
     // 전체 데이터 조회 요청 (Range로 모든 데이터 조회)
     const searchRequest = {
@@ -1977,7 +1977,7 @@ async function addToWalletIndex(walletAddress, txHash, network, organizationName
         KeyCol: 'IndexableData',
         IndexableData: {
           TxId: txHash,
-          ContractAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+          ContractAddress: network === 'monad' ? '0x23EC7332865ecD204539f5C3535175C22D2C6388' : '0x5FbDB2315678afecb367f032d93F642f64180aa3',
           EventName: 'AccessRequestsSaved',
           Timestamp: new Date().toISOString(),
           BlockNumber: 0,
@@ -2040,7 +2040,10 @@ async function requestData(network) {
       signer = new ethers.Wallet(networkConfig.accounts[0], provider);
     }
     
-    const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3'; // Hardhat 배포된 주소
+    // 네트워크별 컨트랙트 주소 설정
+    const contractAddress = network === 'monad' 
+      ? '0x23EC7332865ecD204539f5C3535175C22D2C6388'  // Monad 테스트넷
+      : '0x5FbDB2315678afecb367f032d93F642f64180aa3'; // Hardhat 로컬
     
     // AccessManagement 컨트랙트 연결
     const AccessManagement = await ethers.getContractFactory('AccessManagement', signer);
@@ -2049,49 +2052,66 @@ async function requestData(network) {
     console.log(`📝 요청자 주소: ${signer.address}`);
     console.log(`🔗 컨트랙트 주소: ${contractAddress}`);
     
-    // BIMATRIX 기업의 수면 & 심박수 데이터 요청: 총 5개 요청 (수면 3개, 심박수 2개)
-    const requests = [
-      // BIMATRIX → User1 - 수면 데이터
-      {
-        resourceOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // user1 주소
+    // 네트워크별 resourceOwner 주소 설정 (총 4개 주소)
+    const resourceOwners = network === 'monad' 
+      ? [
+          '0x2630ffE517DFC9b0112317a2EC0AB4cE2a59CEb8',  // Monad 전용 주소
+          '0xEeA02c9F24Bb2310167Cf2C9c3fD110348f98398',
+          '0xB537086B2b20E864cEfFc8D2a32e2f037467661E',
+          '0xfA29F5d9f7320b240Fa7F239466FDBf260d7BaB5'
+        ]
+      : [
+          '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',  // Hardhat 기본 주소
+          '0xEeA02c9F24Bb2310167Cf2C9c3fD110348f98398',
+          '0xB537086B2b20E864cEfFc8D2a32e2f037467661E',
+          '0xfA29F5d9f7320b240Fa7F239466FDBf260d7BaB5'
+        ];
+    
+    // BIMATRIX 기업의 건강 데이터 요청: 총 100개 요청 (수면 34개, 심박수 33개, 혈압 33개)
+    const requests = [];
+    
+    // 수면 데이터 34개 생성 (4개 주소로 순환)
+    for (let i = 0; i < 34; i++) {
+      requests.push({
+        resourceOwner: resourceOwners[i % 4], // 4개 주소로 순환
         purpose: '수면',
         organizationName: 'BIMATRIX'
-      },
-      
-      // BIMATRIX → User2 - 수면 데이터
-      {
-        resourceOwner: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65', // user2 주소
-        purpose: '수면',
-        organizationName: 'BIMATRIX'
-      },
-      
-      // BIMATRIX → User3 - 수면 데이터
-      {
-        resourceOwner: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc', // user3 주소
-        purpose: '수면',
-        organizationName: 'BIMATRIX'
-      },
-      
-      // BIMATRIX → User1 - 심박수 데이터
-      {
-        resourceOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // user1 주소
+      });
+    }
+    
+    // 심박수 데이터 33개 생성 (4개 주소로 순환)
+    for (let i = 0; i < 33; i++) {
+      requests.push({
+        resourceOwner: resourceOwners[i % 4], // 4개 주소로 순환
         purpose: '심박수',
         organizationName: 'BIMATRIX'
-      },
-      
-      // BIMATRIX → User2 - 심박수 데이터
-      {
-        resourceOwner: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65', // user2 주소
-        purpose: '심박수',
+      });
+    }
+    
+    // 혈압 데이터 33개 생성 (4개 주소로 순환)
+    for (let i = 0; i < 33; i++) {
+      requests.push({
+        resourceOwner: resourceOwners[i % 4], // 4개 주소로 순환
+        purpose: '혈압',
         organizationName: 'BIMATRIX'
-      }
-    ];
+      });
+    }
+    
+    console.log(`\n📊 데이터 요청 구성:`);
+    console.log(`   👤 resourceOwner 1: ${resourceOwners[0]}`);
+    console.log(`   👤 resourceOwner 2: ${resourceOwners[1]}`);
+    console.log(`   👤 resourceOwner 3: ${resourceOwners[2]}`);
+    console.log(`   👤 resourceOwner 4: ${resourceOwners[3]}`);
+    console.log(`   🛌 수면: 34개 (4개 주소로 순환)`);
+    console.log(`   ❤️ 심박수: 33개 (4개 주소로 순환)`);
+    console.log(`   🩺 혈압: 33개 (4개 주소로 순환)`);
+    console.log(`   📋 총 100개 요청`);
     
     const results = [];
     
     for (let i = 0; i < requests.length; i++) {
       const req = requests[i];
-      console.log(`\n📋 데이터 요청 ${i + 1}/5: ${req.organizationName} → ${req.resourceOwner.slice(0,10)}... (${req.purpose})`);
+      console.log(`\n📋 데이터 요청 ${i + 1}/100: ${req.organizationName} → ${req.resourceOwner.slice(0,10)}... (${req.purpose})`);
       
       try {
         // 컨트랙트의 saveRequest 함수 호출
@@ -2160,17 +2180,17 @@ async function requestData(network) {
     const sleepResults = results.filter(r => r.purpose === '수면');
     const heartResults = results.filter(r => r.purpose === '심박수');
     
-    console.log('😴 수면 데이터 요청 (Samsung):');
-    sleepResults.forEach((result, index) => {
-      console.log(`   ${index + 1}. ${result.resourceOwner.slice(0,10)}... → ${result.purpose}: ${result.success ? '✅' : '❌'}`);
-      if (result.success) console.log(`      트랜잭션: ${result.txHash}`);
-    });
+    // console.log('😴 수면 데이터 요청 (Samsung):');
+    // sleepResults.forEach((result, index) => {
+    //   console.log(`   ${index + 1}. ${result.resourceOwner.slice(0,10)}... → ${result.purpose}: ${result.success ? '✅' : '❌'}`);
+    //   if (result.success) console.log(`      트랜잭션: ${result.txHash}`);
+    // });
     
-    console.log('\n💓 심박수 데이터 요청 (LG):');
-    heartResults.forEach((result, index) => {
-      console.log(`   ${index + 1}. ${result.resourceOwner.slice(0,10)}... → ${result.purpose}: ${result.success ? '✅' : '❌'}`);
-      if (result.success) console.log(`      트랜잭션: ${result.txHash}`);
-    });
+    // console.log('\n💓 심박수 데이터 요청 (LG):');
+    // heartResults.forEach((result, index) => {
+    //   console.log(`   ${index + 1}. ${result.resourceOwner.slice(0,10)}... → ${result.purpose}: ${result.success ? '✅' : '❌'}`);
+    //   if (result.success) console.log(`      트랜잭션: ${result.txHash}`);
+    // });
     
     const successCount = results.filter(r => r.success).length;
     console.log(`\n✅ 성공: ${successCount}/${results.length}, ❌ 실패: ${results.length - successCount}/${results.length}`);
@@ -2264,8 +2284,8 @@ async function getFabricTxDetails(txId) {
 
 // ===== 메인 함수 =====
 async function main() {
-  console.log(`🔧 BI-Index CLI - 명령어: ${cmd}, 네트워크: ${network}`);
-  console.log('=====================================');
+  // console.log(`🔧 BI-Index CLI - 명령어: ${cmd}, 네트워크: ${network}`);
+  // console.log('=====================================');
   
   try {
     switch (cmd) {
@@ -2319,7 +2339,7 @@ async function main() {
       case 'putdata':
         if (type === 'single') {
           // CSV 데이터 개별 처리
-          const csvFile = value || 'pvd_hist_10.csv';
+          const csvFile = value || 'pvd_hist_100.csv';
           const batchSize = process.argv.find(arg => arg.startsWith('-batch='))?.split('=')[1] || '1000';
           await putPvdMultiData(network, csvFile, parseInt(batchSize));
         } else {
@@ -2369,9 +2389,9 @@ async function main() {
           console.log('지원되는 네트워크: fabric (Hyperledger Fabric), hardhat-local (EVM)');
           return;
         }
-        if (network !== 'fabric' && network !== 'hardhat-local' && network !== 'hardhat') {
-          console.error('❌ 트랜잭션 상세 조회는 fabric 또는 hardhat-local 네트워크에서만 지원됩니다');
-          console.log('지원되는 네트워크: fabric, hardhat-local, hardhat');
+        if (network !== 'fabric' && network !== 'hardhat-local' && network !== 'hardhat' && network !== 'monad') {
+          console.error('❌ 트랜잭션 상세 조회는 fabric, hardhat-local, hardhat, monad 네트워크에서만 지원됩니다');
+          console.log('지원되는 네트워크: fabric, hardhat-local, hardhat, monad');
           return;
         }
         await getTxDetails(network, value);
@@ -2548,18 +2568,18 @@ async function getEvmTxDetails(network, txHash) {
       throw new Error(`트랜잭션 영수증을 찾을 수 없습니다: ${txHash}`);
     }
     
-    console.log('\\n🎉 트랜잭션 상세 조회 성공!');
-    console.log('\\n📋 === 기본 정보 ===');
+    // console.log('트랜잭션 상세 조회 성공!');
+    console.log('=== 트랜잭션 상세 정보 ===');
     console.log(`🔗 트랜잭션 해시: ${tx.hash}`);
     console.log(`📦 블록 번호: ${receipt.blockNumber}`);
-    console.log(`📍 블록 해시: ${receipt.blockHash}`);
-    console.log(`📊 트랜잭션 인덱스: ${receipt.index}`);
+    // console.log(`📍 블록 해시: ${receipt.blockHash}`);
+    // console.log(`📊 트랜잭션 인덱스: ${receipt.index}`);
     console.log(`👤 발신자: ${tx.from}`);
     console.log(`🎯 수신자: ${tx.to}`);
-    console.log(`💰 값: ${ethers.formatEther(tx.value)} ETH`);
-    console.log(`⛽ 가스 한도: ${tx.gasLimit.toString()}`);
-    console.log(`💸 가스 가격: ${ethers.formatUnits(tx.gasPrice, 'gwei')} Gwei`);
-    console.log(`⛽ 사용된 가스: ${receipt.gasUsed.toString()}`);
+    // console.log(`💰 값: ${ethers.formatEther(tx.value)} ETH`);
+    // console.log(`⛽ 가스 한도: ${tx.gasLimit.toString()}`);
+    // console.log(`💸 가스 가격: ${ethers.formatUnits(tx.gasPrice, 'gwei')} Gwei`);
+    // console.log(`⛽ 사용된 가스: ${receipt.gasUsed.toString()}`);
     console.log(`✅ 상태: ${receipt.status === 1 ? '성공' : '실패'}`);
     
     // 3. AccessManagement 컨트랙트 ABI 로드 및 디코딩
@@ -2567,7 +2587,7 @@ async function getEvmTxDetails(network, txHash) {
       const AccessManagementArtifact = require('../artifacts/contracts/AccessManagement.sol/AccessManagement.json');
       const contractInterface = new ethers.Interface(AccessManagementArtifact.abi);
       
-      console.log('\\n📝 === 함수 호출 정보 ===');
+      // console.log('\\n📝 === 함수 호출 정보 ===');
       
       // 4. 입력 데이터 디코딩
       if (tx.data && tx.data !== '0x') {
@@ -2577,13 +2597,13 @@ async function getEvmTxDetails(network, txHash) {
             value: tx.value 
           });
           
-          console.log(`🔧 함수명: ${decodedData.name}`);
-          console.log(`📊 매개변수:`);
+          // console.log(`🔧 함수명: ${decodedData.name}`);
+          // console.log(`📊 매개변수:`);
           
-          decodedData.args.forEach((arg, index) => {
-            const param = decodedData.fragment.inputs[index];
-            console.log(`   ${param.name} (${param.type}): ${arg}`);
-          });
+          // decodedData.args.forEach((arg, index) => {
+          //   const param = decodedData.fragment.inputs[index];
+          //   console.log(`   ${param.name} (${param.type}): ${arg}`);
+          // });
           
         } catch (decodeError) {
           console.log(`⚠️ 함수 호출 데이터 디코딩 실패: ${decodeError.message}`);
@@ -2592,7 +2612,7 @@ async function getEvmTxDetails(network, txHash) {
       
       // 5. 이벤트 로그 디코딩
       if (receipt.logs && receipt.logs.length > 0) {
-        console.log('\\n🎯 === 이벤트 로그 ===');
+        console.log(' === 이벤트 로그 ===');
         
         receipt.logs.forEach((log, index) => {
           try {
@@ -2608,13 +2628,15 @@ async function getEvmTxDetails(network, txHash) {
             });
             
           } catch (logError) {
-            console.log(`\\n⚠️ 로그 ${index + 1} 디코딩 실패`);
+            console.log(`⚠️ 로그 ${index + 1} 디코딩 실패`);
           }
         });
+      } else {
+        console.log("⚠️ 이벤트 로그가 없습니다");
       }
       
     } catch (abiError) {
-      console.log(`\\n⚠️ ABI 로드 실패: ${abiError.message}`);
+      console.log(`⚠️ ABI 로드 실패: ${abiError.message}`);
     }
     
     return { success: true, transaction: tx, receipt: receipt };
@@ -2707,7 +2729,7 @@ async function addToPurposeIndexEVM(purpose, txHash, network, organizationName =
         KeyCol: 'IndexableData',
         IndexableData: {
           TxId: txHash,
-          ContractAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+          ContractAddress: network === 'monad' ? '0x23EC7332865ecD204539f5C3535175C22D2C6388' : '0x5FbDB2315678afecb367f032d93F642f64180aa3',
           EventName: 'AccessRequestsSaved',
           Timestamp: new Date().toISOString(),
           BlockNumber: 0,
@@ -2774,7 +2796,7 @@ async function searchByPurposeEVM(network, purpose) {
       ComOp: 'Eq'
     };
     
-    console.log(`🔧 검색 요청:`, searchRequest);
+    // console.log(`🔧 검색 요청:`, searchRequest);
     
     const result = await indexingClient.searchData(searchRequest);
     

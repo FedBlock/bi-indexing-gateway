@@ -32,7 +32,7 @@ class FabricIndexingClient {
       });
       
       this.serviceDefinition = grpc.loadPackageDefinition(packageDefinition);
-      console.log('✅ Proto 파일 로드 완료');
+      // console.log('✅ Proto 파일 로드 완료');
       return true;
     } catch (error) {
       console.error('❌ Proto 파일 로드 실패:', error.message);
@@ -45,7 +45,7 @@ class FabricIndexingClient {
    */
   async connect() {
     try {
-      console.log(`🔗 Fabric 인덱싱 서버 연결 시도: ${this.serverAddr}`);
+      // console.log(`🔗 Fabric 인덱싱 서버 연결 시도: ${this.serverAddr}`);
       
       // Proto 파일 로드
       this.loadProto();
@@ -60,7 +60,7 @@ class FabricIndexingClient {
         // 연결 테스트
         await this.testConnection();
         this.connected = true;
-        console.log('✅ Fabric 인덱싱 서버 연결 성공');
+        // console.log('✅ Fabric 인덱싱 서버 연결 성공');
         return true;
       } else {
         throw new Error('Proto 서비스 정의를 찾을 수 없습니다');
@@ -143,12 +143,12 @@ class FabricIndexingClient {
         throw new Error('서버에 연결되지 않음. connect() 메서드를 먼저 호출하세요.');
       }
 
-      console.log(`📊 Fabric 데이터 인덱싱 중: ${indexData.IndexID}`);
+      // console.log(`📊 Fabric 데이터 인덱싱 중: ${indexData.IndexID}`);
       
       // KeySize 필드가 없으면 기본값 설정
       if (!indexData.KeySize) {
         indexData.KeySize = 64;
-        console.log(`⚠️ KeySize가 설정되지 않아 기본값 64로 설정`);
+        // console.log(`⚠️ KeySize가 설정되지 않아 기본값 64로 설정`);
       }
       
       // 필수 필드 검증
@@ -156,13 +156,13 @@ class FabricIndexingClient {
         throw new Error('필수 필드가 누락되었습니다: IndexID, ColName, FilePath');
       }
       
-      console.log(`🔧 인덱싱 요청 데이터:`, {
-        IndexID: indexData.IndexID,
-        ColName: indexData.ColName,
-        KeySize: indexData.KeySize,
-        FilePath: indexData.FilePath,
-        Network: indexData.Network
-      });
+      // console.log(`🔧 인덱싱 요청 데이터:`, {
+      //   IndexID: indexData.IndexID,
+      //   ColName: indexData.ColName,
+      //   KeySize: indexData.KeySize,
+      //   FilePath: indexData.FilePath,
+      //   Network: indexData.Network
+      // });
       
       return new Promise((resolve, reject) => {
         // 스트림 방식으로 데이터 전송 (idxmngr 서버가 스트림을 기대함)
@@ -171,8 +171,8 @@ class FabricIndexingClient {
             console.error(`❌ Fabric 데이터 인덱싱 실패: ${error.message}`);
             reject(error);
           } else {
-            console.log(`✅ Fabric 데이터 인덱싱 완료: ${indexData.IndexID}`);
-            console.log(`📁 인덱스 파일: ${indexData.FilePath}`);
+            // console.log(`✅ Fabric 데이터 인덱싱 완료: ${indexData.IndexID}`);
+            // console.log(`📁 인덱스 파일: ${indexData.FilePath}`);
             console.log(`📊 인덱싱된 데이터 수: ${indexData.BcList ? indexData.BcList.length : 0}`);
             resolve(response);
           }
@@ -190,9 +190,9 @@ class FabricIndexingClient {
           BcList: indexData.BcList
         };
         
-        console.log(`📤 스트림으로 데이터 전송: ${indexData.IndexID}`);
-        console.log(`🔧 전송 데이터 KeySize: ${enhancedIndexData.KeySize} (타입: ${typeof enhancedIndexData.KeySize})`);
-        console.log(`🔧 전체 전송 데이터:`, JSON.stringify(enhancedIndexData, null, 2));
+        // console.log(`📤 스트림으로 데이터 전송: ${indexData.IndexID}`);
+        // console.log(`🔧 전송 데이터 KeySize: ${enhancedIndexData.KeySize} (타입: ${typeof enhancedIndexData.KeySize})`);
+        // console.log(`🔧 전체 전송 데이터:`, JSON.stringify(enhancedIndexData, null, 2));
         
         // KeySize가 0이 아닌지 확인
         if (enhancedIndexData.KeySize <= 0) {
@@ -350,7 +350,7 @@ class FabricIndexingClient {
     if (this.client) {
       this.client.close();
       this.connected = false;
-      console.log('🔌 Fabric 인덱싱 서버 연결 종료');
+      // console.log('🔌 Fabric 인덱싱 서버 연결 종료');
     }
   }
 }

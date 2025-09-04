@@ -44,7 +44,7 @@ class IndexingClient {
       );
       
       this.isConnected = true;
-      console.log(`✅ Connected to idxmngr server at ${this.config.serverAddr}`);
+      // console.log(`✅ Connected to idxmngr server at ${this.config.serverAddr}`);
     } catch (error) {
       console.error(`❌ Failed to connect: ${error.message}`);
       this.isConnected = false;

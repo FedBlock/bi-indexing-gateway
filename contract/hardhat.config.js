@@ -8,7 +8,7 @@ module.exports = {
   // 배포된 컨트랙트 주소들
   contractAddresses: {
     hardhat: "0x5FbDB2315678afecb367f032d93F642f64180aa3", // Hardhat 로컬
-    monadTest: "0x4D393E83C47AFFA1eE8eaB8eFCcBD0d2e1835F97", // Monad 테스트넷
+    monadTest: "0x23EC7332865ecD204539f5C3535175C22D2C6388", // Monad 테스트넷
   },
   
   networks: {
