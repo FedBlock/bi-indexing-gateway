@@ -406,65 +406,7 @@ async function putPvdSingleCsvData(network, csvFile) {
   }
 }
 
-// 수동 인덱싱 함수 (인덱싱 실패 시 사용)
-async function reindexPvdData(network, indexType, obuId) {
-  try {
-    console.log(`🔧 ${network} 네트워크에서 ${obuId}의 ${indexType} 인덱싱 재처리 시작...`);
-    
-    if (network !== 'fabric') {
-      throw new Error('수동 인덱싱은 Fabric 네트워크에서만 지원됩니다');
-    }
-    
-    // 1. 먼저 Fabric에서 PVD 데이터 조회
-    const pvdClient = new PvdClient('localhost:19001');
-    await pvdClient.connect();
-    console.log('✅ PVD 서버 연결 성공');
-    
-    try {
-      // 체인코드에서 데이터 조회
-      const chainInfo = {
-        channelName: 'pvdchannel',
-        chaincode: 'pvd'
-      };
-      
-      const worldStateResult = await pvdClient.getWorldState(chainInfo);
-      console.log(`📊 월드스테이트에서 ${obuId} 데이터 검색 중...`);
-      
-      let targetPvdData = null;
-      if (worldStateResult && worldStateResult.PvdList) {
-        targetPvdData = worldStateResult.PvdList.find(pvd => pvd.Obu_id === obuId);
-      }
-      
-      if (!targetPvdData) {
-        throw new Error(`${obuId}에 해당하는 PVD 데이터를 찾을 수 없습니다`);
-      }
-      
-      console.log(`✅ PVD 데이터 발견:`, JSON.stringify(targetPvdData, null, 2));
-      
-      // 2. 인덱싱 타입에 따라 처리
-      if (indexType === 'speed' || indexType === 'both') {
-        console.log(`🔄 Speed 인덱싱 재처리 중...`);
-        const speedResult = await pvdClient.putSpeedIndex(targetPvdData);
-        console.log(`📊 Speed 인덱싱 결과:`, speedResult);
-      }
-      
-      if (indexType === 'dt' || indexType === 'both') {
-        console.log(`🔄 DT 인덱싱 재처리 중...`);
-        const dtResult = await pvdClient.putDtIndex(targetPvdData);
-        console.log(`📊 DT 인덱싱 결과:`, dtResult);
-      }
-      
-      console.log(`✅ ${obuId}의 ${indexType} 인덱싱 재처리 완료!`);
-      
-    } finally {
-      pvdClient.close();
-    }
-    
-  } catch (error) {
-    console.error(`❌ 수동 인덱싱 실패: ${error.message}`);
-    throw error;
-  }
-}
+// 재인덱싱 함수 제거됨 - 실시간 인덱싱만 사용
 
 // PVD 데이터 저장 함수
 async function putPvdData(network, obuId, pvdData = null) {
@@ -2385,7 +2327,7 @@ async function main() {
       case 'get-tx-details':
         if (!value) {
           console.error('❌ get-tx-details 명령어는 -value(트랜잭션 ID)가 필요합니다');
-          console.log('예시 (Fabric): node cli.js -cmd=get-tx-details -value=05aba83a12c143d3843e363f21ac4759c61db8b6c4c1a609db62b40412fbe5d5 -network=fabric');
+          console.log('예시 (Fabric PVD): node cli.js -cmd=get-tx-details -value=05aba83a12c143d3843e363f21ac4759c61db8b6c4c1a609db62b40412fbe5d5 -network=fabric');
           console.log('예시 (EVM): node cli.js -cmd=get-tx-details -value=0x1234567890abcdef... -network=hardhat-local');
           return;
         }
@@ -2402,6 +2344,24 @@ async function main() {
         await getTxDetails(network, value);
         break;
         
+      // ===== Access Management TxId 상세 조회 =====
+      case 'get-access-tx-details':
+        if (!value) {
+          console.error('❌ get-access-tx-details 명령어는 -value(트랜잭션 ID)가 필요합니다');
+          console.log('예시: node cli.js -cmd=get-access-tx-details -value=23ed3f54e86765409324ee100b1f80bd9d04ff08aff1169aaff054b7564de03a --network=fabric');
+          return;
+        }
+        if (!network) {
+          console.error('❌ get-access-tx-details 명령어는 --network가 필요합니다');
+          return;
+        }
+        if (network !== 'fabric') {
+          console.error('❌ Access Management TxId 조회는 fabric 네트워크에서만 지원됩니다');
+          return;
+        }
+        await getAccessTxDetails(value);
+        break;
+        
       // ===== Purpose 인덱스 생성 =====
       case 'create-purpose-index':
         if (network === 'fabric') {
@@ -2412,28 +2372,41 @@ async function main() {
         await createPurposeIndexEVM(network);
         break;
         
-      // ===== Purpose 기반 검색 =====
+      // ===== Purpose 기반 검색 (네트워크별) =====
       case 'search-purpose':
-        if (network === 'fabric') {
-          console.error('❌ search-purpose는 EVM 네트워크에서만 지원됩니다');
-          console.log('예시: node cli.js -cmd=search-purpose -value="수면_품질_모니터링" -network=hardhat');
+        if (!network) {
+          console.error('❌ search-purpose 명령어는 --network가 필요합니다');
+          console.log('사용법:');
+          console.log('  node cli.js -cmd=search-purpose -value="수면" --network=fabric');
+          console.log('  node cli.js -cmd=search-purpose -value="수면" --network=hardhat');
+          console.log('  node cli.js -cmd=search-purpose -value="수면" --network=monad');
           return;
         }
         if (!value) {
           console.error('❌ search-purpose 명령어는 -value(목적)가 필요합니다');
-          console.log('예시: node cli.js -cmd=search-purpose -value="수면_품질_모니터링" -network=hardhat');
+          console.log(`예시: node cli.js -cmd=search-purpose -value="수면" --network=${network}`);
           return;
         }
-        await searchByPurposeEVM(network, value);
+        
+        if (network === 'fabric') {
+          await fabricSearchByPurpose(value);
+        } else {
+          await searchByPurposeEVM(network, value);
+        }
         break;
         
       // ===== 데이터 요청 =====
-             case 'request-data':
+      case 'request-data':
         if (!network) {
           console.error('❌ request-data 명령어는 -network가 필요합니다');
           return;
         }
-        await requestData(network);
+        
+        if (network === 'fabric') {
+          await fabricRequestData();
+        } else {
+          await requestData(network); // 기존 EVM 로직
+        }
         break;
         
       // ===== 단건 테스트 =====
@@ -2503,9 +2476,10 @@ function showHelp() {
   console.log('  putdata                   - PVD 데이터 저장');
   console.log('  search                    - 지갑 주소별 데이터 조회');
   console.log('  search-index              - 인덱스 전체 조회');
-  console.log('  search-purpose            - Purpose 기반 데이터 검색 (EVM 전용)');
-  console.log('  get-tx-details            - 트랜잭션 상세 조회');
-  console.log('  request-data              - 샘플 데이터 생성');
+  console.log('  search-purpose            - Purpose 기반 데이터 검색 (네트워크별)');
+  console.log('  get-tx-details            - 트랜잭션 상세 조회 (PVD용)');
+  console.log('  get-access-tx-details     - Access Management TxId 상세 조회');
+  console.log('  request-data              - 샘플 데이터 생성 (네트워크별)');
   console.log('  large-scale-test          - 대규모 테스트');
   console.log('  check-config              - 설정 확인');
   console.log('  check-network-config      - 네트워크 설정 확인');
@@ -2523,18 +2497,103 @@ function showHelp() {
   console.log('  node scripts/cli.js -cmd=create-index -type=speed');
   console.log('  node scripts/cli.js -cmd=putdata -value=OBU-TEST-001');
   console.log('  node scripts/cli.js -cmd=search-index -type=speed');
+  console.log('  node scripts/cli.js -cmd=request-data --network=fabric');
+  console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=fabric');
   console.log('');
   console.log('  # EVM 네트워크');
   console.log('  node scripts/cli.js -cmd=create-index -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
   console.log('  node scripts/cli.js -cmd=create-purpose-index -network=hardhat');
   console.log('  node scripts/cli.js -cmd=search -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
-  console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" -network=hardhat');
+  console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=hardhat');
+  console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=monad');
   console.log('  node scripts/cli.js -cmd=get-tx-details -value=0x123... -network=hardhat');
+  console.log('  node scripts/cli.js -cmd=request-data --network=hardhat');
   
   console.log('\n💡 팁:');
   console.log('  • -network를 생략하면 자동으로 fabric 네트워크가 사용됩니다');
   console.log('  • Fabric: PVD 센서 데이터 처리 (기본값)');
   console.log('  • Hardhat: EVM 블록체인 트랜잭션 데이터 처리');
+}
+
+// Access Management TxId 상세 조회 함수
+async function getAccessTxDetails(txId) {
+  try {
+    console.log(`🔍 Access Management TxId 상세 조회: ${txId}`);
+    
+    // gRPC 클라이언트 설정
+    const grpc = require('@grpc/grpc-js');
+    const protoLoader = require('@grpc/proto-loader');
+    
+    const PROTO_PATH = path.join(__dirname, '../../grpc-go/accessapi/access_management.proto');
+    const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+      keepCase: true,
+      longs: String,
+      enums: String,
+      defaults: true,
+      oneofs: true
+    });
+    
+    const accessProto = grpc.loadPackageDefinition(packageDefinition).accessapi;
+    const client = new accessProto.AccessManagementService('localhost:19001', grpc.credentials.createInsecure());
+    
+    // 모든 Access Management 요청 조회
+    console.log('🔄 모든 Access Management 요청 조회 중...');
+    
+    // 인덱스에서 해당 TxId로 Purpose 검색
+    console.log('🔍 인덱스에서 TxId 검색 중...');
+    
+    // 간단한 방법: Purpose 검색으로 해당 TxId가 포함된 결과 찾기
+    const purposes = ['혈압', '수면', '심박수', '체온']; // 가능한 Purpose 목록
+    
+    for (const purpose of purposes) {
+      const response = await new Promise((resolve, reject) => {
+        client.SearchAccessRequestsByPurpose({
+          purpose: purpose
+        }, (error, response) => {
+          if (error) reject(error);
+          else resolve(response);
+        });
+      });
+      
+      // 해당 TxId가 결과에 포함되어 있는지 확인
+      if (response.txIds && response.txIds.includes(txId)) {
+        console.log(`\n✅ TxId 매칭 성공!`);
+        console.log(`🎯 Purpose: ${purpose}`);
+        console.log(`🔑 Transaction ID: ${txId}`);
+        console.log(`📊 해당 Purpose의 총 요청 수: ${response.requests ? response.requests.length : 0}`);
+        
+        if (response.requests && response.requests.length > 0) {
+          console.log(`\n📋 관련 요청 정보:`);
+          response.requests.forEach((req, index) => {
+            console.log(`   ${index + 1}. 소유자: ${req.resourceOwner}`);
+            console.log(`      조직: ${req.organizationName}`);
+            console.log(`      목적: ${req.purpose}`);
+          });
+        }
+        
+        client.close();
+        return {
+          success: true,
+          txId: txId,
+          purpose: purpose,
+          matchedRequests: response.requests || []
+        };
+      }
+    }
+    
+    console.log(`❌ TxId ${txId}에 해당하는 Access Management 요청을 찾을 수 없습니다.`);
+    client.close();
+    
+    return {
+      success: false,
+      txId: txId,
+      message: 'TxId에 해당하는 요청을 찾을 수 없습니다.'
+    };
+    
+  } catch (error) {
+    console.error(`❌ Access Management TxId 상세 조회 실패: ${error.message}`);
+    throw error;
+  }
 }
 
 // 스크립트가 직접 실행될 때만 main 함수 호출
@@ -2839,10 +2898,215 @@ async function createPurposeIndexEVM(network) {
   }
 }
 
+// ===== Fabric 전용 함수들 =====
+
+// Fabric용 샘플 데이터 생성 함수
+async function fabricRequestData() {
+  try {
+    console.log('🔍 Fabric 네트워크에서 샘플 데이터 요청 시작...');
+    
+    // gRPC 클라이언트 설정
+    const grpc = require('@grpc/grpc-js');
+    const protoLoader = require('@grpc/proto-loader');
+    
+    const PROTO_PATH = path.join(__dirname, '../../grpc-go/accessapi/access_management.proto');
+    const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+      keepCase: true,
+      longs: String,
+      enums: String,
+      defaults: true,
+      oneofs: true
+    });
+    
+    const accessProto = grpc.loadPackageDefinition(packageDefinition).accessapi;
+    const client = new accessProto.AccessManagementService('localhost:19001', grpc.credentials.createInsecure());
+    
+    // Fabric용 샘플 데이터 (EVM 예시 참고)
+    const fabricRequests = [];
+    
+    // 수면 데이터 34개 생성 (Fabric용 사용자명)
+    const fabricUsers = [
+      'alice_fabric_user',
+      'bob_researcher', 
+      'carol_analyst',
+      'david_scientist'
+    ];
+    
+    for (let i = 0; i < 34; i++) {
+      fabricRequests.push({
+        resourceOwner: fabricUsers[i % 4], // 4개 사용자로 순환
+        purpose: '수면',
+        organizationName: 'BIMATRIX'
+      });
+    }
+    
+    // 심박수 데이터 33개 생성
+    for (let i = 0; i < 33; i++) {
+      fabricRequests.push({
+        resourceOwner: fabricUsers[i % 4],
+        purpose: '심박수', 
+        organizationName: 'BIMATRIX'
+      });
+    }
+    
+    // 혈압 데이터 33개 생성
+    for (let i = 0; i < 33; i++) {
+      fabricRequests.push({
+        resourceOwner: fabricUsers[i % 4],
+        purpose: '혈압',
+        organizationName: 'BIMATRIX'
+      });
+    }
+    
+    console.log(`📊 총 ${fabricRequests.length}개의 Fabric 샘플 데이터 생성 완료`);
+    
+    const results = [];
+    
+    for (let i = 0; i < fabricRequests.length; i++) {
+      const req = fabricRequests[i];
+      console.log(`\n📋 데이터 요청 ${i + 1}/${fabricRequests.length}: ${req.organizationName} → ${req.resourceOwner} (${req.purpose})`);
+      
+      try {
+        // gRPC를 통한 AccessManagement 서비스 호출
+        const response = await new Promise((resolve, reject) => {
+          client.SaveAccessRequest({
+            resourceOwner: req.resourceOwner,
+            purpose: req.purpose,
+            organizationName: req.organizationName
+          }, (error, response) => {
+            if (error) reject(error);
+            else resolve(response);
+          });
+        });
+        
+        console.log(`✅ 요청 저장 성공`);
+        
+        results.push({
+          organizationName: req.organizationName,
+          resourceOwner: req.resourceOwner,
+          purpose: req.purpose,
+          success: response.success,
+          requestId: response.requestId
+        });
+        
+        // 요청 간 간격 (서버 부하 방지)
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (error) {
+        console.error(`❌ 요청 ${i + 1} 실패: ${error.message}`);
+        results.push({
+          organizationName: req.organizationName,
+          resourceOwner: req.resourceOwner, 
+          purpose: req.purpose,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    // 결과 요약
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.length - successCount;
+    
+    console.log(`\n🎉 Fabric 샘플 데이터 생성 완료!`);
+    console.log(`✅ 성공: ${successCount}개`);
+    console.log(`❌ 실패: ${failCount}개`);
+    console.log(`📊 총 요청: ${results.length}개`);
+    
+    // Purpose별 통계
+    const purposeStats = {};
+    results.filter(r => r.success).forEach(r => {
+      purposeStats[r.purpose] = (purposeStats[r.purpose] || 0) + 1;
+    });
+    
+    console.log('\n📈 Purpose별 통계:');
+    Object.entries(purposeStats).forEach(([purpose, count]) => {
+      console.log(`  ${purpose}: ${count}개`);
+    });
+    
+    client.close();
+    
+  } catch (error) {
+    console.error(`❌ Fabric 샘플 데이터 생성 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// Fabric용 Purpose 검색 함수
+async function fabricSearchByPurpose(purpose) {
+  try {
+    console.log(`🔍 Fabric 네트워크에서 Purpose 검색: "${purpose}"`);
+    
+    // gRPC 클라이언트 설정
+    const grpc = require('@grpc/grpc-js');
+    const protoLoader = require('@grpc/proto-loader');
+    
+    const PROTO_PATH = path.join(__dirname, '../../grpc-go/accessapi/access_management.proto');
+    const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+      keepCase: true,
+      longs: String,
+      enums: String,
+      defaults: true,
+      oneofs: true
+    });
+    
+    const accessProto = grpc.loadPackageDefinition(packageDefinition).accessapi;
+    const client = new accessProto.AccessManagementService('localhost:19001', grpc.credentials.createInsecure());
+    
+    // Purpose 검색 요청
+    const response = await new Promise((resolve, reject) => {
+      client.SearchAccessRequestsByPurpose({
+        purpose: purpose
+      }, (error, response) => {
+        if (error) reject(error);
+        else resolve(response);
+      });
+    });
+    
+    console.log(`\n📊 검색 결과:`);
+    console.log(`   🎯 목적: ${purpose}`);
+    console.log(`   🆔 인덱스 ID: purpose`);
+    
+    // 실제 매칭된 요청 수를 기준으로 출력 (일관성 유지)
+    const actualRequestCount = response.requests ? response.requests.length : 0;
+    const indexTxIdCount = response.txIds ? response.txIds.length : 0;
+    
+    console.log(`   📊 데이터 개수: ${actualRequestCount}`);
+    
+    // 인덱스와 실제 데이터 불일치 경고
+    if (indexTxIdCount !== actualRequestCount) {
+      console.log(`   ⚠️  인덱스 TxId 수 (${indexTxIdCount})와 실제 요청 수 (${actualRequestCount})가 다릅니다.`);
+    }
+    
+    // EVM 스타일로 TxId 목록 출력
+    if (response.txIds && response.txIds.length > 0) {
+      console.log(`   📋 트랜잭션 목록:`);
+      response.txIds.forEach((txId, index) => {
+        console.log(`      ${index + 1}. ${txId}`);
+      });
+    } else {
+      console.log(`   ℹ️  해당 목적과 관련된 데이터가 없습니다.`);
+    }
+    
+    // 상세 정보는 TxId별 개별 조회 필요
+    console.log(`\n💡 상세 정보 조회 방법:`);
+    console.log(`   각 TxId의 상세 정보를 보려면:`);
+    console.log(`   node cli.js -cmd=get-access-tx-details -value="[TxId]" --network=fabric`);
+    console.log(`\n📊 총 매칭된 TxId 수: ${indexTxIdCount}개`);
+    
+    client.close();
+    
+  } catch (error) {
+    console.error(`❌ Fabric Purpose 검색 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   searchIndexAll,
   searchFabricIndexAll,
   getEvmTxDetails,
   createPurposeIndexEVM,
-  searchByPurposeEVM
+  searchByPurposeEVM,
+  fabricRequestData
 };

@@ -937,55 +937,7 @@ func createDtIndex(filePath string, keySize int) {
 	}
 }
 
-func reindexingDtIndex(client pvd.PvdClient, request *pvd.ChainInfo) {
-	log.Printf("reindexingDtIndex =  %s", request.GetChaincode())
-
-	start := time.Now()
-	stream, err := client.GetAllBlock(context.Background(), request)
-	if err != nil {
-		log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
-	}
-
-	count := 1
-	total := 0
-
-	blockHeight := int32(0)
-
-	for {
-		Data, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
-		}
-		txlist := []*pvd.BcData{}
-		txlist = Data.GetBcList()
-
-		blockNumber := Data.GetIndex()
-
-		if blockNumber > blockHeight {
-			blockHeight = blockNumber
-		}
-
-		//log.Println("BlockNumber: ", blockNumber, "count: ", count, " - Size : ", len(txlist))
-
-		for _, tx := range txlist {
-			newData := IndexData{Obu_id: tx.Pvd.ObuId, TxID: tx.TxId}
-			newValue, _ := json.Marshal(newData)
-			key := []byte(tx.Pvd.CollectionDt)
-			DtTree.Add(key, newValue)
-		}
-		total += len(txlist)
-		count++
-	}
-
-	blockHeight++
-
-	log.Println(" Total size: ", total)
-	log.Println(" BlockHeight : ", blockHeight)
-	log.Println(" Execution Time = ", time.Since(start))
-}
+// reindexingDtIndex - 재인덱싱 로직 제거됨
 
 func testAllDatasByField(client pvd.PvdClient, request *pvd.FieldInfo) {
 	log.Printf("testAllDatasByField =  %s", request.String())

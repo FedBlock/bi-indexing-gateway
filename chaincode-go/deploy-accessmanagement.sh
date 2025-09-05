@@ -16,7 +16,7 @@ NC='\033[0m'
 CHANNEL_NAME="pvdchannel"
 CHAINCODE_NAME="accessmanagement"
 CHAINCODE_VERSION="1.1"
-CHAINCODE_SEQUENCE="7"
+CHAINCODE_SEQUENCE="9"
 CHAINCODE_PATH="."
 
 # 조직 설정 (기존 pvd 네트워크와 동일)

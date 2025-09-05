@@ -118,12 +118,12 @@ func (s *SmartContract) SaveRequest(ctx contractapi.TransactionContextInterface,
 		ownerRequestsJSON, _ := json.Marshal(requestIdArray)
 		ctx.GetStub().PutState(ownerKey, ownerRequestsJSON)
 
-		// 실제 Fabric TxId 반환 (pvd 방식처럼)
+		// RequestId와 TxId 모두 로그 출력
 		txId := ctx.GetStub().GetTxID()
-		fmt.Printf("요청 생성 완료: ID=%d, 소유자=%s, TxId=%s\n", requestId, resourceOwner, txId)
+		fmt.Printf("요청 생성 완료: RequestID=%d, 소유자=%s, TxId=%s\n", requestId, resourceOwner, txId)
 		
-		// pvd처럼 실제 TxId를 반환하도록 수정
-		return txId, nil
+		// RequestId를 반환 (CLI에서 정확한 증가 확인을 위해)
+		return strconv.FormatUint(requestId, 10), nil
 }
 
 // 요청 상태 변경 (승인/거부)
@@ -172,7 +172,14 @@ func (s *SmartContract) SaveRequestStatus(ctx contractapi.TransactionContextInte
 }
 
 // 특정 요청 정보 조회
-func (s *SmartContract) GetRequestById(ctx contractapi.TransactionContextInterface, requestId uint64)(*RequestDetail, error){
+func (s *SmartContract) GetRequestById(ctx contractapi.TransactionContextInterface, requestIdStr string)(*RequestDetail, error){
+	// 문자열을 uint64로 변환
+	requestId, err := strconv.ParseUint(requestIdStr, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("잘못된 요청 ID 형식: %s", requestIdStr)
+	}
+	
+	
 	requestKey := fmt.Sprintf("request_%d", requestId)
 	requestBytes, err := ctx.GetStub().GetState(requestKey)
 	if err != nil || requestBytes == nil{
