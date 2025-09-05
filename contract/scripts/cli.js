@@ -2410,29 +2410,6 @@ async function main() {
         }
         break;
         
-      // ===== 단건 테스트 =====
-      case 'test-single':
-        if (!network) {
-          console.error('❌ test-single 명령어는 -network가 필요합니다');
-          return;
-        }
-        await testSingleRequest(network);
-        break;
-        
-      // ===== 대규모 테스트 =====
-       case 'large-scale-test':
-        await largeScaleTest();
-         break;
-        
-      // ===== 수동 인덱싱 =====
-      case 'manual-index':
-        if (!value) {
-          console.error('❌ manual-index 명령어는 -value(TxId,Purpose)가 필요합니다');
-          console.log('예시: node cli.js -cmd=manual-index -value="71d45fdf05b0bf2c601f63334a42f21c490528249d923e9d50051623d0b71e95,수면" --network=fabric');
-          return;
-        }
-        await manualIndexing(value);
-        break;
         
       // ===== 설정 확인 =====
       case 'check-config':
@@ -2491,7 +2468,6 @@ function showHelp() {
   console.log('  get-tx-details            - 트랜잭션 상세 조회 (PVD용)');
   console.log('  get-access-tx-details     - Access Management TxId 상세 조회');
   console.log('  request-data              - 샘플 데이터 생성 (네트워크별)');
-  console.log('  large-scale-test          - 대규모 테스트');
   console.log('  check-config              - 설정 확인');
   console.log('  check-network-config      - 네트워크 설정 확인');
   console.log('  update-network            - 네트워크 업데이트');
@@ -2506,18 +2482,18 @@ function showHelp() {
   console.log('\n📝 사용 예시:');
   console.log('  # Fabric 네트워크 (기본값)');
   console.log('  node scripts/cli.js -cmd=create-index -type=speed');
-  console.log('  node scripts/cli.js -cmd=putdata -value=OBU-TEST-001');
+  // console.log('  node scripts/cli.js -cmd=putdata -value=OBU-TEST-001');
   console.log('  node scripts/cli.js -cmd=search-index -type=speed');
   console.log('  node scripts/cli.js -cmd=request-data --network=fabric');
   console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=fabric');
   console.log('');
   console.log('  # EVM 네트워크');
-  console.log('  node scripts/cli.js -cmd=create-index -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
+  console.log('  node scripts/cli.js -cmd=create-index -value="인덱스명" -network=hardhat');
   console.log('  node scripts/cli.js -cmd=create-purpose-index -network=hardhat');
   console.log('  node scripts/cli.js -cmd=search -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
   console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=hardhat');
   console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=monad');
-  console.log('  node scripts/cli.js -cmd=get-tx-details -value=0x123... -network=hardhat');
+  console.log('  node scripts/cli.js -cmd=get-tx-details -value="트랜잭션"... -network=hardhat');
   console.log('  node scripts/cli.js -cmd=request-data --network=hardhat');
   
   console.log('\n💡 팁:');
@@ -3249,72 +3225,6 @@ async function fabricSearchByPurpose(purpose) {
   }
 }
 
-// 수동 인덱싱 함수
-async function manualIndexing(value) {
-  try {
-    console.log('🔧 수동 인덱싱 시작...');
-    
-    // TxId,Purpose 파싱
-    const [txId, purpose] = value.split(',');
-    if (!txId || !purpose) {
-      throw new Error('TxId,Purpose 형식이 올바르지 않습니다. 예: "txid123,수면"');
-    }
-    
-    console.log(`📝 TxId: ${txId}`);
-    console.log(`🎯 Purpose: ${purpose}`);
-    
-    // IndexingClient 연결
-    const IndexingClient = require('./IndexingClient');
-    const indexingClient = new IndexingClient({
-      serverAddr: 'localhost:50052',
-      protoPath: path.join(__dirname, '../../idxmngr-go/protos/index_manager.proto')
-    });
-    
-    await indexingClient.connect();
-    console.log('✅ 인덱싱 서버 연결 성공');
-    
-    // 인덱싱 데이터 생성
-    const indexableData = {
-      TxId: txId,
-      ContractAddress: 'fabric-accessmanagement-chaincode',
-      EventName: 'AccessRequestSaved',
-      Timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      BlockNumber: 0,
-      DynamicFields: {
-        key: purpose,
-        purpose: purpose,
-        organizationName: 'BIMATRIX',
-        resourceOwner: 'manual_user',
-        status: '0',
-        network: 'fabric',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        realTxId: txId
-      },
-      SchemaVersion: '1.0'
-    };
-    
-    const insertRequest = {
-      IndexID: 'purpose',
-      BcList: [{
-        TxId: txId,
-        IndexableData: indexableData
-      }]
-    };
-    
-    console.log('📤 인덱싱 데이터 전송 중...');
-    await indexingClient.insertData(insertRequest);
-    
-    console.log('✅ 수동 인덱싱 완료!');
-    console.log(`   TxId: ${txId}`);
-    console.log(`   Purpose: ${purpose}`);
-    
-    indexingClient.close();
-    
-  } catch (error) {
-    console.error(`❌ 수동 인덱싱 실패: ${error.message}`);
-    throw error;
-  }
-}
 
 module.exports = {
   searchIndexAll,
