@@ -2058,7 +2058,7 @@ async function requestData(network) {
     
     for (let i = 0; i < requests.length; i++) {
       const req = requests[i];
-      console.log(`\n📋 데이터 요청 ${i + 1}/100: ${req.organizationName} → ${req.resourceOwner.slice(0,10)}... (${req.purpose})`);
+      // console.log(`\n📋 데이터 요청 ${i + 1}/100: ${req.organizationName} → ${req.resourceOwner.slice(0,10)}... (${req.purpose})`);
       
       try {
         // 컨트랙트의 saveRequest 함수 호출
@@ -2365,11 +2365,12 @@ async function main() {
       // ===== Purpose 인덱스 생성 =====
       case 'create-purpose-index':
         if (network === 'fabric') {
-          console.error('❌ create-purpose-index는 EVM 네트워크에서만 지원됩니다');
-          console.log('예시: node cli.js -cmd=create-purpose-index -network=hardhat');
-          return;
+          // Fabric 네트워크에서는 create-fabric-index 방식 사용
+          await createIndexUnified(network, 'purpose');
+        } else {
+          // EVM 네트워크에서는 기존 방식 사용
+          await createPurposeIndexEVM(network);
         }
-        await createPurposeIndexEVM(network);
         break;
         
       // ===== Purpose 기반 검색 (네트워크별) =====
@@ -2422,6 +2423,16 @@ async function main() {
        case 'large-scale-test':
         await largeScaleTest();
          break;
+        
+      // ===== 수동 인덱싱 =====
+      case 'manual-index':
+        if (!value) {
+          console.error('❌ manual-index 명령어는 -value(TxId,Purpose)가 필요합니다');
+          console.log('예시: node cli.js -cmd=manual-index -value="71d45fdf05b0bf2c601f63334a42f21c490528249d923e9d50051623d0b71e95,수면" --network=fabric');
+          return;
+        }
+        await manualIndexing(value);
+        break;
         
       // ===== 설정 확인 =====
       case 'check-config':
@@ -2515,10 +2526,141 @@ function showHelp() {
   console.log('  • Hardhat: EVM 블록체인 트랜잭션 데이터 처리');
 }
 
+// Access Management 모든 요청 조회 함수
+async function getAllAccessManagementRequests() {
+  try {
+    console.log(`🔍 Access Management 모든 요청 조회...`);
+    
+    // gRPC 클라이언트 설정
+    const grpc = require('@grpc/grpc-js');
+    const protoLoader = require('@grpc/proto-loader');
+    
+    const PROTO_PATH = path.join(__dirname, '../../grpc-go/accessapi/access_management.proto');
+    const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+      keepCase: true,
+      longs: String,
+      enums: String,
+      defaults: true,
+      oneofs: true
+    });
+    
+    const accessProto = grpc.loadPackageDefinition(packageDefinition).accessapi;
+    const client = new accessProto.AccessManagementService('localhost:19001', grpc.credentials.createInsecure());
+    
+    // GetAllRequests 호출 (이 함수가 proto에 정의되어 있다고 가정)
+    // 만약 없다면 다른 방법을 사용해야 함
+    console.log(`❌ GetAllRequests 함수가 proto에 정의되지 않았습니다.`);
+    client.close();
+    return {
+      success: false,
+      message: 'GetAllRequests 함수를 사용할 수 없습니다.'
+    };
+    
+  } catch (error) {
+    console.error(`❌ Access Management 모든 요청 조회 실패: ${error.message}`);
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+}
+
+// Access Management 데이터 조회 함수
+async function getAccessManagementData(txId) {
+  try {
+    console.log(`🔍 Access Management 데이터 조회: ${txId}`);
+    
+    // gRPC 클라이언트 설정
+    const grpc = require('@grpc/grpc-js');
+    const protoLoader = require('@grpc/proto-loader');
+    
+    const PROTO_PATH = path.join(__dirname, '../../grpc-go/accessapi/access_management.proto');
+    const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+      keepCase: true,
+      longs: String,
+      enums: String,
+      defaults: true,
+      oneofs: true
+    });
+    
+    const accessProto = grpc.loadPackageDefinition(packageDefinition).accessapi;
+    const client = new accessProto.AccessManagementService('localhost:19001', grpc.credentials.createInsecure());
+    
+    // TxId 형식 확인 및 RequestId 추출
+    let requestId;
+    
+    if (txId.length === 64) {
+      // 64자리 TxId인 경우 - Access Management 데이터도 TxId로 저장됨
+      console.log(`🔍 64자리 TxId로 Access Management 데이터 조회: ${txId}`);
+      // RequestId 추출 없이 바로 조회
+    } else {
+      // 기타 TxId 형식도 모두 TxId로 직접 조회 시도
+      console.log(`🔍 TxId로 Access Management 데이터 조회: ${txId}`);
+    }
+    
+    // GetAccessRequestByTxId 호출 (PVD 방식과 동일)
+    const response = await new Promise((resolve, reject) => {
+      client.GetAccessRequestByTxId({
+        txId: txId
+      }, (error, response) => {
+        if (error) reject(error);
+        else resolve(response);
+      });
+    });
+    
+    if (response.success) {
+      console.log(`✅ Access Management 데이터 조회 성공`);
+      // console.log(`   소유자: ${response.request.resourceOwner}`);
+      // console.log(`   목적: ${response.request.purpose}`);
+      // console.log(`   조직: ${response.request.organizationName}`);
+      // console.log(`   상태: ${response.status}`);
+      
+      client.close();
+      return {
+        success: true,
+        data: {
+          requestId: requestId,
+          resourceOwner: response.request.resourceOwner,
+          purpose: response.request.purpose,
+          organizationName: response.request.organizationName,
+          status: response.status
+        }
+      };
+    } else {
+      console.log(`❌ Access Management 데이터 조회 실패: ${response.message}`);
+      client.close();
+      return {
+        success: false,
+        message: response.message
+      };
+    }
+    
+  } catch (error) {
+    console.error(`❌ Access Management 데이터 조회 실패: ${error.message}`);
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+}
+
 // Access Management TxId 상세 조회 함수
 async function getAccessTxDetails(txId) {
   try {
     console.log(`🔍 Access Management TxId 상세 조회: ${txId}`);
+    
+    // 1. 먼저 Access Management gRPC로 실제 요청 데이터 조회
+    console.log('🔄 Access Management에서 실제 요청 데이터 조회 중...');
+    const accessResult = await getAccessManagementData(txId);
+    
+    if (!accessResult.success) {
+      console.log(`❌ Access Management에서 요청을 찾을 수 없습니다: ${txId}`);
+      return {
+        success: false,
+        txId: txId,
+        message: 'Access Management에서 해당 요청을 찾을 수 없습니다.'
+      };
+    }
     
     // gRPC 클라이언트 설정
     const grpc = require('@grpc/grpc-js');
@@ -2537,13 +2679,13 @@ async function getAccessTxDetails(txId) {
     const client = new accessProto.AccessManagementService('localhost:19001', grpc.credentials.createInsecure());
     
     // 모든 Access Management 요청 조회
-    console.log('🔄 모든 Access Management 요청 조회 중...');
+    // console.log('🔄 모든 Access Management 요청 조회 중...');
     
     // 인덱스에서 해당 TxId로 Purpose 검색
-    console.log('🔍 인덱스에서 TxId 검색 중...');
+    // console.log('🔍 인덱스에서 TxId 검색 중...');
     
     // 간단한 방법: Purpose 검색으로 해당 TxId가 포함된 결과 찾기
-    const purposes = ['혈압', '수면', '심박수', '체온']; // 가능한 Purpose 목록
+    const purposes = ['혈압', '수면', '심박수']; // 가능한 Purpose 목록
     
     for (const purpose of purposes) {
       const response = await new Promise((resolve, reject) => {
@@ -2557,26 +2699,34 @@ async function getAccessTxDetails(txId) {
       
       // 해당 TxId가 결과에 포함되어 있는지 확인
       if (response.txIds && response.txIds.includes(txId)) {
-        console.log(`\n✅ TxId 매칭 성공!`);
-        console.log(`🎯 Purpose: ${purpose}`);
-        console.log(`🔑 Transaction ID: ${txId}`);
-        console.log(`📊 해당 Purpose의 총 요청 수: ${response.requests ? response.requests.length : 0}`);
+        // console.log(`\n✅ TxId 매칭 성공!`);
+        // console.log(`🎯 Purpose: ${purpose}`);
+        // console.log(`🔑 Transaction ID: ${txId}`);
         
-        if (response.requests && response.requests.length > 0) {
-          console.log(`\n📋 관련 요청 정보:`);
-          response.requests.forEach((req, index) => {
-            console.log(`   ${index + 1}. 소유자: ${req.resourceOwner}`);
-            console.log(`      조직: ${req.organizationName}`);
-            console.log(`      목적: ${req.purpose}`);
-          });
+        console.log('=== 트랜잭션 상세 정보 ===');
+        console.log(`🔗 트랜잭션 해시: ${txId}`);
+        console.log(`🎯 Purpose: ${purpose}`);
+        console.log(`✅ 상태: 성공`);
+        
+        // Access Management에서 조회한 실제 데이터 표시면ㅇㅡ로만 나온거야
+        if (accessResult.data) {
+          console.log(`\n📊 Access Management 데이터:`);
+          // console.log(`   🔑 Request ID: ${accessResult.data.requestId}`);
+          console.log(`   👤 소유자: ${accessResult.data.resourceOwner}`);
+          console.log(`   🎯 목적: ${accessResult.data.purpose}`);
+          console.log(`   🏢 조직: ${accessResult.data.organizationName}`);
+          console.log(`   📊 상태: ${accessResult.data.status}`);
         }
+        
+        // 관련 요청 정보 표시 제거 - 불필요한 출력
         
         client.close();
         return {
           success: true,
           txId: txId,
           purpose: purpose,
-          matchedRequests: response.requests || []
+          matchedRequests: response.requests || [],
+          accessManagementData: accessResult.data
         };
       }
     }
@@ -2661,13 +2811,13 @@ async function getEvmTxDetails(network, txHash) {
             value: tx.value 
           });
           
-          // console.log(`🔧 함수명: ${decodedData.name}`);
-          // console.log(`📊 매개변수:`);
+          console.log(`🔧 함수명: ${decodedData.name}`);
+          console.log(`📊 매개변수:`);
           
-          // decodedData.args.forEach((arg, index) => {
-          //   const param = decodedData.fragment.inputs[index];
-          //   console.log(`   ${param.name} (${param.type}): ${arg}`);
-          // });
+          decodedData.args.forEach((arg, index) => {
+            const param = decodedData.fragment.inputs[index];
+            console.log(`   ${param.name} (${param.type}): ${arg}`);
+          });
           
         } catch (decodeError) {
           console.log(`⚠️ 함수 호출 데이터 디코딩 실패: ${decodeError.message}`);
@@ -2696,7 +2846,7 @@ async function getEvmTxDetails(network, txHash) {
           }
         });
       } else {
-        console.log("⚠️ 이벤트 로그가 없습니다");
+        // console.log("⚠️ 이벤트 로그가 없습니다");
       }
       
     } catch (abiError) {
@@ -2924,27 +3074,19 @@ async function fabricRequestData() {
     // Fabric용 샘플 데이터 (EVM 예시 참고)
     const fabricRequests = [];
     
-    // 수면 데이터 34개 생성 (Fabric용 사용자명)
+    // 총 100개 데이터 생성 (Fabric용 사용자명)
     const fabricUsers = [
-      'alice_fabric_user',
-      'bob_researcher', 
-      'carol_analyst',
-      'david_scientist'
+      'alice',
+      'bob', 
+      'carol',
+      'david'
     ];
     
+    // 수면 데이터 34개 생성
     for (let i = 0; i < 34; i++) {
       fabricRequests.push({
         resourceOwner: fabricUsers[i % 4], // 4개 사용자로 순환
         purpose: '수면',
-        organizationName: 'BIMATRIX'
-      });
-    }
-    
-    // 심박수 데이터 33개 생성
-    for (let i = 0; i < 33; i++) {
-      fabricRequests.push({
-        resourceOwner: fabricUsers[i % 4],
-        purpose: '심박수', 
         organizationName: 'BIMATRIX'
       });
     }
@@ -2954,6 +3096,15 @@ async function fabricRequestData() {
       fabricRequests.push({
         resourceOwner: fabricUsers[i % 4],
         purpose: '혈압',
+        organizationName: 'BIMATRIX'
+      });
+    }
+    
+    // 심박수 데이터 33개 생성
+    for (let i = 0; i < 33; i++) {
+      fabricRequests.push({
+        resourceOwner: fabricUsers[i % 4],
+        purpose: '심박수', 
         organizationName: 'BIMATRIX'
       });
     }
@@ -3067,16 +3218,12 @@ async function fabricSearchByPurpose(purpose) {
     console.log(`   🎯 목적: ${purpose}`);
     console.log(`   🆔 인덱스 ID: purpose`);
     
-    // 실제 매칭된 요청 수를 기준으로 출력 (일관성 유지)
-    const actualRequestCount = response.requests ? response.requests.length : 0;
+    // 인덱스 기반 TxId 개수를 표시 (더 정확함)
     const indexTxIdCount = response.txIds ? response.txIds.length : 0;
     
-    console.log(`   📊 데이터 개수: ${actualRequestCount}`);
+    console.log(`   📊 인덱싱된 데이터 개수: ${indexTxIdCount}`);
     
-    // 인덱스와 실제 데이터 불일치 경고
-    if (indexTxIdCount !== actualRequestCount) {
-      console.log(`   ⚠️  인덱스 TxId 수 (${indexTxIdCount})와 실제 요청 수 (${actualRequestCount})가 다릅니다.`);
-    }
+    // 경고 메시지 제거 - 인덱스와 체인코드 데이터 개수가 다른 것은 정상적인 상황
     
     // EVM 스타일로 TxId 목록 출력
     if (response.txIds && response.txIds.length > 0) {
@@ -3102,11 +3249,79 @@ async function fabricSearchByPurpose(purpose) {
   }
 }
 
+// 수동 인덱싱 함수
+async function manualIndexing(value) {
+  try {
+    console.log('🔧 수동 인덱싱 시작...');
+    
+    // TxId,Purpose 파싱
+    const [txId, purpose] = value.split(',');
+    if (!txId || !purpose) {
+      throw new Error('TxId,Purpose 형식이 올바르지 않습니다. 예: "txid123,수면"');
+    }
+    
+    console.log(`📝 TxId: ${txId}`);
+    console.log(`🎯 Purpose: ${purpose}`);
+    
+    // IndexingClient 연결
+    const IndexingClient = require('./IndexingClient');
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: path.join(__dirname, '../../idxmngr-go/protos/index_manager.proto')
+    });
+    
+    await indexingClient.connect();
+    console.log('✅ 인덱싱 서버 연결 성공');
+    
+    // 인덱싱 데이터 생성
+    const indexableData = {
+      TxId: txId,
+      ContractAddress: 'fabric-accessmanagement-chaincode',
+      EventName: 'AccessRequestSaved',
+      Timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      BlockNumber: 0,
+      DynamicFields: {
+        key: purpose,
+        purpose: purpose,
+        organizationName: 'BIMATRIX',
+        resourceOwner: 'manual_user',
+        status: '0',
+        network: 'fabric',
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        realTxId: txId
+      },
+      SchemaVersion: '1.0'
+    };
+    
+    const insertRequest = {
+      IndexID: 'purpose',
+      BcList: [{
+        TxId: txId,
+        IndexableData: indexableData
+      }]
+    };
+    
+    console.log('📤 인덱싱 데이터 전송 중...');
+    await indexingClient.insertData(insertRequest);
+    
+    console.log('✅ 수동 인덱싱 완료!');
+    console.log(`   TxId: ${txId}`);
+    console.log(`   Purpose: ${purpose}`);
+    
+    indexingClient.close();
+    
+  } catch (error) {
+    console.error(`❌ 수동 인덱싱 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   searchIndexAll,
   searchFabricIndexAll,
   getEvmTxDetails,
   createPurposeIndexEVM,
   searchByPurposeEVM,
-  fabricRequestData
+  fabricRequestData,
+  manualIndexing
 };

@@ -1,4 +1,4 @@
-module chaincode-gotkrwp
+module chaincode-go
 
 go 1.23
 

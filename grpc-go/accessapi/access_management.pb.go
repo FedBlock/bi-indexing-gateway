@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.7
 // 	protoc        v3.12.4
-// source: accessapi/access_management.proto
+// source: access_management.proto
 
 package accessapi
 
@@ -27,13 +27,14 @@ type AccessRequestData struct {
 	ResourceOwner    string                 `protobuf:"bytes,1,opt,name=resourceOwner,proto3" json:"resourceOwner,omitempty"`       // 데이터 소유자
 	Purpose          string                 `protobuf:"bytes,2,opt,name=purpose,proto3" json:"purpose,omitempty"`                   // 사용 목적
 	OrganizationName string                 `protobuf:"bytes,3,opt,name=organizationName,proto3" json:"organizationName,omitempty"` // 조직명
+	Status           int32                  `protobuf:"varint,4,opt,name=status,proto3" json:"status,omitempty"`                    // 상태 (0:PENDING, 1:APPROVED, 2:REJECTED)
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AccessRequestData) Reset() {
 	*x = AccessRequestData{}
-	mi := &file_accessapi_access_management_proto_msgTypes[0]
+	mi := &file_access_management_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -45,7 +46,7 @@ func (x *AccessRequestData) String() string {
 func (*AccessRequestData) ProtoMessage() {}
 
 func (x *AccessRequestData) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[0]
+	mi := &file_access_management_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58,7 +59,7 @@ func (x *AccessRequestData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestData.ProtoReflect.Descriptor instead.
 func (*AccessRequestData) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{0}
+	return file_access_management_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AccessRequestData) GetResourceOwner() string {
@@ -82,6 +83,13 @@ func (x *AccessRequestData) GetOrganizationName() string {
 	return ""
 }
 
+func (x *AccessRequestData) GetStatus() int32 {
+	if x != nil {
+		return x.Status
+	}
+	return 0
+}
+
 // 상태 변경 요청
 type StatusUpdateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -93,7 +101,7 @@ type StatusUpdateRequest struct {
 
 func (x *StatusUpdateRequest) Reset() {
 	*x = StatusUpdateRequest{}
-	mi := &file_accessapi_access_management_proto_msgTypes[1]
+	mi := &file_access_management_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -105,7 +113,7 @@ func (x *StatusUpdateRequest) String() string {
 func (*StatusUpdateRequest) ProtoMessage() {}
 
 func (x *StatusUpdateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[1]
+	mi := &file_access_management_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -118,7 +126,7 @@ func (x *StatusUpdateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusUpdateRequest.ProtoReflect.Descriptor instead.
 func (*StatusUpdateRequest) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{1}
+	return file_access_management_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *StatusUpdateRequest) GetRequestId() uint64 {
@@ -145,7 +153,7 @@ type RequestQuery struct {
 
 func (x *RequestQuery) Reset() {
 	*x = RequestQuery{}
-	mi := &file_accessapi_access_management_proto_msgTypes[2]
+	mi := &file_access_management_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -157,7 +165,7 @@ func (x *RequestQuery) String() string {
 func (*RequestQuery) ProtoMessage() {}
 
 func (x *RequestQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[2]
+	mi := &file_access_management_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -170,7 +178,7 @@ func (x *RequestQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestQuery.ProtoReflect.Descriptor instead.
 func (*RequestQuery) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{2}
+	return file_access_management_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RequestQuery) GetRequestId() uint64 {
@@ -178,6 +186,51 @@ func (x *RequestQuery) GetRequestId() uint64 {
 		return x.RequestId
 	}
 	return 0
+}
+
+// TxId 조회
+type TxIdQuery struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TxId          string                 `protobuf:"bytes,1,opt,name=txId,proto3" json:"txId,omitempty"` // 트랜잭션 ID
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TxIdQuery) Reset() {
+	*x = TxIdQuery{}
+	mi := &file_access_management_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TxIdQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TxIdQuery) ProtoMessage() {}
+
+func (x *TxIdQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_access_management_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TxIdQuery.ProtoReflect.Descriptor instead.
+func (*TxIdQuery) Descriptor() ([]byte, []int) {
+	return file_access_management_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TxIdQuery) GetTxId() string {
+	if x != nil {
+		return x.TxId
+	}
+	return ""
 }
 
 // 소유자별 조회
@@ -190,7 +243,7 @@ type OwnerQuery struct {
 
 func (x *OwnerQuery) Reset() {
 	*x = OwnerQuery{}
-	mi := &file_accessapi_access_management_proto_msgTypes[3]
+	mi := &file_access_management_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -202,7 +255,7 @@ func (x *OwnerQuery) String() string {
 func (*OwnerQuery) ProtoMessage() {}
 
 func (x *OwnerQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[3]
+	mi := &file_access_management_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -215,7 +268,7 @@ func (x *OwnerQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OwnerQuery.ProtoReflect.Descriptor instead.
 func (*OwnerQuery) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{3}
+	return file_access_management_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *OwnerQuery) GetResourceOwner() string {
@@ -237,7 +290,7 @@ type AccessResponse struct {
 
 func (x *AccessResponse) Reset() {
 	*x = AccessResponse{}
-	mi := &file_accessapi_access_management_proto_msgTypes[4]
+	mi := &file_access_management_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -249,7 +302,7 @@ func (x *AccessResponse) String() string {
 func (*AccessResponse) ProtoMessage() {}
 
 func (x *AccessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[4]
+	mi := &file_access_management_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -262,7 +315,7 @@ func (x *AccessResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessResponse.ProtoReflect.Descriptor instead.
 func (*AccessResponse) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{4}
+	return file_access_management_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *AccessResponse) GetSuccess() bool {
@@ -299,7 +352,7 @@ type AccessRequestResponse struct {
 
 func (x *AccessRequestResponse) Reset() {
 	*x = AccessRequestResponse{}
-	mi := &file_accessapi_access_management_proto_msgTypes[5]
+	mi := &file_access_management_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -311,7 +364,7 @@ func (x *AccessRequestResponse) String() string {
 func (*AccessRequestResponse) ProtoMessage() {}
 
 func (x *AccessRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[5]
+	mi := &file_access_management_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -324,7 +377,7 @@ func (x *AccessRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestResponse.ProtoReflect.Descriptor instead.
 func (*AccessRequestResponse) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{5}
+	return file_access_management_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AccessRequestResponse) GetSuccess() bool {
@@ -367,7 +420,7 @@ type RequestListResponse struct {
 
 func (x *RequestListResponse) Reset() {
 	*x = RequestListResponse{}
-	mi := &file_accessapi_access_management_proto_msgTypes[6]
+	mi := &file_access_management_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -379,7 +432,7 @@ func (x *RequestListResponse) String() string {
 func (*RequestListResponse) ProtoMessage() {}
 
 func (x *RequestListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[6]
+	mi := &file_access_management_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -392,7 +445,7 @@ func (x *RequestListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestListResponse.ProtoReflect.Descriptor instead.
 func (*RequestListResponse) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{6}
+	return file_access_management_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RequestListResponse) GetSuccess() bool {
@@ -426,7 +479,7 @@ type SearchByPurposeRequest struct {
 
 func (x *SearchByPurposeRequest) Reset() {
 	*x = SearchByPurposeRequest{}
-	mi := &file_accessapi_access_management_proto_msgTypes[7]
+	mi := &file_access_management_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -438,7 +491,7 @@ func (x *SearchByPurposeRequest) String() string {
 func (*SearchByPurposeRequest) ProtoMessage() {}
 
 func (x *SearchByPurposeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[7]
+	mi := &file_access_management_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -451,7 +504,7 @@ func (x *SearchByPurposeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchByPurposeRequest.ProtoReflect.Descriptor instead.
 func (*SearchByPurposeRequest) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{7}
+	return file_access_management_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SearchByPurposeRequest) GetPurpose() string {
@@ -474,7 +527,7 @@ type SearchByPurposeResponse struct {
 
 func (x *SearchByPurposeResponse) Reset() {
 	*x = SearchByPurposeResponse{}
-	mi := &file_accessapi_access_management_proto_msgTypes[8]
+	mi := &file_access_management_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -486,7 +539,7 @@ func (x *SearchByPurposeResponse) String() string {
 func (*SearchByPurposeResponse) ProtoMessage() {}
 
 func (x *SearchByPurposeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessapi_access_management_proto_msgTypes[8]
+	mi := &file_access_management_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -499,7 +552,7 @@ func (x *SearchByPurposeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchByPurposeResponse.ProtoReflect.Descriptor instead.
 func (*SearchByPurposeResponse) Descriptor() ([]byte, []int) {
-	return file_accessapi_access_management_proto_rawDescGZIP(), []int{8}
+	return file_access_management_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SearchByPurposeResponse) GetSuccess() bool {
@@ -530,20 +583,23 @@ func (x *SearchByPurposeResponse) GetTxIds() []string {
 	return nil
 }
 
-var File_accessapi_access_management_proto protoreflect.FileDescriptor
+var File_access_management_proto protoreflect.FileDescriptor
 
-const file_accessapi_access_management_proto_rawDesc = "" +
+const file_access_management_proto_rawDesc = "" +
 	"\n" +
-	"!accessapi/access_management.proto\x12\taccessapi\"\x7f\n" +
+	"\x17access_management.proto\x12\taccessapi\"\x97\x01\n" +
 	"\x11AccessRequestData\x12$\n" +
 	"\rresourceOwner\x18\x01 \x01(\tR\rresourceOwner\x12\x18\n" +
 	"\apurpose\x18\x02 \x01(\tR\apurpose\x12*\n" +
-	"\x10organizationName\x18\x03 \x01(\tR\x10organizationName\"K\n" +
+	"\x10organizationName\x18\x03 \x01(\tR\x10organizationName\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\x05R\x06status\"K\n" +
 	"\x13StatusUpdateRequest\x12\x1c\n" +
 	"\trequestId\x18\x01 \x01(\x04R\trequestId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\",\n" +
 	"\fRequestQuery\x12\x1c\n" +
-	"\trequestId\x18\x01 \x01(\x04R\trequestId\"2\n" +
+	"\trequestId\x18\x01 \x01(\x04R\trequestId\"\x1f\n" +
+	"\tTxIdQuery\x12\x12\n" +
+	"\x04txId\x18\x01 \x01(\tR\x04txId\"2\n" +
 	"\n" +
 	"OwnerQuery\x12$\n" +
 	"\rresourceOwner\x18\x01 \x01(\tR\rresourceOwner\"b\n" +
@@ -568,78 +624,82 @@ const file_accessapi_access_management_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x128\n" +
 	"\brequests\x18\x03 \x03(\v2\x1c.accessapi.AccessRequestDataR\brequests\x12\x14\n" +
-	"\x05txIds\x18\x04 \x03(\tR\x05txIds2\xc9\x03\n" +
+	"\x05txIds\x18\x04 \x03(\tR\x05txIds2\x9b\x04\n" +
 	"\x17AccessManagementService\x12L\n" +
 	"\x11SaveAccessRequest\x12\x1c.accessapi.AccessRequestData\x1a\x19.accessapi.AccessResponse\x12V\n" +
 	"\x19UpdateAccessRequestStatus\x12\x1e.accessapi.StatusUpdateRequest\x1a\x19.accessapi.AccessResponse\x12M\n" +
-	"\x10GetAccessRequest\x12\x17.accessapi.RequestQuery\x1a .accessapi.AccessRequestResponse\x12Q\n" +
+	"\x10GetAccessRequest\x12\x17.accessapi.RequestQuery\x1a .accessapi.AccessRequestResponse\x12P\n" +
+	"\x16GetAccessRequestByTxId\x12\x14.accessapi.TxIdQuery\x1a .accessapi.AccessRequestResponse\x12Q\n" +
 	"\x18GetAccessRequestsByOwner\x12\x15.accessapi.OwnerQuery\x1a\x1e.accessapi.RequestListResponse\x12f\n" +
 	"\x1dSearchAccessRequestsByPurpose\x12!.accessapi.SearchByPurposeRequest\x1a\".accessapi.SearchByPurposeResponseB\rZ\v./accessapib\x06proto3"
 
 var (
-	file_accessapi_access_management_proto_rawDescOnce sync.Once
-	file_accessapi_access_management_proto_rawDescData []byte
+	file_access_management_proto_rawDescOnce sync.Once
+	file_access_management_proto_rawDescData []byte
 )
 
-func file_accessapi_access_management_proto_rawDescGZIP() []byte {
-	file_accessapi_access_management_proto_rawDescOnce.Do(func() {
-		file_accessapi_access_management_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessapi_access_management_proto_rawDesc), len(file_accessapi_access_management_proto_rawDesc)))
+func file_access_management_proto_rawDescGZIP() []byte {
+	file_access_management_proto_rawDescOnce.Do(func() {
+		file_access_management_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_access_management_proto_rawDesc), len(file_access_management_proto_rawDesc)))
 	})
-	return file_accessapi_access_management_proto_rawDescData
+	return file_access_management_proto_rawDescData
 }
 
-var file_accessapi_access_management_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
-var file_accessapi_access_management_proto_goTypes = []any{
+var file_access_management_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_access_management_proto_goTypes = []any{
 	(*AccessRequestData)(nil),       // 0: accessapi.AccessRequestData
 	(*StatusUpdateRequest)(nil),     // 1: accessapi.StatusUpdateRequest
 	(*RequestQuery)(nil),            // 2: accessapi.RequestQuery
-	(*OwnerQuery)(nil),              // 3: accessapi.OwnerQuery
-	(*AccessResponse)(nil),          // 4: accessapi.AccessResponse
-	(*AccessRequestResponse)(nil),   // 5: accessapi.AccessRequestResponse
-	(*RequestListResponse)(nil),     // 6: accessapi.RequestListResponse
-	(*SearchByPurposeRequest)(nil),  // 7: accessapi.SearchByPurposeRequest
-	(*SearchByPurposeResponse)(nil), // 8: accessapi.SearchByPurposeResponse
+	(*TxIdQuery)(nil),               // 3: accessapi.TxIdQuery
+	(*OwnerQuery)(nil),              // 4: accessapi.OwnerQuery
+	(*AccessResponse)(nil),          // 5: accessapi.AccessResponse
+	(*AccessRequestResponse)(nil),   // 6: accessapi.AccessRequestResponse
+	(*RequestListResponse)(nil),     // 7: accessapi.RequestListResponse
+	(*SearchByPurposeRequest)(nil),  // 8: accessapi.SearchByPurposeRequest
+	(*SearchByPurposeResponse)(nil), // 9: accessapi.SearchByPurposeResponse
 }
-var file_accessapi_access_management_proto_depIdxs = []int32{
+var file_access_management_proto_depIdxs = []int32{
 	0, // 0: accessapi.AccessRequestResponse.request:type_name -> accessapi.AccessRequestData
 	0, // 1: accessapi.SearchByPurposeResponse.requests:type_name -> accessapi.AccessRequestData
 	0, // 2: accessapi.AccessManagementService.SaveAccessRequest:input_type -> accessapi.AccessRequestData
 	1, // 3: accessapi.AccessManagementService.UpdateAccessRequestStatus:input_type -> accessapi.StatusUpdateRequest
 	2, // 4: accessapi.AccessManagementService.GetAccessRequest:input_type -> accessapi.RequestQuery
-	3, // 5: accessapi.AccessManagementService.GetAccessRequestsByOwner:input_type -> accessapi.OwnerQuery
-	7, // 6: accessapi.AccessManagementService.SearchAccessRequestsByPurpose:input_type -> accessapi.SearchByPurposeRequest
-	4, // 7: accessapi.AccessManagementService.SaveAccessRequest:output_type -> accessapi.AccessResponse
-	4, // 8: accessapi.AccessManagementService.UpdateAccessRequestStatus:output_type -> accessapi.AccessResponse
-	5, // 9: accessapi.AccessManagementService.GetAccessRequest:output_type -> accessapi.AccessRequestResponse
-	6, // 10: accessapi.AccessManagementService.GetAccessRequestsByOwner:output_type -> accessapi.RequestListResponse
-	8, // 11: accessapi.AccessManagementService.SearchAccessRequestsByPurpose:output_type -> accessapi.SearchByPurposeResponse
-	7, // [7:12] is the sub-list for method output_type
-	2, // [2:7] is the sub-list for method input_type
+	3, // 5: accessapi.AccessManagementService.GetAccessRequestByTxId:input_type -> accessapi.TxIdQuery
+	4, // 6: accessapi.AccessManagementService.GetAccessRequestsByOwner:input_type -> accessapi.OwnerQuery
+	8, // 7: accessapi.AccessManagementService.SearchAccessRequestsByPurpose:input_type -> accessapi.SearchByPurposeRequest
+	5, // 8: accessapi.AccessManagementService.SaveAccessRequest:output_type -> accessapi.AccessResponse
+	5, // 9: accessapi.AccessManagementService.UpdateAccessRequestStatus:output_type -> accessapi.AccessResponse
+	6, // 10: accessapi.AccessManagementService.GetAccessRequest:output_type -> accessapi.AccessRequestResponse
+	6, // 11: accessapi.AccessManagementService.GetAccessRequestByTxId:output_type -> accessapi.AccessRequestResponse
+	7, // 12: accessapi.AccessManagementService.GetAccessRequestsByOwner:output_type -> accessapi.RequestListResponse
+	9, // 13: accessapi.AccessManagementService.SearchAccessRequestsByPurpose:output_type -> accessapi.SearchByPurposeResponse
+	8, // [8:14] is the sub-list for method output_type
+	2, // [2:8] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
 	2, // [2:2] is the sub-list for extension extendee
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_accessapi_access_management_proto_init() }
-func file_accessapi_access_management_proto_init() {
-	if File_accessapi_access_management_proto != nil {
+func init() { file_access_management_proto_init() }
+func file_access_management_proto_init() {
+	if File_access_management_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessapi_access_management_proto_rawDesc), len(file_accessapi_access_management_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_access_management_proto_rawDesc), len(file_access_management_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_accessapi_access_management_proto_goTypes,
-		DependencyIndexes: file_accessapi_access_management_proto_depIdxs,
-		MessageInfos:      file_accessapi_access_management_proto_msgTypes,
+		GoTypes:           file_access_management_proto_goTypes,
+		DependencyIndexes: file_access_management_proto_depIdxs,
+		MessageInfos:      file_access_management_proto_msgTypes,
 	}.Build()
-	File_accessapi_access_management_proto = out.File
-	file_accessapi_access_management_proto_goTypes = nil
-	file_accessapi_access_management_proto_depIdxs = nil
+	File_access_management_proto = out.File
+	file_access_management_proto_goTypes = nil
+	file_access_management_proto_depIdxs = nil
 }

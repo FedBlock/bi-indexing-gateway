@@ -15,8 +15,8 @@ NC='\033[0m'
 # 설정
 CHANNEL_NAME="pvdchannel"
 CHAINCODE_NAME="accessmanagement"
-CHAINCODE_VERSION="1.1"
-CHAINCODE_SEQUENCE="9"
+CHAINCODE_VERSION="1.3"
+CHAINCODE_SEQUENCE="15"
 CHAINCODE_PATH="."
 
 # 조직 설정 (기존 pvd 네트워크와 동일)
@@ -173,28 +173,8 @@ else
     exit 1
 fi
 
-# 9. 체인코드 초기화 호출
-echo -e "${YELLOW}9. 체인코드 초기화 중...${NC}"
-setGlobalsForOrg1
-peer chaincode invoke \
-    -o localhost:7050 \
-    --ordererTLSHostnameOverride orderer.example.com \
-    --tls \
-    --cafile /home/blockchain/fabric-samples/pvd-network/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem \
-    -C $CHANNEL_NAME \
-    -n $CHAINCODE_NAME \
-    --peerAddresses localhost:7051 \
-    --tlsRootCertFiles /home/blockchain/fabric-samples/pvd-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
-    --peerAddresses localhost:9051 \
-    --tlsRootCertFiles /home/blockchain/fabric-samples/pvd-network/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt \
-    -c '{"function":"InitLedger","Args":[]}'
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ 체인코드 초기화 완료${NC}"
-else
-    echo -e "${RED}❌ 체인코드 초기화 실패${NC}"
-    exit 1
-fi
+# 9. 초기 데이터 없이 체인코드 준비 완료
+echo -e "${GREEN}✅ 체인코드 배포 완료 (초기 데이터 없음)${NC}"
 
 echo ""
 echo -e "${GREEN}🎉 AccessManagement 체인코드 배포 완료!${NC}"

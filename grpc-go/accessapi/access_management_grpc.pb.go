@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v3.12.4
-// source: accessapi/access_management.proto
+// source: access_management.proto
 
 package accessapi
 
@@ -22,6 +22,7 @@ const (
 	AccessManagementService_SaveAccessRequest_FullMethodName             = "/accessapi.AccessManagementService/SaveAccessRequest"
 	AccessManagementService_UpdateAccessRequestStatus_FullMethodName     = "/accessapi.AccessManagementService/UpdateAccessRequestStatus"
 	AccessManagementService_GetAccessRequest_FullMethodName              = "/accessapi.AccessManagementService/GetAccessRequest"
+	AccessManagementService_GetAccessRequestByTxId_FullMethodName        = "/accessapi.AccessManagementService/GetAccessRequestByTxId"
 	AccessManagementService_GetAccessRequestsByOwner_FullMethodName      = "/accessapi.AccessManagementService/GetAccessRequestsByOwner"
 	AccessManagementService_SearchAccessRequestsByPurpose_FullMethodName = "/accessapi.AccessManagementService/SearchAccessRequestsByPurpose"
 )
@@ -38,6 +39,8 @@ type AccessManagementServiceClient interface {
 	UpdateAccessRequestStatus(ctx context.Context, in *StatusUpdateRequest, opts ...grpc.CallOption) (*AccessResponse, error)
 	// 접근 요청 조회
 	GetAccessRequest(ctx context.Context, in *RequestQuery, opts ...grpc.CallOption) (*AccessRequestResponse, error)
+	// TxId로 접근 요청 조회 (PVD 방식과 동일)
+	GetAccessRequestByTxId(ctx context.Context, in *TxIdQuery, opts ...grpc.CallOption) (*AccessRequestResponse, error)
 	// 소유자별 요청 목록 조회
 	GetAccessRequestsByOwner(ctx context.Context, in *OwnerQuery, opts ...grpc.CallOption) (*RequestListResponse, error)
 	// Purpose로 요청 검색
@@ -82,6 +85,16 @@ func (c *accessManagementServiceClient) GetAccessRequest(ctx context.Context, in
 	return out, nil
 }
 
+func (c *accessManagementServiceClient) GetAccessRequestByTxId(ctx context.Context, in *TxIdQuery, opts ...grpc.CallOption) (*AccessRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccessRequestResponse)
+	err := c.cc.Invoke(ctx, AccessManagementService_GetAccessRequestByTxId_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessManagementServiceClient) GetAccessRequestsByOwner(ctx context.Context, in *OwnerQuery, opts ...grpc.CallOption) (*RequestListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequestListResponse)
@@ -114,6 +127,8 @@ type AccessManagementServiceServer interface {
 	UpdateAccessRequestStatus(context.Context, *StatusUpdateRequest) (*AccessResponse, error)
 	// 접근 요청 조회
 	GetAccessRequest(context.Context, *RequestQuery) (*AccessRequestResponse, error)
+	// TxId로 접근 요청 조회 (PVD 방식과 동일)
+	GetAccessRequestByTxId(context.Context, *TxIdQuery) (*AccessRequestResponse, error)
 	// 소유자별 요청 목록 조회
 	GetAccessRequestsByOwner(context.Context, *OwnerQuery) (*RequestListResponse, error)
 	// Purpose로 요청 검색
@@ -136,6 +151,9 @@ func (UnimplementedAccessManagementServiceServer) UpdateAccessRequestStatus(cont
 }
 func (UnimplementedAccessManagementServiceServer) GetAccessRequest(context.Context, *RequestQuery) (*AccessRequestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequest not implemented")
+}
+func (UnimplementedAccessManagementServiceServer) GetAccessRequestByTxId(context.Context, *TxIdQuery) (*AccessRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequestByTxId not implemented")
 }
 func (UnimplementedAccessManagementServiceServer) GetAccessRequestsByOwner(context.Context, *OwnerQuery) (*RequestListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequestsByOwner not implemented")
@@ -219,6 +237,24 @@ func _AccessManagementService_GetAccessRequest_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessManagementService_GetAccessRequestByTxId_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TxIdQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessManagementServiceServer).GetAccessRequestByTxId(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessManagementService_GetAccessRequestByTxId_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessManagementServiceServer).GetAccessRequestByTxId(ctx, req.(*TxIdQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessManagementService_GetAccessRequestsByOwner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(OwnerQuery)
 	if err := dec(in); err != nil {
@@ -275,6 +311,10 @@ var AccessManagementService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessManagementService_GetAccessRequest_Handler,
 		},
 		{
+			MethodName: "GetAccessRequestByTxId",
+			Handler:    _AccessManagementService_GetAccessRequestByTxId_Handler,
+		},
+		{
 			MethodName: "GetAccessRequestsByOwner",
 			Handler:    _AccessManagementService_GetAccessRequestsByOwner_Handler,
 		},
@@ -284,5 +324,5 @@ var AccessManagementService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "accessapi/access_management.proto",
+	Metadata: "access_management.proto",
 }

@@ -97,6 +97,12 @@ func (s *SmartContract) SaveRequest(ctx contractapi.TransactionContextInterface,
 
 		//4. JSON으로 변환해서 블록체인에 저장
 		requestJSON, _ := json.Marshal(request)
+		
+		// TxId 기반 저장 (PVD 방식과 동일)
+		txId := ctx.GetStub().GetTxID()
+		ctx.GetStub().PutState(txId, requestJSON)
+		
+		// 기존 RequestId 기반 저장도 유지 (호환성을 위해)
 		requestKey := fmt.Sprintf("request_%d", requestId)
 		ctx.GetStub().PutState(requestKey, requestJSON)
 
@@ -119,11 +125,10 @@ func (s *SmartContract) SaveRequest(ctx contractapi.TransactionContextInterface,
 		ctx.GetStub().PutState(ownerKey, ownerRequestsJSON)
 
 		// RequestId와 TxId 모두 로그 출력
-		txId := ctx.GetStub().GetTxID()
 		fmt.Printf("요청 생성 완료: RequestID=%d, 소유자=%s, TxId=%s\n", requestId, resourceOwner, txId)
 		
-		// RequestId를 반환 (CLI에서 정확한 증가 확인을 위해)
-		return strconv.FormatUint(requestId, 10), nil
+		// TxId를 반환 (인덱싱을 위해)
+		return txId, nil
 }
 
 // 요청 상태 변경 (승인/거부)
@@ -188,6 +193,26 @@ func (s *SmartContract) GetRequestById(ctx contractapi.TransactionContextInterfa
 
 	var request RequestDetail
 	json.Unmarshal(requestBytes, &request)
+	return &request, nil
+}
+
+// TxId로 요청 정보 조회 (PVD 방식과 동일)
+func (s *SmartContract) GetRequestByTxId(ctx contractapi.TransactionContextInterface, txId string) (*RequestDetail, error) {
+	// TxId로 직접 조회 (PVD 방식과 동일)
+	requestBytes, err := ctx.GetStub().GetState(txId)
+	if err != nil {
+		return nil, fmt.Errorf("TxId 조회 실패: %v", err)
+	}
+	
+	if requestBytes == nil {
+		return nil, fmt.Errorf("해당 TxId로 저장된 Access Management 데이터를 찾을 수 없습니다: %s", txId)
+	}
+
+	var request RequestDetail
+	if err := json.Unmarshal(requestBytes, &request); err != nil {
+		return nil, fmt.Errorf("데이터 파싱 실패: %v", err)
+	}
+
 	return &request, nil
 }
 

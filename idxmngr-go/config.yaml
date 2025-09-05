@@ -1,45 +1,5 @@
 items:
     - idxid: purpose
-      idxname: MONAD Purpose Index
-      keycol: IndexableData
-      filepath: data/monad/purpose.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: dt
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/dt.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: speed
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/speed.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: fileidx_org
-      idxname: File_Organization
-      keycol: OrganizationName
-      filepath: organization_file.bf
-      blocknum: 0
-      keysize: 32
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: purpose
       idxname: ""
       keycol: IndexableData
       filepath: data/fabric/purpose.bf
@@ -50,49 +10,9 @@ items:
       keycnt: 0
       indexdatacnt: 0
     - idxid: purpose
-      idxname: ""
+      idxname: HARDHAT-LOCAL Purpose Index
       keycol: IndexableData
-      filepath: data/fabric/purpose.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: purpose
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/purpose.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: purpose
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/purpose.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: purpose
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/purpose.bf
-      blocknum: 0
-      keysize: 64
-      address: localhost:50052
-      callcnt: 0
-      keycnt: 0
-      indexdatacnt: 0
-    - idxid: purpose
-      idxname: ""
-      keycol: IndexableData
-      filepath: data/fabric/purpose.bf
+      filepath: data/hardhat-local/purpose.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
