@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BI-Index SDK 테스트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 BI-Index SDK 테스트</h1>
+    
+    <div class="container">
+        <h2>설정</h2>
+        <div>
+            <label>Index Server: </label>
+            <input type="text" id="indexServer" value="localhost:50052" style="width: 200px;">
+        </div>
+        <div>
+            <label>PVD Server: </label>
+            <input type="text" id="pvdServer" value="localhost:19001" style="width: 200px;">
+        </div>
+        <div>
+            <label>Access Server: </label>
+            <input type="text" id="accessServer" value="localhost:19002" style="width: 200px;">
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>인덱스 생성 테스트</h2>
+        <div>
+            <label>네트워크: </label>
+            <select id="network">
+                <option value="fabric">Fabric</option>
+                <option value="hardhat">Hardhat</option>
+                <option value="monad">Monad</option>
+            </select>
+        </div>
+        <div>
+            <label>인덱스 타입: </label>
+            <select id="indexType">
+                <option value="purpose">Purpose</option>
+                <option value="wallet">Wallet</option>
+                <option value="speed">Speed</option>
+            </select>
+        </div>
+        <div>
+            <label>지갑 주소 (선택사항): </label>
+            <input type="text" id="walletAddress" placeholder="0x123..." style="width: 300px;">
+        </div>
+        <button onclick="testCreateIndex()">인덱스 생성</button>
+    </div>
+
+    <div class="container">
+        <h2>데이터 요청 테스트</h2>
+        <div>
+            <label>네트워크: </label>
+            <select id="requestNetwork">
+                <option value="fabric">Fabric</option>
+                <option value="hardhat">Hardhat</option>
+                <option value="monad">Monad</option>
+            </select>
+        </div>
+        <button onclick="testRequestData()">데이터 요청</button>
+    </div>
+
+    <div class="container">
+        <h2>결과</h2>
+        <div id="result"></div>
+    </div>
+
+    <!-- SDK 로드 -->
+    <script src="./bi-index-sdk/lib/browser.js"></script>
+    
+    <script>
+        let biIndex = null;
+
+        // SDK 초기화
+        function initSDK() {
+            const config = {
+                indexServerAddr: document.getElementById('indexServer').value,
+                pvdServerAddr: document.getElementById('pvdServer').value,
+                accessServerAddr: document.getElementById('accessServer').value
+            };
+            
+            try {
+                biIndex = new BiIndexSDK(config);
+                showResult('✅ SDK 초기화 완료', 'success');
+            } catch (error) {
+                showResult('❌ SDK 초기화 실패: ' + error.message, 'error');
+            }
+        }
+
+        // 인덱스 생성 테스트
+        async function testCreateIndex() {
+            if (!biIndex) {
+                initSDK();
+            }
+
+            const network = document.getElementById('network').value;
+            const indexType = document.getElementById('indexType').value;
+            const walletAddress = document.getElementById('walletAddress').value;
+
+            showResult('🔄 인덱스 생성 중...', 'info');
+
+            try {
+                const result = await biIndex.createIndex(network, indexType, walletAddress || null);
+                showResult('✅ 인덱스 생성 성공:\n' + JSON.stringify(result, null, 2), 'success');
+            } catch (error) {
+                showResult('❌ 인덱스 생성 실패: ' + error.message, 'error');
+            }
+        }
+
+        // 데이터 요청 테스트
+        async function testRequestData() {
+            if (!biIndex) {
+                initSDK();
+            }
+
+            const network = document.getElementById('requestNetwork').value;
+
+            showResult('🔄 데이터 요청 중...', 'info');
+
+            try {
+                const result = await biIndex.requestData(network);
+                showResult('✅ 데이터 요청 성공:\n' + JSON.stringify(result, null, 2), 'success');
+            } catch (error) {
+                showResult('❌ 데이터 요청 실패: ' + error.message, 'error');
+            }
+        }
+
+        // 결과 표시
+        function showResult(message, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = message;
+            resultDiv.appendChild(div);
+            resultDiv.scrollTop = resultDiv.scrollHeight;
+        }
+
+        // 페이지 로드 시 SDK 초기화
+        window.onload = function() {
+            showResult('🚀 BI-Index SDK 테스트 페이지 로드 완료', 'info');
+            showResult('💡 먼저 gRPC 서버들이 실행 중인지 확인하세요:', 'info');
+            showResult('   - Index Manager: localhost:50052', 'info');
+            showResult('   - PVD Server: localhost:19001', 'info');
+            showResult('   - Access Server: localhost:19002', 'info');
+        };
+    </script>
+</body>
+</html>

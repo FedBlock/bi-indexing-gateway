@@ -31,6 +31,7 @@ const cmd = args.find(arg => arg.startsWith('-cmd='))?.split('=')[1] || 'help';
 const network = args.find(arg => arg.startsWith('-network='))?.split('=')[1] || 'fabric';
 const type = args.find(arg => arg.startsWith('-type='))?.split('=')[1] || '';
 const value = args.find(arg => arg.startsWith('-value='))?.split('=')[1] || '';
+const wallet = args.find(arg => arg.startsWith('-wallet='))?.split('=')[1] || '';
 const contractAddress = args.find(arg => arg.startsWith('-contract='))?.split('=')[1] || '';
 const yamlFlag = args.find(arg => arg.startsWith('-yaml='))?.split('=')[1] || '';
 
@@ -580,16 +581,10 @@ async function createIndexUnified(network, indexType, walletAddress = null) {
     console.log(`🔧 ${network} 네트워크에 ${indexType} 인덱스 생성 중...`);
     
     if (network === 'fabric') {
-      // Fabric 네트워크: dt와 speed 인덱스만 생성 가능
+      // Fabric 네트워크: 모든 인덱스 타입 허용
       console.log(`📊 Fabric 네트워크 - ${indexType} 인덱스 생성...`);
       
-      // Fabric에서 허용된 인덱스 타입 검증
-      const allowedTypes = ['dt', 'speed', 'purpose'];
-      if (!allowedTypes.includes(indexType.toLowerCase())) {
-        throw new Error(`Fabric 네트워크에서는 ${allowedTypes.join(', ')} 인덱스만 생성할 수 있습니다. 요청된 타입: ${indexType}`);
-      }
-      
-      console.log(`✅ 허용된 인덱스 타입: ${indexType}`);
+      console.log(`✅ 인덱스 타입: ${indexType}`);
       
       // FabricIndexingClient를 사용한 Fabric 인덱스 생성
       const indexingClient = new FabricIndexingClient({
@@ -650,17 +645,21 @@ async function createIndexUnified(network, indexType, walletAddress = null) {
         // 네트워크별 디렉토리 매핑
         const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
         
-        // EVM 네트워크용: 전달받은 지갑 주소 사용
-        if (!walletAddress) {
-          throw new Error('EVM 네트워크에서는 지갑 주소가 필요합니다.');
+        // EVM 네트워크용: 지갑 주소가 있으면 사용, 없으면 타입만 사용
+        let indexID, filePath;
+        
+        if (walletAddress) {
+          // 지갑 주소가 있는 경우 (create-user-index)
+          const addressHash = hashWalletAddress(walletAddress);
+          console.log(`📱 ${indexType} 타입 → 지갑 주소: ${walletAddress} → 해시: ${addressHash}`);
+          indexID = `${indexType}_${addressHash}`;
+          filePath = `data/${networkDir}/${indexType}_${addressHash}.bf`;
+        } else {
+          // 지갑 주소가 없는 경우 (create-index)
+          console.log(`📊 ${indexType} 타입 → 순수 타입 인덱스`);
+          indexID = indexType;
+          filePath = `data/${networkDir}/${indexType}.bf`;
         }
-        
-        const addressHash = hashWalletAddress(walletAddress);
-        console.log(`📱 ${indexType} 타입 → 지갑 주소: ${walletAddress} → 해시: ${addressHash}`);
-        
-        // 모든 인덱스를 wallet_해시 형식으로 통일
-        const indexID = `wallet_${addressHash}`;
-        const filePath = `data/${networkDir}/wallet_${addressHash}.bf`;
         
         const createRequest = {
           IndexID: indexID,
@@ -805,34 +804,15 @@ async function searchIndexAll(network, indexType) {
       console.log('✅ 인덱싱 서버 연결 성공');
       
       // EVM 인덱스 전체 조회 로직
-      // 인덱스 타입에 따른 지갑 주소 매핑 (create-index와 동일한 로직)
-      let walletAddress;
-      if (network === 'hardhat' || network === 'hardhat-local' || network === 'localhost') {
-        switch (indexType.toLowerCase()) {
-          case 'samsung':
-            walletAddress = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
-            break;
-          case 'lg':
-            walletAddress = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
-            break;
-          case 'user':
-          case 'users':
-            walletAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
-            break;
-          case 'user1':
-            walletAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
-            break;
-          case 'user2':
-            walletAddress = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65';
-            break;
-          case 'user3':
-            walletAddress = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
-            break;
-          default:
-            walletAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
-            break;
-        }
+      // EVM 네트워크에서 지갑 주소 처리 (선택사항, 없으면 기본값 사용)
+      let walletAddress = wallet || '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'; // 기본 지갑 주소
+      
+      // 지갑 주소가 제공된 경우 형식 검증
+      if (wallet && !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+        throw new Error('올바르지 않은 지갑 주소 형식입니다. 올바른 형식: 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC');
       }
+      
+      console.log(`📱 사용할 지갑 주소: ${walletAddress}${!wallet ? ' (기본값)' : ''}`);
       
       const addressHash = hashWalletAddress(walletAddress);
       const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
@@ -1163,7 +1143,7 @@ class PvdClient {
       
       // 인덱싱 클라이언트 연결 해제 (disconnect 함수가 없으므로 생략)
       
-      console.log('🎉 PVD 데이터 저장 + 인덱싱 완료!');
+      console.log(' PVD 데이터 저장 + 인덱싱 완료!');
       
       return {
         success: true,
@@ -1489,234 +1469,6 @@ class PvdClient {
   }
 }
 
-// Fabric 체인코드 직접 호출 함수 (client.go 함수들에 맞춤)
-async function callFabricChaincode(dataType, searchValue) {
-  try {
-    console.log(`🔗 Fabric 체인코드 호출: ${dataType}, ${searchValue}`);
-    
-    // PVD 전용 클라이언트 사용 (client.go 함수들에 맞춤)
-    const pvdClient = new PvdClient('localhost:19001');
-    
-    try {
-      await pvdClient.connect();
-      console.log('✅ PVD 서버 연결 성공');
-      
-      // 1. 체인코드 정보 조회
-      const chainInfo = {
-        channelName: FABRIC_CONFIG.channelName,
-        chaincode: FABRIC_CONFIG.chaincode
-      };
-      
-      console.log(`📋 체인코드 정보:`, chainInfo);
-      
-      // 체인코드 상태 확인 생략 (로그 제거)
-      
-      // 3. client.go의 실제 함수들 호출
-      let result;
-      
-      switch (dataType) {
-        case 'speed':
-          // 속도 데이터 조회: 인덱스 검색 결과만 사용
-          console.log('🔍 속도 데이터 조회 - 인덱스 검색 결과 사용');
-          // 속도 필터링 로직 추가
-          if (result && result.PvdList) {
-            const filteredData = result.PvdList.filter(pvd => {
-              return pvd.Speed && parseInt(pvd.Speed) >= parseInt(searchValue);
-            });
-            result.filteredData = filteredData;
-            result.matches = filteredData.length;
-            result.searchCriteria = { field: 'Speed', value: searchValue };
-          }
-          break;
-          
-        case 'dt':
-        case 'collectiondt':
-          // 수집 날짜/시간 데이터 조회: 실제 Fabric 체인코드에서 조회
-          console.log('🔍 수집 날짜/시간 데이터 조회 중 (실시간 체인코드 호출)...');
-          result = await pvdClient.getWorldState(chainInfo);
-          // 날짜/시간 필터링 로직 추가
-          if (result && result.PvdList) {
-            const filteredData = result.PvdList.filter(pvd => {
-              return pvd.Collection_dt && pvd.Collection_dt.includes(searchValue);
-            });
-            result.filteredData = filteredData;
-            result.matches = filteredData.length;
-            result.searchCriteria = { field: 'CollectionDt', value: searchValue };
-          }
-          break;
-          
-        case 'organization':
-          // 조직 데이터 조회: queryDatasByField 사용
-          console.log('🔍 조직 데이터 필드 검색 중...');
-          result = await pvdClient.queryDatasByField({
-            chainInfo: chainInfo,
-            field: 'organizationName',
-            value: searchValue
-          });
-          break;
-          
-        case 'user':
-          // 사용자 데이터 조회: queryData 사용
-          console.log('🔍 사용자 데이터 조회 중...');
-          result = await pvdClient.queryData(chainInfo, { obuId: searchValue });
-          break;
-          
-        case 'history':
-          // 히스토리 데이터 조회: queryHistory 사용
-          console.log('🔍 히스토리 데이터 조회 중...');
-          result = await pvdClient.queryHistory(chainInfo, { obuId: searchValue });
-          break;
-          
-        case 'worldstate':
-          // 월드스테이트 조회: getWorldState 사용
-          console.log('🔍 월드스테이트 데이터 조회 중...');
-          result = await pvdClient.getWorldState(chainInfo);
-          break;
-          
-
-          
-        case 'create':
-          // 데이터 생성: createData 사용
-          console.log('🔍 PVD 데이터 생성 중...');
-          const pvdData = {
-            obuId: searchValue,
-            collectionDt: new Date().toISOString(),
-            speed: 60
-          };
-          result = await pvdClient.createData(chainInfo, pvdData);
-          break;
-
-        case 'putdata':
-          // CSV 데이터 저장: putData 사용
-          console.log('📝 PVD CSV 데이터 저장 중...');
-          const csvPvdData = {
-            obuId: searchValue || 'csv_obu_001',
-            speed: 65,
-            collectionDt: new Date().toISOString(),
-            startvectorLatitude: 37.5665,
-            startvectorLongitude: 126.9780,
-            transmisstion: 'auto',
-            hazardLights: false,
-            leftTurnSignalOn: false,
-            rightTurnSignalOn: false,
-            steering: 0,
-            rpm: 2500,
-            footbrake: false,
-            gear: 'D',
-            accelator: 30,
-            wipers: false,
-            tireWarnLeftF: false,
-            tireWarnLeftR: false,
-            tireWarnRightF: false,
-            tireWarnRightR: false,
-            tirePsiLeftF: 32,
-            tirePsiLeftR: 32,
-            tirePsiRightF: 32,
-            tirePsiRightR: 32,
-            fuelPercent: 75,
-            fuelLiter: 35,
-            totaldist: 52000,
-            rsuId: 'rsu_csv_001',
-            msgId: 'msg_csv_001',
-            startvectorHeading: 90
-          };
-          result = await pvdClient.putData(csvPvdData);
-          break;
-
-        case 'create-index':
-          // 인덱스만 생성 (데이터 없음)
-          console.log('📊 Fabric 인덱스 생성 중...');
-          // Fabric 인덱스 생성을 위한 기본 응답
-          result = {
-            success: true,
-            indexID: searchValue,
-            filePath: `data/fabric/${searchValue}.bf`,
-            message: `Fabric ${searchValue} 인덱스 생성 완료`
-          };
-          break;
-          
-        default:
-          // 기본 데이터 조회: getWorldState 사용
-          console.log('🔍 월드스테이트 데이터 조회 중...');
-          result = await pvdClient.getWorldState(chainInfo);
-          break;
-      }
-      
-      console.log('🔍 PVD 서비스 호출 성공');
-      
-      // create-index 타입일 때는 이미 위에서 처리했으므로 여기서는 건너뛰기
-      if (dataType === 'create-index') {
-        console.log('📊 create-index 타입: 인덱스 파일만 생성 완료');
-        console.log(`📁 생성된 인덱스: ${result.indexID}`);
-        console.log(`📁 파일 경로: ${result.filePath}`);
-        
-        // 결과 정리 (인덱스 생성만)
-        const finalResult = {
-          success: true,
-          network: 'fabric',
-          dataType: dataType,
-          searchValue: searchValue,
-          message: 'Fabric 인덱스 파일 생성 완료',
-          timestamp: new Date().toISOString(),
-          chainInfo: chainInfo,
-          indexResult: result
-        };
-        
-        pvdClient.close();
-        return finalResult;
-      }
-      
-      // create-index가 아닌 경우에만 worldstate 조회 (로그 제거)
-      if (dataType !== 'create-index') {
-        // 일반 검색 타입: 실시간 체인코드 조회 결과 반환
-        console.log('🔍 실시간 체인코드 조회 결과 반환 중...');
-        
-        // 결과 정리 (실시간 블록체인 조회)
-        const finalResult = {
-          success: true,
-          network: 'fabric',
-          dataType: dataType,
-          searchValue: searchValue,
-          message: 'Fabric 체인코드 실시간 조회 완료',
-          timestamp: new Date().toISOString(),
-          chainInfo: chainInfo,
-          searchResult: result,
-          source: 'blockchain'  // 블록체인에서 직접 조회했음을 명시
-        };
-        
-        pvdClient.close();
-        return finalResult;
-      }
-      
-    } catch (error) {
-      console.log('⚠️ PVD 서비스 호출 실패, 대안 방법 시도...');
-      console.log('에러:', error.message);
-      
-      // 대안: 기본 성공 응답 (실제 구현 시 PVD 서버와 통신)
-      const fallbackResult = {
-        success: true,
-        network: 'fabric',
-        dataType: dataType,
-        searchValue: searchValue,
-        message: 'Fabric 체인코드 호출 실패, 재시도 필요',
-        timestamp: new Date().toISOString(),
-        chainInfo: {
-          channelName: FABRIC_CONFIG.channelName,
-          chaincode: FABRIC_CONFIG.chaincode
-        },
-        note: 'PVD 서비스 호출 실패, 기본 응답 반환',
-        error: error.message
-      };
-      
-      pvdClient.close();
-      return fallbackResult;
-    }
-    
-  } catch (error) {
-    console.error('❌ Fabric 체인코드 호출 실패:', error.message);
-    throw error;
-  }
-}
 
 // Fabric 인덱스에서 실제 데이터 검색하는 함수
 // 모든 speed_* 인덱스를 검색하는 함수
@@ -2248,29 +2000,53 @@ async function main() {
 
         // ===== 일반 인덱스 생성 =====
       case 'create-index':
-        if (network === 'fabric') {
-          // Fabric 네트워크는 기존 방식 유지 (type 필요)
-          if (!type) {
-            console.error('❌ Fabric 네트워크에서 create-index 명령어는 -type이 필요합니다');
+        if (!type) {
+          console.error('❌ create-index 명령어는 -type이 필요합니다');
+          if (network === 'fabric') {
             console.log('예시: node cli.js -cmd=create-index -type=dt -network=fabric');
             console.log('예시: node cli.js -cmd=create-index -type=speed -network=fabric');
-            console.log('📝 Fabric 네트워크에서는 dt, speed, purpose 인덱스 생성 가능합니다');
-            return;
+            console.log('예시: node cli.js -cmd=create-index -type=purpose2 -network=fabric');
+            console.log('📝 Fabric 네트워크에서는 모든 인덱스 타입 생성 가능합니다');
+          } else {
+            console.log('예시: node cli.js -cmd=create-index -type=purpose2 -network=monad');
+            console.log('예시: node cli.js -cmd=create-user-index -wallet=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
+            console.log('📝 EVM 네트워크: create-index(타입만) 또는 create-user-index(지갑만) 사용');
           }
-          await createIndexUnified(network, type);
-        } else {
-          // EVM 네트워크는 지갑 주소 기반
-          if (!value) {
-            console.error('❌ EVM 네트워크에서 create-index 명령어는 -value(지갑 주소)가 필요합니다');
-            console.log('예시: node cli.js -cmd=create-index -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
-            console.log('예시: node cli.js -cmd=create-index -value=0x70997970C51812dc3A010C7d01b50e0d17dc79C8 -network=hardhat');
-            return;
-          }
-            // EVM 네트워크에서는 지갑 주소로 인덱스 생성
-          await createIndexUnified(network, 'wallet', value);
+          return;
         }
+        
+        // 모든 네트워크에서 타입만 사용 (지갑 주소 없음)
+        console.log(`📊 ${type} 타입 인덱스 생성 (지갑 주소 미사용)`);
+        await createIndexUnified(network, type);
         break;
         
+      // ===== 사용자 지정 지갑 인덱스 생성 =====
+      case 'create-user-index':
+        if (!wallet) {
+          console.error('❌ create-user-index 명령어는 -wallet 파라미터가 필요합니다');
+          console.log('예시: node cli.js -cmd=create-user-index -wallet=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=monad');
+          console.log('예시: node cli.js -cmd=create-user-index -wallet=0xYourWalletAddress -network=hardhat');
+          return;
+        }
+        
+        // 지갑 주소 형식 검증 (0x로 시작하는 42자리 hex)
+        if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+          console.error('❌ 올바르지 않은 지갑 주소 형식입니다');
+          console.log('📝 올바른 형식: 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC');
+          return;
+        }
+        
+        if (network === 'fabric') {
+          console.error('❌ Fabric 네트워크에서는 create-user-index를 사용할 수 없습니다');
+          console.log('📝 Fabric 네트워크에서는 create-index를 사용하세요');
+          return;
+        }
+        
+        // 지갑 주소만 사용 (타입 없음)
+        const userIndexType = 'wallet'; // 기본 타입을 wallet로 설정
+        console.log(`📱 사용자 지정 지갑 인덱스: ${wallet}`);
+        await createIndexUnified(network, userIndexType, wallet);
+        break;
 
       // ===== Fabric 인덱스 생성 =====
       case 'create-fabric-index':
@@ -2318,6 +2094,9 @@ async function main() {
         if (!type) {
           console.error('❌ search-index 명령어는 -type이 필요합니다');
           console.log('예시: node cli.js -cmd=search-index -type=speed -network=fabric');
+          console.log('예시: node cli.js -cmd=search-index -type=purpose2 -network=monad');
+          console.log('예시: node cli.js -cmd=search-index -type=custom -wallet=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
+          console.log('📝 EVM 네트워크에서 -wallet은 선택사항입니다 (기본값 사용)');
           return;
         }
         await searchIndexAll(network, type);
@@ -2362,16 +2141,6 @@ async function main() {
         await getAccessTxDetails(value);
         break;
         
-      // ===== Purpose 인덱스 생성 =====
-      case 'create-purpose-index':
-        if (network === 'fabric') {
-          // Fabric 네트워크에서는 create-fabric-index 방식 사용
-          await createIndexUnified(network, 'purpose');
-        } else {
-          // EVM 네트워크에서는 기존 방식 사용
-          await createPurposeIndexEVM(network);
-        }
-        break;
         
       // ===== Purpose 기반 검색 (네트워크별) =====
       case 'search-purpose':
@@ -2443,7 +2212,7 @@ async function main() {
         
       default:
         console.error(`❌ 알 수 없는 명령어: ${cmd}`);
-        console.log('사용 가능한 명령어: deploy, create-index, create-fabric-index, putdata, search-index, get-tx-details, request-data, large-scale-test, check-config, check-network-config, update-network, help');
+        console.log('사용 가능한 명령어: deploy, create-index, create-user-index, create-fabric-index, putdata, search-index, get-tx-details, request-data, large-scale-test, check-config, check-network-config, update-network, help');
         break;
     }
     
@@ -2458,8 +2227,8 @@ function showHelp() {
   console.log('=====================================');
   console.log('\n📋 사용 가능한 명령어:');
   console.log('  deploy                    - 컨트랙트 배포');
-  console.log('  create-index              - 인덱스 생성');
-  console.log('  create-purpose-index      - Purpose 인덱스 생성 (EVM 전용)');
+  console.log('  create-index              - 인덱스 생성 (타입만 사용)');
+  console.log('  create-user-index         - 사용자 지정 지갑 인덱스 생성 (지갑만 사용)');
   console.log('  create-fabric-index       - Fabric 인덱스 생성');
   console.log('  putdata                   - PVD 데이터 저장');
   console.log('  search                    - 지갑 주소별 데이터 조회');
@@ -2480,16 +2249,23 @@ function showHelp() {
   console.log('  -network=localhost        - Localhost');
   
   console.log('\n📝 사용 예시:');
-  console.log('  # Fabric 네트워크 (기본값)');
+  console.log('  # Fabric 네트워크 (기본값) - 모든 타입 지원');
   console.log('  node scripts/cli.js -cmd=create-index -type=speed');
-  // console.log('  node scripts/cli.js -cmd=putdata -value=OBU-TEST-001');
+  console.log('  node scripts/cli.js -cmd=create-index -type=dt');
+  console.log('  node scripts/cli.js -cmd=create-index -type=purpose2');
   console.log('  node scripts/cli.js -cmd=search-index -type=speed');
   console.log('  node scripts/cli.js -cmd=request-data --network=fabric');
   console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=fabric');
   console.log('');
-  console.log('  # EVM 네트워크');
-  console.log('  node scripts/cli.js -cmd=create-index -value="인덱스명" -network=hardhat');
-  console.log('  node scripts/cli.js -cmd=create-purpose-index -network=hardhat');
+  console.log('  # EVM 네트워크 - 두 가지 방식');
+  console.log('  # 1) 순수 타입 인덱스 (타입만)');
+  console.log('  node scripts/cli.js -cmd=create-index -type=purpose2 -network=monad');
+  console.log('  node scripts/cli.js -cmd=create-index -type=custom -network=hardhat');
+  console.log('  # 2) 사용자 지정 지갑 인덱스 (지갑만)');
+  console.log('  node scripts/cli.js -cmd=create-user-index -wallet=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=monad');
+  console.log('  node scripts/cli.js -cmd=create-user-index -wallet=0xYourWalletAddress -network=hardhat');
+  console.log('  # 인덱스 조회');
+  console.log('  node scripts/cli.js -cmd=search-index -type=purpose2 -network=monad');
   console.log('  node scripts/cli.js -cmd=search -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
   console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=hardhat');
   console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=monad');
@@ -2498,8 +2274,6 @@ function showHelp() {
   
   console.log('\n💡 팁:');
   console.log('  • -network를 생략하면 자동으로 fabric 네트워크가 사용됩니다');
-  console.log('  • Fabric: PVD 센서 데이터 처리 (기본값)');
-  console.log('  • Hardhat: EVM 블록체인 트랜잭션 데이터 처리');
 }
 
 // Access Management 모든 요청 조회 함수
@@ -3233,5 +3007,4 @@ module.exports = {
   createPurposeIndexEVM,
   searchByPurposeEVM,
   fabricRequestData,
-  manualIndexing
 };

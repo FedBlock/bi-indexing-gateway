@@ -19,3 +19,53 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: purpose2
+      idxname: ""
+      keycol: IndexableData
+      filepath: data/fabric/purpose2.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: purpose2
+      idxname: ""
+      keycol: IndexableData
+      filepath: data/fabric/purpose2.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: purpose2
+      idxname: MONAD PURPOSE2 Index
+      keycol: IndexableData
+      filepath: data/monad/purpose2.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: purpose2
+      idxname: HARDHAT PURPOSE2 Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/purpose2.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: wallet_575a3a49
+      idxname: MONAD WALLET Index
+      keycol: IndexableData
+      filepath: data/monad/wallet_575a3a49.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

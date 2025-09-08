@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple SDK Test</title>
+</head>
+<body>
+    <h1>Simple SDK Test</h1>
+    <div id="result"></div>
+    
+    <script src="./bi-index-sdk/lib/browser.js"></script>
+    <script>
+        console.log('Testing SDK...');
+        
+        try {
+            console.log('BiIndexSDK available:', typeof BiIndexSDK);
+            console.log('BiIndexSDK:', BiIndexSDK);
+            
+            if (typeof BiIndexSDK !== 'undefined') {
+                const sdk = new BiIndexSDK({
+                    indexServerAddr: 'localhost:50052'
+                });
+                console.log('SDK created:', sdk);
+                document.getElementById('result').innerHTML = '✅ SDK 초기화 성공!';
+            } else {
+                document.getElementById('result').innerHTML = '❌ BiIndexSDK not found';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('result').innerHTML = '❌ Error: ' + error.message;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug SDK Test</title>
+</head>
+<body>
+    <h1>Debug SDK Test</h1>
+    <div id="result"></div>
+    
+    <script src="./bi-index-sdk/lib/browser.js"></script>
+    <script>
+        console.log('=== SDK Debug Test ===');
+        
+        // 1. SDK 로드 확인
+        console.log('1. BiIndexSDK type:', typeof BiIndexSDK);
+        console.log('2. BiIndexSDK:', BiIndexSDK);
+        
+        // 2. 전역 객체 확인
+        console.log('3. window.BiIndexSDK:', window.BiIndexSDK);
+        console.log('4. this.BiIndexSDK:', this.BiIndexSDK);
+        
+        // 3. 생성자 확인
+        if (typeof BiIndexSDK === 'function') {
+            console.log('5. BiIndexSDK is a function - trying to create instance...');
+            try {
+                const sdk = new BiIndexSDK({
+                    indexServerAddr: 'localhost:50052'
+                });
+                console.log('6. SDK created successfully:', sdk);
+                document.getElementById('result').innerHTML = '✅ SDK 초기화 성공!';
+                
+                // 7. 메서드 확인
+                console.log('7. SDK methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(sdk)));
+                
+            } catch (error) {
+                console.error('6. SDK creation failed:', error);
+                document.getElementById('result').innerHTML = '❌ SDK 생성 실패: ' + error.message;
+            }
+        } else {
+            console.error('5. BiIndexSDK is not a function');
+            document.getElementById('result').innerHTML = '❌ BiIndexSDK is not a constructor';
+        }
+        
+        // 8. 전역 객체들 확인
+        console.log('8. Available globals:', Object.keys(window).filter(k => k.includes('BiIndex') || k.includes('grpc')));
+    </script>
+</body>
+</html>
