@@ -29,10 +29,10 @@ contract AccessManagement {
     );
     event RequestStatusChanged(uint256 indexed requestId, RequestStatus status);
 
-    // 커스텀 에러 (가스비 절약) - 누락된 에러 추가
+    // 커스텀 에러 (가스비 절약)
     error InvalidResourceOwner();
     error InvalidPurpose();
-    error InvalidOrganizationName();  // 추가
+    error InvalidOrganizationName();  
     error InvalidRequestId();
     error RequestNotFound();
     error OnlyOwnerCanChangeStatus();
@@ -141,4 +141,4 @@ contract AccessManagement {
         if (detail.requester == address(0)) revert RequestNotFound();
         return detail;
     }
-}
+}   
