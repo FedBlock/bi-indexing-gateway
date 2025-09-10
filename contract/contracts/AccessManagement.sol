@@ -21,11 +21,11 @@ contract AccessManagement {
 
     // 이벤트 - organizationName 추가
     event AccessRequestsSaved(
-        uint256 indexed requestId, 
-        address indexed requester, 
+        uint256  requestId, 
+        address  requester, 
         address indexed resourceOwner, 
-        string purpose,
-        string organizationName  // 추가
+        string indexed purpose,
+        string indexed organizationName  // 추가
     );
     event RequestStatusChanged(uint256 indexed requestId, RequestStatus status);
 

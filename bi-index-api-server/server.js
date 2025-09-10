@@ -1,542 +1,392 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const grpc = require('@grpc/grpc-js');
-const protoLoader = require('@grpc/proto-loader');
+const { ethers } = require('ethers');
 
-// CLI.js에서 가져온 클라이언트들 (정확한 경로)
-const IndexingClient = require('../indexing-client-package/lib/indexing-client');
-const FabricIndexingClient = require('../contract/scripts/fabric-indexing-client');
-// 공통 경로 설정 (CLI.js와 동일)
-const PROTO_PATH = path.join(__dirname, '../idxmngr-go/protos/index_manager.proto');
+// =========================
+// ABI 디코딩 공통 함수
+// =========================
 
-// 지갑 주소 해시 함수 (CLI.js에서 가져옴)
-function hashWalletAddress(address) {
-  let hash = 0;
-  for (let i = 0; i < address.length; i++) {
-    const char = address.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+/**
+ * 트랜잭션 ABI 디코딩 (AccessManagement 전용)
+ * @param {Object} tx - 트랜잭션 객체
+ * @param {Object} receipt - 트랜잭션 영수증
+ * @returns {Object} 디코딩된 함수 및 이벤트 정보
+ */
+function decodeTransactionABI(tx, receipt) {
+  let decodedFunction = null;
+  let decodedLogs = [];
+  let functionStringParams = {}; // 함수에서 추출한 string 파라미터들
+
+  try {
+    // AccessManagement 컨트랙트 ABI 로드
+    const AccessManagementArtifact = require('../contract/artifacts/contracts/AccessManagement.sol/AccessManagement.json');
+    const contractInterface = new ethers.Interface(AccessManagementArtifact.abi);
+
+    console.log(`🔍 AccessManagement ABI로 디코딩 시도: ${tx.data?.substring(0, 10)}...`);
+
+    // 함수 디코딩
+    if (tx.data && tx.data !== '0x') {
+      try {
+        const decodedData = contractInterface.parseTransaction({
+          data: tx.data,
+          value: tx.value
+        });
+
+        if (decodedData && decodedData.name) {
+          console.log(`✅ 함수 디코딩 성공: ${decodedData.name}`);
+
+          decodedFunction = {
+            name: decodedData.name || 'Unknown',
+            signature: decodedData.signature || 'Unknown',
+            parameters: []
+          };
+
+          if (decodedData.args && decodedData.fragment && decodedData.fragment.inputs) {
+            decodedFunction.parameters = decodedData.args.map((arg, index) => {
+              const param = decodedData.fragment.inputs[index];
+              let value;
+              
+              // 타입별 적절한 변환 처리
+              if (param && param.type === 'string') {
+                // string 타입의 경우 더 안전한 변환
+                if (typeof arg === 'string') {
+                  value = arg;
+                } else if (arg && typeof arg === 'object' && arg.toString && arg.toString() !== '[object Object]') {
+                  value = arg.toString();
+                } else if (arg && typeof arg === 'object' && arg.value !== undefined) {
+                  value = String(arg.value);
+                } else if (arg) {
+                  // 최후의 수단: JSON.stringify 시도
+                  try {
+                    const stringified = JSON.stringify(arg);
+                    value = stringified !== '{}' ? stringified : String(arg);
+                  } catch {
+                    value = String(arg);
+                  }
+                } else {
+                  value = 'null';
+                }
+              } else if (param && param.type === 'address') {
+                value = arg ? arg.toString() : 'null';
+              } else if (param && param.type.startsWith('uint')) {
+                value = arg ? arg.toString() : 'null';
+              } else {
+                value = arg ? arg.toString() : 'null';
+              }
+              
+              console.log(`🔧 함수 파라미터 디코딩: ${param?.name} (${param?.type}) = ${value}`);
+              
+              // string 파라미터는 나중에 이벤트 디코딩에서 사용하기 위해 저장
+              if (param && param.type === 'string' && typeof value === 'string') {
+                const hash = ethers.keccak256(ethers.toUtf8Bytes(value));
+                functionStringParams[hash] = value;
+                console.log(`📝 String 파라미터 저장: ${value} -> ${hash}`);
+              }
+              
+              return {
+                name: param ? (param.name || `param${index}`) : `param${index}`,
+                type: param ? (param.type || 'unknown') : 'unknown',
+                value: value
+              };
+            });
+          }
+        }
+      } catch (decodeError) {
+        console.log(`❌ 함수 디코딩 실패: ${decodeError.message}`);
+      }
+    }
+
+    // 이벤트 로그 디코딩
+    if (receipt && receipt.logs && receipt.logs.length > 0) {
+      for (const log of receipt.logs) {
+        try {
+          const parsedLog = contractInterface.parseLog(log);
+          console.log(`✅ 이벤트 디코딩 성공: ${parsedLog.name}`);
+          
+          decodedLogs.push({
+            name: parsedLog.name || 'UnknownEvent',
+            signature: parsedLog.signature || 'Unknown',
+            address: log.address,
+            parameters: parsedLog.args && parsedLog.fragment && parsedLog.fragment.inputs ?
+              parsedLog.args.map((arg, index) => {
+                const param = parsedLog.fragment.inputs[index];
+                let value;
+                
+                // 타입별 적절한 변환 처리
+                if (param && param.type === 'string') {
+                  // string 타입의 경우 더 안전한 변환
+                  if (typeof arg === 'string') {
+                    value = arg;
+                  } else if (arg && typeof arg === 'object' && arg._isIndexed && arg.hash) {
+                    // indexed string 파라미터 - 함수에서 추출한 값들로 매핑
+                    value = functionStringParams[arg.hash] || `Unknown (${arg.hash})`;
+                    console.log(`🔍 Indexed string hash: ${arg.hash} -> ${value}`);
+                  } else if (arg && typeof arg === 'object' && arg.toString && arg.toString() !== '[object Object]') {
+                    value = arg.toString();
+                  } else if (arg && typeof arg === 'object' && arg.value !== undefined) {
+                    value = String(arg.value);
+                  } else if (arg) {
+                    // 최후의 수단: JSON.stringify 시도
+                    try {
+                      const stringified = JSON.stringify(arg);
+                      value = stringified !== '{}' ? stringified : String(arg);
+                    } catch {
+                      value = String(arg);
+                    }
+                  } else {
+                    value = 'null';
+                  }
+                } else if (param && param.type === 'address') {
+                  value = arg ? arg.toString() : 'null';
+                } else if (param && param.type.startsWith('uint')) {
+                  value = arg ? arg.toString() : 'null';
+                } else {
+                  value = arg ? arg.toString() : 'null';
+                }
+                
+                console.log(`🔧 파라미터 디코딩: ${param?.name} (${param?.type}) = ${value}`);
+                
+                return {
+                  name: param ? (param.name || `param${index}`) : `param${index}`,
+                  type: param ? (param.type || 'unknown') : 'unknown',
+                  value: value
+                };
+              }) : []
+          });
+        } catch (logDecodeError) {
+          console.log(`❌ 이벤트 디코딩 실패: ${logDecodeError.message}`);
+          
+          // 디코딩 실패한 로그는 원본 그대로
+          decodedLogs.push({
+            name: 'UnknownEvent',
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            error: logDecodeError.message
+          });
+        }
+      }
+    }
+
+  } catch (error) {
+    console.log(`⚠️ ABI 디코딩 실패: ${error.message}`);
   }
-  return Math.abs(hash).toString(16).slice(0, 8);
+
+  return {
+    function: decodedFunction,
+    events: decodedLogs
+  };
 }
 
+// =========================
+// Express 서버 설정
+// =========================
+
 const app = express();
+
+// 미들웨어 설정
 app.use(cors());
 app.use(express.json());
 
 // 헬스체크 엔드포인트
-app.get('/api/health', async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      message: 'API 서버 정상 작동',
-      timestamp: new Date().toISOString(),
-      services: {
-        evm: { connected: true, networks: ['hardhat', 'monad'] },
-        indexing: { connected: true, port: 50052 }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'BI-Index API Server is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // =========================
-// EVM 관련 엔드포인트들
+// 인덱스 기반 트랜잭션 목록 조회 (메인 API)
 // =========================
 
-// EVM Access 요청 (트랜잭션 + 인덱싱)
-app.post('/api/evm/access-request', async (req, res) => {
+app.get('/api/indexed-transactions/:network/:purpose', async (req, res) => {
   try {
-    const { network, purpose, walletAddress } = req.body;
+    const { network, purpose } = req.params;
     
-    console.log(`🔐 EVM Access 요청: ${network}/${purpose}`);
+    console.log(`🔍 인덱스 기반 트랜잭션 목록 조회: ${network}/${purpose}`);
+    const startTime = Date.now();
     
-    // TODO: CLI.js의 requestData 함수 이식
-    // 1. EVM 트랜잭션 발생
-    // 2. 트랜잭션 성공 후 인덱싱
-    // 3. addToPurposeIndexEVM + addToWalletIndex 호출
-    
-    // 현재는 Mock 응답
-    const result = {
-      success: true,
-      network: network,
-      purpose: purpose,
-      walletAddress: walletAddress,
-      txHash: `0x${Math.random().toString(16).slice(2, 66)}`,
-      message: `${network} 네트워크에서 Access 요청 완료`,
-      indexing: {
-        walletIndex: 'completed',
-        purposeIndex: 'completed'
-      },
-      timestamp: new Date().toISOString()
-    };
-    
-    console.log('✅ EVM Access 요청 성공:', result);
-    res.json(result);
-    
-  } catch (error) {
-    console.error('❌ EVM Access 요청 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// =========================
-// Fabric 관련 엔드포인트들  
-// =========================
-
-// PVD 데이터 저장 (gRPC + 인덱싱)
-app.post('/api/fabric/pvd-data', async (req, res) => {
-  try {
-    const { obuId, pvdData } = req.body;
-    
-    console.log(`📤 Fabric PVD 데이터 저장: ${obuId}`);
-    
-    // TODO: CLI.js의 putPvdData 함수 이식
-    // 1. Fabric gRPC 호출
-    // 2. 성공 후 인덱싱
-    
-    // 현재는 Mock 응답
-    const result = {
-      success: true,
-      network: 'fabric',
-      obuId: obuId,
-      txId: `fabric_${obuId}_${Date.now()}`,
-      speed: pvdData?.speed || 60,
-      latitude: pvdData?.latitude || 37.5665,
-      longitude: pvdData?.longitude || 126.9780,
-      message: 'Fabric PVD 데이터 저장 완료',
-      indexing: {
-        speedIndex: 'completed',
-        locationIndex: 'completed'
-      },
-      timestamp: new Date().toISOString()
-    };
-    
-    console.log('✅ Fabric PVD 저장 성공:', result);
-    res.json(result);
-    
-  } catch (error) {
-    console.error('❌ Fabric PVD 저장 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// =========================
-// 인덱싱 관련 엔드포인트들
-// =========================
-
-// 인덱스 생성 (CLI.js의 createIndexUnified 이식)
-app.post('/api/index/create', async (req, res) => {
-  try {
-    const { network, indexType, walletAddress } = req.body;
-    
-    console.log(`🔧 ${network} 네트워크에 ${indexType} 인덱스 생성 중...`);
-    
-    if (network === 'fabric') {
-      // Fabric 네트워크 처리
-      console.log(`📊 Fabric 네트워크 - ${indexType} 인덱스 생성...`);
-      
-      const indexingClient = new FabricIndexingClient({
-        serverAddr: 'localhost:50052',
-        protoPath: path.join(__dirname, '../grpc-go/protos/index_manager.proto')
-      });
-      
-      try {
-        await indexingClient.connect();
-        
-        const indexRequest = {
-          IndexID: indexType,
-          ColName: indexType === 'purpose' ? 'IndexableData' : 'IndexableData',
-          ColIndex: indexType,
-          KeyCol: indexType === 'purpose' ? 'IndexableData' : 'IndexableData',
-          FilePath: `data/fabric/${indexType}.bf`,
-          Network: 'fabric',
-          KeySize: 64
-        };
-        
-        console.log(`📤 Fabric ${indexType} 인덱스 생성 요청 전송 중...`);
-        
-        const result = await indexingClient.createIndex(indexRequest);
-        console.log(`📥 Fabric ${indexType} 인덱스 생성 응답:`, JSON.stringify(result, null, 2));
-        
-        await indexingClient.close();
-        console.log(`🔌 Fabric 인덱싱 클라이언트 연결 종료`);
-        
-        res.json({
-          success: true,
-          network: 'fabric',
-          indexType: indexType,
-          indexId: indexType,
-          message: `Fabric ${indexType} 인덱스 생성 완료`,
-          result: result,
-          timestamp: new Date().toISOString()
-        });
-        
-      } catch (error) {
-        console.error(`❌ Fabric ${indexType} 인덱스 생성 실패: ${error.message}`);
-        throw error;
-      }
-      
-    } else {
-      // EVM 계열 네트워크 처리
-      console.log(`📊 ${network} 네트워크 - ${indexType} 인덱스 생성...`);
-      
-      const indexingClient = new IndexingClient({
-        serverAddr: 'localhost:50052',
-        protoPath: PROTO_PATH
-      });
-      
-      try {
-        await indexingClient.connect();
-        console.log('✅ 인덱싱 서버 연결 성공');
-        
-        // 네트워크별 디렉토리 매핑
-        const networkDir = network === 'hardhat' ? 'hardhat-local' : network;
-        
-        // EVM 네트워크용: 지갑 주소가 있으면 사용, 없으면 타입만 사용
-        let indexID, filePath;
-        
-        if (walletAddress) {
-          // 지갑 주소가 있는 경우
-          const addressHash = hashWalletAddress(walletAddress);
-          console.log(`📱 ${indexType} 타입 → 지갑 주소: ${walletAddress} → 해시: ${addressHash}`);
-          indexID = `${indexType}_${addressHash}`;
-          filePath = `data/${networkDir}/${indexType}_${addressHash}.bf`;
-        } else {
-          // 지갑 주소가 없는 경우
-          console.log(`📊 ${indexType} 타입 → 순수 타입 인덱스`);
-          indexID = indexType;
-          filePath = `data/${networkDir}/${indexType}.bf`;
-        }
-        
-        const createRequest = {
-          IndexID: indexID,
-          IndexName: `${network.toUpperCase()} ${indexType.toUpperCase()} Index`,
-          KeyCol: 'IndexableData',
-          FilePath: filePath,
-          KeySize: 64
-        };
-        
-        console.log(`🔧 인덱스 생성 요청:`, createRequest);
-        
-        const response = await indexingClient.createIndex(createRequest);
-        console.log(`✅ ${indexType} 인덱스 생성 완료!`);
-        console.log(`📍 인덱스 파일: ${filePath}`);
-        
-        indexingClient.close();
-        
-        res.json({
-          success: true,
-          network: network,
-          indexType: indexType,
-          indexId: indexID,
-          filePath: filePath,
-          message: `${network} ${indexType} 인덱스 생성 완료`,
-          result: response,
-          timestamp: new Date().toISOString()
-        });
-        
-      } catch (error) {
-        console.error(`❌ ${network} ${indexType} 인덱스 생성 실패: ${error.message}`);
-        throw error;
-      }
-    }
-    
-  } catch (error) {
-    console.error('❌ 인덱스 생성 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// 인덱스 전체 검색 (CLI.js의 searchIndexAll 이식)
-app.post('/api/index/search-all', async (req, res) => {
-  try {
-    const { network, indexType, walletAddress } = req.body;
-    
-    console.log(`🔍 ${network} 네트워크의 ${indexType} 인덱스 전체 조회 시작...`);
-    
-    if (network === 'fabric') {
-      // Fabric 네트워크 처리 (향후 구현)
-      res.json({
-        success: false,
-        message: 'Fabric 검색은 아직 구현되지 않았습니다',
-        timestamp: new Date().toISOString()
-      });
-      return;
-      
-    } else {
-      // EVM 계열 네트워크 처리
-      console.log(`📊 ${network} 네트워크 인덱스에서 전체 데이터 조회...`);
-      
-      const indexingClient = new IndexingClient({
-        serverAddr: 'localhost:50052',
-        protoPath: PROTO_PATH
-      });
-      
-      try {
-        await indexingClient.connect();
-        console.log('✅ 인덱싱 서버 연결 성공');
-        
-        // EVM 네트워크에서 지갑 주소 처리
-        const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
-        
-        let indexID, filePath;
-        
-        if (walletAddress) {
-          // 지갑 주소가 제공된 경우
-          if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-            throw new Error('올바르지 않은 지갑 주소 형식입니다. 올바른 형식: 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC');
-          }
-          
-          console.log(`📱 지갑 주소 기반 검색: ${walletAddress}`);
-          const addressHash = hashWalletAddress(walletAddress);
-          indexID = `${indexType}_${addressHash}`;
-          filePath = `data/${networkDir}/${indexType}_${addressHash}.bf`;
-        } else {
-          // 지갑 주소가 없는 경우 - 순수 인덱스 타입만 사용
-          console.log(`📊 순수 인덱스 타입 검색: ${indexType}`);
-          indexID = indexType;
-          filePath = `data/${networkDir}/${indexType}.bf`;
-        }
-        
-        // 전체 데이터 조회를 위한 Range 검색 (한글 포함)
-        const searchRequest = {
-          IndexID: indexID,
-          Field: 'IndexableData',
-          Begin: '',        // 시작값 (빈 문자열 = 최소값)
-          End: '\uFFFF',    // 끝값 (유니코드 최대값 - 한글 포함)
-          FilePath: filePath,
-          KeySize: 64,
-          ComOp: 'Range'    // Range 검색으로 모든 데이터 조회
-        };
-        
-        console.log(`🔧 검색 요청:`, searchRequest);
-        
-        const result = await indexingClient.searchData(searchRequest);
-        
-        indexingClient.close();
-        
-        res.json({
-          success: true,
-          network: network,
-          indexType: indexType,
-          walletAddress: walletAddress || null,
-          indexID: indexID,
-          filePath: filePath,
-          searchRequest: searchRequest,
-          results: result,
-          message: `${network} ${indexType} 인덱스 전체 조회 완료`,
-          timestamp: new Date().toISOString()
-        });
-        
-      } catch (error) {
-        console.error(`❌ ${network} ${indexType} 인덱스 검색 실패: ${error.message}`);
-        throw error;
-      }
-    }
-    
-  } catch (error) {
-    console.error('❌ 인덱스 검색 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Purpose 인덱스에 데이터 추가 (CLI.js의 addToPurposeIndexEVM 이식)
-app.post('/api/index/add-purpose', async (req, res) => {
-  try {
-    const { purpose, txHash, network, organizationName } = req.body;
-    
-    console.log(`📝 Purpose 인덱스에 저장 중: ${purpose} → ${txHash}`);
-    
-    // EVM 네트워크만 지원
-    if (network === 'fabric') {
-      throw new Error('Fabric 네트워크는 지원하지 않습니다. EVM 네트워크를 사용하세요.');
-    }
-    
-    const indexingClient = new IndexingClient({
-      serverAddr: 'localhost:50052',
-      protoPath: PROTO_PATH
-    });
-    
-    try {
-      await indexingClient.connect();
-      console.log('✅ 인덱싱 서버 연결 성공');
-      
-      const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
-      const indexID = 'purpose';
-      const filePath = `data/${networkDir}/purpose.bf`;
-      
-      // IndexableData 안에 purpose를 포함하여 동적 인덱싱
-      const insertRequest = {
-        IndexID: indexID,
-        BcList: [{
-          TxId: txHash,
-          KeyCol: 'IndexableData',
-          IndexableData: {
-            TxId: txHash,
-            ContractAddress: network === 'monad' ? '0x23EC7332865ecD204539f5C3535175C22D2C6388' : '0x5FbDB2315678afecb367f032d93F642f64180aa3',
-            EventName: 'AccessRequestsSaved',
-            Timestamp: new Date().toISOString(),
-            BlockNumber: 0,
-            DynamicFields: {
-              "key": purpose,  // purpose를 직접 키로 사용
-              "purpose": purpose,
-              "organizationName": organizationName || 'Unknown',
-              "network": network,
-              "timestamp": new Date().toISOString()
-            },
-            SchemaVersion: "1.0"
-          }
-        }],
-        ColName: 'IndexableData',
-        ColIndex: indexID,
-        FilePath: filePath,
-        Network: network
-      };
-      
-      console.log(`📝 Purpose 인덱스 저장: ${purpose} → ${txHash}`);
-      await indexingClient.insertData(insertRequest);
-      
-      // 안전한 인덱싱을 위한 대기
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      indexingClient.close();
-      
-      res.json({
-        success: true,
-        purpose: purpose,
-        txHash: txHash,
-        network: network,
-        organizationName: organizationName,
-        indexID: indexID,
-        filePath: filePath,
-        message: `Purpose 인덱스에 데이터 저장 완료: ${purpose}`,
-        timestamp: new Date().toISOString()
-      });
-      
-    } catch (error) {
-      console.error(`❌ Purpose 인덱스 추가 실패: ${error.message}`);
-      throw error;
-    }
-    
-  } catch (error) {
-    console.error('❌ Purpose 데이터 삽입 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Purpose 검색 엔드포인트
-app.post('/api/index/search-purpose', async (req, res) => {
-  try {
-    const { network, purpose } = req.body;
-    
-    if (!network || !purpose) {
+    // 지원되는 네트워크 확인
+    const supportedNetworks = ['hardhat-local', 'hardhat', 'monad'];
+    if (!supportedNetworks.includes(network)) {
       return res.status(400).json({
         success: false,
-        error: 'network와 purpose 파라미터가 필요합니다',
-        timestamp: new Date().toISOString()
+        error: `지원되지 않는 네트워크입니다. 지원되는 네트워크: ${supportedNetworks.join(', ')}`,
+        network,
+        purpose
       });
     }
     
-    console.log(`🔍 Purpose 검색 요청: ${network}/${purpose}`);
+    // 1. 인덱스에서 트랜잭션 ID 목록 조회
+    console.log(`📊 1단계: "${purpose}" 인덱스 검색 중...`);
     
-    // EVM 네트워크만 지원
-    if (network === 'fabric') {
-      return res.status(400).json({
-        success: false,
-        error: 'Fabric 네트워크는 지원하지 않습니다. EVM 네트워크를 사용하세요.',
-        timestamp: new Date().toISOString()
-      });
-    }
-    
+    const IndexingClient = require('../indexing-client-package/lib/indexing-client');
     const indexingClient = new IndexingClient({
       serverAddr: 'localhost:50052',
       protoPath: require('path').join(__dirname, '../idxmngr-go/protos/index_manager.proto')
     });
     
     await indexingClient.connect();
-    console.log('✅ 인덱싱 서버 연결 성공');
     
     const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
-    const indexID = 'purpose';
-    const filePath = `data/${networkDir}/purpose.bf`;
-    
-    // Purpose 값으로 검색 (key 필드에 purpose가 저장되어 있음)
     const searchRequest = {
-      IndexID: indexID,
-      Field: 'IndexableData',
+      IndexID: 'purpose',
+      Field: 'IndexableData', 
       Value: purpose,
-      FilePath: filePath,
+      FilePath: `data/${networkDir}/purpose.bf`,
       KeySize: 64,
       ComOp: 'Eq'
     };
     
-    console.log(`🔧 검색 요청:`, searchRequest);
-    
-    const result = await indexingClient.searchData(searchRequest);
-    
+    const searchResult = await indexingClient.searchData(searchRequest);
     indexingClient.close();
     
-    // 결과 정리 및 응답
-    const cleanResult = {
+    const txHashes = searchResult.IdxData || [];
+    console.log(`📝 인덱스에서 ${txHashes.length}개 트랜잭션 발견`);
+    
+    if (txHashes.length === 0) {
+      return res.json({
+        success: true,
+        network,
+        purpose,
+        totalCount: 0,
+        transactions: [],
+        message: `"${purpose}" 목적의 트랜잭션을 찾을 수 없습니다`,
+        processingTime: `${Date.now() - startTime}ms`
+      });
+    }
+    
+    // 2. 각 트랜잭션 상세 조회 및 이벤트 파싱
+    console.log(`🔧 2단계: ${txHashes.length}개 트랜잭션 상세 조회 중...`);
+    
+    // EVM 프로바이더 설정
+    let provider;
+    if (network === 'hardhat-local' || network === 'hardhat') {
+      provider = new ethers.JsonRpcProvider('http://localhost:8545');
+    } else if (network === 'monad') {
+      provider = new ethers.JsonRpcProvider('https://testnet1.monad.xyz');
+    }
+    
+    const transactions = [];
+    const errors = [];
+    
+    // 병렬 처리로 성능 최적화 (최대 5개씩 동시 처리)
+    const batchSize = 5;
+    for (let i = 0; i < txHashes.length; i += batchSize) {
+      const batch = txHashes.slice(i, i + batchSize);
+      const batchPromises = batch.map(async (txId) => {
+        try {
+          // 트랜잭션과 영수증 조회
+          const [tx, receipt] = await Promise.all([
+            provider.getTransaction(txId),
+            provider.getTransactionReceipt(txId)
+          ]);
+          
+          if (!tx || !receipt) {
+            throw new Error(`트랜잭션을 찾을 수 없습니다: ${txId}`);
+          }
+          
+          // 블록 정보 조회 (타임스탬프 필요)
+          const block = await provider.getBlock(tx.blockNumber);
+          
+          // ABI 디코딩
+          const decoded = decodeTransactionABI(tx, receipt);
+          
+          // AccessRequestsSaved 이벤트 찾기
+          const accessEvent = decoded.events.find(event => event.name === 'AccessRequestsSaved');
+          
+          if (accessEvent && accessEvent.parameters) {
+            const eventData = {};
+            accessEvent.parameters.forEach(param => {
+              eventData[param.name] = param.value;
+            });
+            
+            return {
+              txId: tx.hash,
+              blockNumber: tx.blockNumber,
+              timestamp: block ? block.timestamp : null,
+              date: block ? new Date(block.timestamp * 1000).toISOString() : null,
+              status: receipt.status === 1 ? 'success' : 'failed',
+              
+              // 이벤트 데이터를 직접 펼치기
+              requestId: eventData.requestId || null,
+              requester: eventData.requester || null,
+              resourceOwner: eventData.resourceOwner || null,
+              purpose: eventData.purpose || purpose,
+              organizationName: eventData.organizationName || null
+            };
+          } else {
+            // AccessRequestsSaved 이벤트가 없는 경우
+            return {
+              txId: tx.hash,
+              blockNumber: tx.blockNumber,
+              timestamp: block ? block.timestamp : null,
+              date: block ? new Date(block.timestamp * 1000).toISOString() : null,
+              status: receipt.status === 1 ? 'success' : 'failed',
+              purpose: purpose,
+              error: 'AccessRequestsSaved 이벤트를 찾을 수 없습니다'
+            };
+          }
+          
+        } catch (error) {
+          console.error(`❌ 트랜잭션 처리 실패 (${txId}):`, error.message);
+          errors.push({ txId, error: error.message });
+          return null;
+        }
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      transactions.push(...batchResults.filter(result => result !== null));
+      
+      console.log(`📋 배치 ${Math.floor(i/batchSize) + 1} 완료: ${batchResults.filter(r => r).length}/${batch.length} 성공`);
+    }
+    
+    // 타임스탬프 기준 내림차순 정렬 (최신순)
+    transactions.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    
+    const processingTime = Date.now() - startTime;
+    console.log(`✅ 처리 완료: ${transactions.length}개 성공, ${errors.length}개 실패 (${processingTime}ms)`);
+    
+    res.json({
       success: true,
-      purpose: purpose,
-      indexId: indexID,
-      data: result.IdxData || [],
-      count: result.IdxData?.length || 0,
-      network: network,
-      searchRequest: searchRequest,
-      results: result,
-      message: `${network} ${purpose} Purpose 검색 완료`,
+      network,
+      purpose,
+      totalCount: transactions.length,
+      errorCount: errors.length,
+      transactions,
+      errors: errors.length > 0 ? errors : undefined,
+      processingTime: `${processingTime}ms`,
       timestamp: new Date().toISOString()
-    };
-    
-    console.log(`📊 검색 결과: ${cleanResult.count}개 데이터 발견`);
-    
-    res.json(cleanResult);
+    });
     
   } catch (error) {
-    console.error('❌ Purpose 검색 실패:', error);
+    console.error('❌ 인덱스 기반 트랜잭션 조회 실패:', error);
     res.status(500).json({
       success: false,
       error: error.message,
+      network: req.params.network,
+      purpose: req.params.purpose,
       timestamp: new Date().toISOString()
     });
   }
 });
+
+// =========================
+// 서버 시작
+// =========================
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 BI-Index API Server running on http://localhost:${PORT}`);
   console.log('Available endpoints:');
   console.log('  GET  /api/health');
-  console.log('  POST /api/evm/access-request');
-  console.log('  POST /api/fabric/pvd-data');
-  console.log('  POST /api/index/create');
-  console.log('  POST /api/index/search-all');
-  console.log('  POST /api/index/add-purpose');
-  console.log('  POST /api/index/search-purpose');
+  console.log('  GET  /api/indexed-transactions/:network/:purpose  (메인 API)');
+  console.log('');
+  console.log('📋 지원되는 네트워크: hardhat-local, hardhat, monad');
+  console.log('📋 사용 예시:');
+  console.log('  GET /api/indexed-transactions/hardhat-local/혈압');
+  console.log('  GET /api/indexed-transactions/monad/수면');
 });

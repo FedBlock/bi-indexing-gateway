@@ -2140,6 +2140,32 @@ async function main() {
         }
         await getAccessTxDetails(value);
         break;
+
+      // ===== 성능 비교 (목적별) =====
+      case 'compare-performance':
+        if (!value) {
+          console.log('❌ 목적이 필요합니다: -value=수면');
+          return;
+        }
+        if (!network) {
+          console.error('❌ compare-performance 명령어는 --network가 필요합니다');
+          return;
+        }
+        await comparePerformanceByPurpose(network, value);
+        break;
+
+      // ===== 인덱스 기반 완전 조회 =====
+      case 'search-and-fetch':
+        if (!value) {
+          console.log('❌ 목적이 필요합니다: -value=수면');
+          return;
+        }
+        if (!network) {
+          console.error('❌ search-and-fetch 명령어는 --network가 필요합니다');
+          return;
+        }
+        await searchAndFetchDetailsByPurpose(network, value);
+        break;
         
         
       // ===== Purpose 기반 검색 (네트워크별) =====
@@ -2205,6 +2231,43 @@ async function main() {
         console.log(`📝 컨트랙트 주소: ${contract}`);
         break;
         
+      // ===== 성능 비교 테스트 =====
+      case 'performance-test':
+        if (!network) {
+          console.error('❌ performance-test 명령어는 -network가 필요합니다');
+          console.log('예시: node cli.js -cmd=performance-test -network=hardhat');
+          console.log('📝 2000건 데이터로 인덱스 검색 vs 블록체인 직접 조회 성능 비교');
+          return;
+        }
+        if (network === 'fabric') {
+          console.error('❌ performance-test는 현재 EVM 네트워크에서만 지원됩니다');
+          console.log('📝 지원 네트워크: hardhat, hardhat-local, localhost');
+          return;
+        }
+        await runPerformanceComparisonTest(network);
+        break;
+
+      // ===== CSV 파일에서 데이터 생성 =====
+      case 'generate-from-csv':
+        if (!network) {
+          console.error('❌ generate-from-csv 명령어는 -network가 필요합니다');
+          console.log('예시: node cli.js -cmd=generate-from-csv -network=hardhat-local -value=data.csv');
+          console.log('📝 CSV 파일에서 데이터를 읽어서 블록체인에 저장 + 인덱싱');
+          return;
+        }
+        if (!value) {
+          console.error('❌ generate-from-csv 명령어는 -value로 CSV 파일 경로가 필요합니다');
+          console.log('예시: node cli.js -cmd=generate-from-csv -network=hardhat-local -value=./data/sample.csv');
+          return;
+        }
+        if (network === 'fabric') {
+          console.error('❌ generate-from-csv는 현재 EVM 네트워크에서만 지원됩니다');
+          console.log('📝 지원 네트워크: hardhat-local, hardhat, localhost');
+          return;
+        }
+        await generateDataFromCSV(network, value);
+        break;
+        
       // ===== 도움말 =====
       case 'help':
         showHelp();
@@ -2212,7 +2275,7 @@ async function main() {
         
       default:
         console.error(`❌ 알 수 없는 명령어: ${cmd}`);
-        console.log('사용 가능한 명령어: deploy, create-index, create-user-index, create-fabric-index, putdata, search-index, get-tx-details, request-data, large-scale-test, check-config, check-network-config, update-network, help');
+        console.log('사용 가능한 명령어: deploy, create-index, create-user-index, create-fabric-index, putdata, search-index, get-tx-details, request-data, performance-test, compare-performance, large-scale-test, check-config, check-network-config, update-network, help');
         break;
     }
     
@@ -2237,6 +2300,10 @@ function showHelp() {
   console.log('  get-tx-details            - 트랜잭션 상세 조회 (PVD용)');
   console.log('  get-access-tx-details     - Access Management TxId 상세 조회');
   console.log('  request-data              - 샘플 데이터 생성 (네트워크별)');
+  console.log('  generate-from-csv         - CSV 파일에서 데이터 생성 (컨트랙트 배포 + 인덱싱)');
+  console.log('  performance-test          - 성능 비교 테스트 (인덱스 vs 블록체인 직접 조회)');
+  console.log('  compare-performance       - 특정 목적 데이터 성능 비교 (인덱스 vs 블록체인)');
+  console.log('  search-and-fetch          - 인덱스 조회 + 모든 상세 데이터 가져오기');
   console.log('  check-config              - 설정 확인');
   console.log('  check-network-config      - 네트워크 설정 확인');
   console.log('  update-network            - 네트워크 업데이트');
@@ -2259,18 +2326,17 @@ function showHelp() {
   console.log('');
   console.log('  # EVM 네트워크 - 두 가지 방식');
   console.log('  # 1) 순수 타입 인덱스 (타입만)');
-  console.log('  node scripts/cli.js -cmd=create-index -type=purpose2 -network=monad');
   console.log('  node scripts/cli.js -cmd=create-index -type=custom -network=hardhat');
   console.log('  # 2) 사용자 지정 지갑 인덱스 (지갑만)');
   console.log('  node scripts/cli.js -cmd=create-user-index -wallet=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=monad');
   console.log('  node scripts/cli.js -cmd=create-user-index -wallet=0xYourWalletAddress -network=hardhat');
   console.log('  # 인덱스 조회');
-  console.log('  node scripts/cli.js -cmd=search-index -type=purpose2 -network=monad');
-  console.log('  node scripts/cli.js -cmd=search -value=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC -network=hardhat');
   console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=hardhat');
   console.log('  node scripts/cli.js -cmd=search-purpose -value="수면" --network=monad');
   console.log('  node scripts/cli.js -cmd=get-tx-details -value="트랜잭션"... -network=hardhat');
   console.log('  node scripts/cli.js -cmd=request-data --network=hardhat');
+  console.log('  node scripts/cli.js -cmd=compare-performance -value="수면" --network=hardhat-local');
+  console.log('  node scripts/cli.js -cmd=search-and-fetch -value="수면" --network=hardhat-local');
   
   console.log('\n💡 팁:');
   console.log('  • -network를 생략하면 자동으로 fabric 네트워크가 사용됩니다');
@@ -3000,6 +3066,846 @@ async function fabricSearchByPurpose(purpose) {
 }
 
 
+// ===== CSV 파일 처리 함수 =====
+
+// CSV 파일에서 데이터를 읽어서 블록체인에 저장하는 함수
+async function generateDataFromCSV(network, csvFilePath) {
+  try {
+    console.log('📄 CSV 파일에서 데이터 생성 시작...');
+    console.log(`📁 파일 경로: ${csvFilePath}\n`);
+    
+    // CSV 파일 읽기
+    const fs = require('fs');
+    const path = require('path');
+    
+    // 파일 존재 확인
+    const fullPath = path.resolve(csvFilePath);
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`CSV 파일을 찾을 수 없습니다: ${fullPath}`);
+    }
+    
+    // CSV 파일 읽기
+    const csvContent = fs.readFileSync(fullPath, 'utf8');
+    const lines = csvContent.trim().split('\n');
+    
+    if (lines.length <= 1) {
+      throw new Error('CSV 파일에 데이터가 없습니다 (헤더만 있음)');
+    }
+    
+    // 헤더 파싱
+    const headers = lines[0].split(',').map(h => h.trim());
+    console.log('📋 CSV 헤더:', headers);
+    
+    // 필수 컬럼 확인
+    const requiredColumns = ['resourceOwner', 'purpose', 'organizationName'];
+    const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+    if (missingColumns.length > 0) {
+      throw new Error(`필수 컬럼이 없습니다: ${missingColumns.join(', ')}`);
+    }
+    
+    // 데이터 파싱
+    const csvData = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      const row = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] || '';
+      });
+      
+      // 필수 필드 검증
+      if (row.resourceOwner && row.purpose && row.organizationName) {
+        csvData.push(row);
+      } else {
+        console.warn(`⚠️ 라인 ${i + 1} 건너뜀: 필수 데이터 누락`);
+      }
+    }
+    
+    console.log(`📊 총 ${csvData.length}건의 유효한 데이터 발견\n`);
+    
+    // 네트워크 설정
+    let provider, signer;
+    if (network === 'hardhat') {
+      [signer] = await ethers.getSigners();
+      provider = ethers.provider;
+    } else {
+      const networkConfig = hre.config.networks[network];
+      if (!networkConfig) {
+        throw new Error(`hardhat.config.js에 ${network} 네트워크 설정이 없습니다.`);
+      }
+      provider = new ethers.JsonRpcProvider(networkConfig.url);
+      signer = new ethers.Wallet(networkConfig.accounts[0], provider);
+    }
+    
+    // 컨트랙트 배포
+    console.log('🏗️ AccessManagement 컨트랙트 배포 중...');
+    const AccessManagement = await ethers.getContractFactory('AccessManagement', signer);
+    const contract = await AccessManagement.deploy();
+    await contract.waitForDeployment();
+    const contractAddress = await contract.getAddress();
+    console.log(`✅ 컨트랙트 배포 완료: ${contractAddress}\n`);
+    
+    // Purpose 인덱스 생성
+    console.log('🔧 Purpose 인덱스 생성 중...');
+    await createIndexUnified(network, 'purpose');
+    console.log('✅ Purpose 인덱스 생성 완료\n');
+    
+    // 데이터 처리
+    const results = [];
+    let totalCount = 0;
+    const startTime = Date.now();
+    
+    console.log('📝 CSV 데이터 처리 시작...\n');
+    
+    for (const row of csvData) {
+      try {
+        // 블록체인에 데이터 저장
+        const tx = await contract.saveRequest(
+          row.resourceOwner,
+          row.purpose,
+          row.organizationName
+        );
+        await tx.wait();
+        
+        // 인덱스에 저장
+        console.log(`📝 Purpose 인덱스에 저장 중: ${row.purpose} → ${tx.hash}`);
+        await addToPurposeIndexEVM(row.purpose, tx.hash, network, row.organizationName);
+        
+        results.push({
+          purpose: row.purpose,
+          organizationName: row.organizationName,
+          txHash: tx.hash,
+          success: true
+        });
+        
+        totalCount++;
+        
+        // 진행 상황 표시 (10개마다)
+        if (totalCount % 10 === 0) {
+          console.log(`   📊 진행: ${totalCount}/${csvData.length} (${((totalCount/csvData.length)*100).toFixed(1)}%)`);
+        }
+        
+        // nonce 충돌 방지를 위한 지연
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+      } catch (error) {
+        console.warn(`⚠️ 데이터 ${totalCount + 1} 처리 실패: ${error.message}`);
+        results.push({
+          purpose: row.purpose,
+          organizationName: row.organizationName,
+          txHash: null,
+          success: false,
+          error: error.message
+        });
+        totalCount++;
+      }
+    }
+    
+    const endTime = Date.now();
+    const duration = (endTime - startTime) / 1000;
+    const successCount = results.filter(r => r.success).length;
+    
+    console.log('\n🎉 CSV 데이터 처리 완료!');
+    console.log(`📊 총 처리: ${successCount}/${csvData.length}건`);
+    console.log(`⏱️  소요 시간: ${duration.toFixed(2)}초`);
+    console.log(`🚀 평균 속도: ${(successCount / duration).toFixed(2)} 건/초\n`);
+    
+    // 목적별 통계
+    const purposeStats = {};
+    results.filter(r => r.success).forEach(r => {
+      purposeStats[r.purpose] = (purposeStats[r.purpose] || 0) + 1;
+    });
+    
+    console.log('📈 목적별 처리 통계:');
+    Object.entries(purposeStats).forEach(([purpose, count]) => {
+      console.log(`  ${purpose}: ${count}건`);
+    });
+    
+    return {
+      success: true,
+      contractAddress,
+      totalProcessed: totalCount,
+      successCount,
+      results,
+      duration
+    };
+    
+  } catch (error) {
+    console.error(`❌ CSV 데이터 처리 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// ===== 성능 비교 테스트 함수들 =====
+
+// 2000건 데이터 생성 함수
+async function generate2000TestData(network) {
+  try {
+    console.log('🚀 50건 테스트 데이터 생성 시작...');
+    console.log(`📊 데이터 구성: 수면 20건, 심박수 15건, 혈당 15건\n`);
+    
+    // 네트워크 설정
+    let provider, signer;
+    if (network === 'hardhat') {
+      [signer] = await ethers.getSigners();
+      provider = ethers.provider;
+    } else {
+      const networkConfig = hre.config.networks[network];
+      if (!networkConfig) {
+        throw new Error(`hardhat.config.js에 ${network} 네트워크 설정이 없습니다.`);
+      }
+      provider = new ethers.JsonRpcProvider(networkConfig.url);
+      signer = new ethers.Wallet(networkConfig.accounts[0], provider);
+    }
+    
+    // 컨트랙트 배포
+    console.log('🏗️ AccessManagement 컨트랙트 배포 중...');
+    const AccessManagement = await ethers.getContractFactory('AccessManagement', signer);
+    const contract = await AccessManagement.deploy();
+    await contract.waitForDeployment();
+    const contractAddress = await contract.getAddress();
+    console.log(`✅ 컨트랙트 배포 완료: ${contractAddress}\n`);
+    
+    // Purpose 인덱스 생성
+    console.log('🔧 Purpose 인덱스 생성 중...');
+    await createIndexUnified(network, 'purpose');
+    console.log('✅ Purpose 인덱스 생성 완료\n');
+    
+    // 테스트 데이터 설정 (50건 테스트용)
+    const purposes = [
+      { name: '수면', count: 20 },
+      { name: '심박수', count: 15 },
+      { name: '혈당', count: 15 }
+    ];
+    
+    const organizations = ['BIMATRIX', 'Samsung', 'LG', 'KT'];
+    const users = [
+      '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+      '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+      '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+      '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65'
+    ];
+    
+    const results = [];
+    let totalCount = 0;
+    const startTime = Date.now();
+    
+    // 목적별 데이터 생성
+    for (const purposeData of purposes) {
+      console.log(`📝 ${purposeData.name} 데이터 ${purposeData.count}건 생성 중...`);
+      
+      for (let i = 0; i < purposeData.count; i++) {
+        const orgIndex = totalCount % organizations.length;
+        const userIndex = totalCount % users.length;
+        
+        const organization = organizations[orgIndex];
+        const user = users[userIndex];
+        
+        try {
+          // 컨트랙트 호출
+          const tx = await contract.saveRequest(
+            user,
+            purposeData.name,
+            organization
+          );
+          
+          const receipt = await tx.wait();
+          
+          // Purpose 인덱싱
+          await addToPurposeIndexEVM(purposeData.name, tx.hash, network, organization);
+          
+          results.push({
+            purpose: purposeData.name,
+            organization: organization,
+            user: user,
+            txHash: tx.hash,
+            blockNumber: receipt.blockNumber,
+            success: true
+          });
+          
+          totalCount++;
+          
+          // 진행 상황 표시 (10개마다)
+          if (totalCount % 10 === 0) {
+            console.log(`   📊 진행: ${totalCount}/50 (${((totalCount/50)*100).toFixed(1)}%)`);
+          }
+          
+          // 서버 부하 방지를 위한 짧은 지연
+          if (totalCount % 25 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
+        } catch (error) {
+          console.warn(`⚠️ 데이터 ${totalCount + 1} 생성 실패: ${error.message}`);
+          results.push({
+            purpose: purposeData.name,
+            organization: organization,
+            user: user,
+            error: error.message,
+            success: false
+          });
+          totalCount++;
+        }
+      }
+      
+      console.log(`✅ ${purposeData.name} 데이터 생성 완료\n`);
+    }
+    
+    const endTime = Date.now();
+    const duration = (endTime - startTime) / 1000;
+    const successCount = results.filter(r => r.success).length;
+    
+    console.log('🎉 50건 테스트 데이터 생성 완료!');
+    console.log(`📊 총 생성: ${successCount}/50건`);
+    console.log(`⏱️  소요 시간: ${duration.toFixed(2)}초`);
+    console.log(`🚀 평균 속도: ${(successCount / duration).toFixed(2)} 건/초\n`);
+    
+    // 목적별 통계
+    console.log('📈 목적별 생성 통계:');
+    for (const purposeData of purposes) {
+      const count = results.filter(r => r.success && r.purpose === purposeData.name).length;
+      console.log(`  ${purposeData.name}: ${count}건`);
+    }
+    
+    return {
+      success: true,
+      contractAddress,
+      totalGenerated: successCount,
+      results,
+      duration
+    };
+    
+  } catch (error) {
+    console.error(`❌ 테스트 데이터 생성 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// 인덱스 검색 성능 측정 (TxId 조회 + 상세 정보 조회 포함)
+async function measureIndexSearchPerformance(network) {
+  try {
+    console.log('🔍 인덱스 검색 성능 측정 시작 (TxId + 상세 정보)...\n');
+    
+    const purposes = ['수면', '심박수', '혈당'];
+    const results = {};
+    
+    // 네트워크 설정
+    let provider;
+    if (network === 'hardhat') {
+      provider = ethers.provider;
+    } else {
+      const networkConfig = hre.config.networks[network];
+      provider = new ethers.JsonRpcProvider(networkConfig.url);
+    }
+    
+    for (const purpose of purposes) {
+      console.log(`📊 "${purpose}" 인덱스 검색 + 상세 조회 중...`);
+      
+      const startTime = process.hrtime.bigint();
+      
+      // 1단계: 인덱스에서 TxId 조회
+      const searchResult = await searchByPurposeEVM(network, purpose);
+      
+      // 2단계: 상위 10개 TxId에 대해 상세 정보 조회 (샘플링)
+      const sampleSize = Math.min(10, searchResult.data.length);
+      const sampleTxIds = searchResult.data.slice(0, sampleSize);
+      
+      let detailsCount = 0;
+      for (const txId of sampleTxIds) {
+        try {
+          const txDetails = await provider.getTransaction(txId);
+          if (txDetails) detailsCount++;
+        } catch (error) {
+          console.warn(`   ⚠️ TxId ${txId} 조회 실패: ${error.message}`);
+        }
+      }
+      
+      const endTime = process.hrtime.bigint();
+      const duration = Number(endTime - startTime) / 1000000; // 나노초를 밀리초로 변환
+      
+      results[purpose] = {
+        method: 'index_with_details',
+        duration: duration,
+        count: searchResult.count,
+        sampleSize: sampleSize,
+        detailsRetrieved: detailsCount,
+        success: searchResult.success
+      };
+      
+      console.log(`   ⚡ 총 시간: ${duration.toFixed(2)}ms`);
+      console.log(`   📋 TxId 결과: ${searchResult.count}건`);
+      console.log(`   🔍 상세 조회 샘플: ${detailsCount}/${sampleSize}건\n`);
+    }
+    
+    return results;
+    
+  } catch (error) {
+    console.error(`❌ 인덱스 검색 성능 측정 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// 블록체인 직접 조회 성능 측정
+async function measureBlockchainDirectQueryPerformance(network, contractAddress) {
+  try {
+    console.log('⛓️ 블록체인 직접 조회 성능 측정 시작...\n');
+    
+    // 네트워크 설정
+    let provider;
+    if (network === 'hardhat') {
+      provider = ethers.provider;
+    } else {
+      const networkConfig = hre.config.networks[network];
+      provider = new ethers.JsonRpcProvider(networkConfig.url);
+    }
+    
+    // 컨트랙트 연결
+    const AccessManagement = await ethers.getContractFactory('AccessManagement');
+    const contract = AccessManagement.attach(contractAddress);
+    
+    const purposes = ['수면', '심박수', '혈당'];
+    const results = {};
+    
+    for (const purpose of purposes) {
+      console.log(`🔍 "${purpose}" 블록체인 직접 조회 중...`);
+      
+      const startTime = process.hrtime.bigint();
+      
+      // 모든 AccessRequestsSaved 이벤트 조회
+      const filter = contract.filters.AccessRequestsSaved();
+      const events = await contract.queryFilter(filter, 0, 'latest');
+      
+      // 목적별 필터링 (디버깅 정보 추가)
+      console.log(`   🔍 전체 이벤트 수: ${events.length}건`);
+      if (events.length > 0) {
+        console.log(`   📋 첫 번째 이벤트 args:`, events[0].args);
+      }
+      
+      const filteredEvents = events.filter(event => {
+        // purpose는 이제 indexed 파라미터 (args[2])
+        return event.args && (event.args.purpose === purpose || event.args[2] === purpose);
+      });
+      
+      console.log(`   🎯 "${purpose}" 필터링 결과: ${filteredEvents.length}건`);
+      
+      const endTime = process.hrtime.bigint();
+      const duration = Number(endTime - startTime) / 1000000; // 나노초를 밀리초로 변환
+      
+      results[purpose] = {
+        method: 'blockchain_direct',
+        duration: duration,
+        count: filteredEvents.length,
+        totalEventsScanned: events.length,
+        success: true
+      };
+      
+      console.log(`   ⚡ 조회 시간: ${duration.toFixed(2)}ms`);
+      console.log(`   🔍 전체 이벤트 스캔: ${events.length}건`);
+      console.log(`   📋 필터링 결과: ${filteredEvents.length}건\n`);
+    }
+    
+    return results;
+    
+  } catch (error) {
+    console.error(`❌ 블록체인 직접 조회 성능 측정 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// 성능 비교 결과 출력
+function displayPerformanceComparison(indexResults, blockchainResults) {
+  console.log('📊 성능 비교 결과');
+  console.log('=====================================\n');
+  
+  const purposes = ['수면', '심박수', '혈당'];
+  let totalIndexTime = 0;
+  let totalBlockchainTime = 0;
+  
+  for (const purpose of purposes) {
+    const indexResult = indexResults[purpose];
+    const blockchainResult = blockchainResults[purpose];
+    
+    console.log(`🎯 목적: ${purpose}`);
+    console.log('─────────────────────────────────────');
+    console.log(`📊 인덱스 검색 + 상세 조회:`);
+    console.log(`   ⚡ 시간: ${indexResult.duration.toFixed(2)}ms`);
+    console.log(`   📋 TxId 결과: ${indexResult.count}건`);
+    console.log(`   🔍 상세 조회 샘플: ${indexResult.detailsRetrieved}/${indexResult.sampleSize}건`);
+    console.log(`⛓️  블록체인 직접 조회 (전체 스캔):`);
+    console.log(`   ⚡ 시간: ${blockchainResult.duration.toFixed(2)}ms`);
+    console.log(`   🔍 스캔: ${blockchainResult.totalEventsScanned}건`);
+    console.log(`   📋 결과: ${blockchainResult.count}건`);
+    
+    const speedup = blockchainResult.duration / indexResult.duration;
+    console.log(`🚀 속도 개선: ${speedup.toFixed(1)}배 빠름\n`);
+    
+    totalIndexTime += indexResult.duration;
+    totalBlockchainTime += blockchainResult.duration;
+  }
+  
+  console.log('📈 전체 성능 요약');
+  console.log('=====================================');
+  console.log(`📊 인덱스 검색 + 상세 조회 총 시간: ${totalIndexTime.toFixed(2)}ms`);
+  console.log(`⛓️  블록체인 직접 조회 (전체 스캔) 총 시간: ${totalBlockchainTime.toFixed(2)}ms`);
+  console.log(`🚀 전체 속도 개선: ${(totalBlockchainTime / totalIndexTime).toFixed(1)}배 빠름`);
+  console.log(`💡 인덱스 효율성: ${(((totalBlockchainTime - totalIndexTime) / totalBlockchainTime) * 100).toFixed(1)}% 시간 단축`);
+  console.log(`\n🔍 비교 방식:`);
+  console.log(`   📊 인덱스: TxId 조회 + 10개 샘플 상세 조회`);
+  console.log(`   ⛓️  직접: 전체 50개 이벤트 스캔 + 메모리 필터링`);
+}
+
+// 메인 성능 비교 테스트 함수
+async function runPerformanceComparisonTest(network) {
+  try {
+    console.log('🎯 성능 비교 테스트 시작');
+    console.log('=====================================');
+    console.log(`🌐 네트워크: ${network}`);
+    console.log(`📊 테스트 규모: 50건 데이터 (소규모 테스트)`);
+    console.log(`🎯 목적: 수면(20건), 심박수(15건), 혈당(15건)\n`);
+    
+    const overallStartTime = Date.now();
+    
+    // 1단계: 50건 데이터 생성
+    console.log('📝 1단계: 테스트 데이터 생성');
+    console.log('─────────────────────────────────────');
+    const dataGenResult = await generate2000TestData(network);
+    
+    if (!dataGenResult.success) {
+      throw new Error('테스트 데이터 생성 실패');
+    }
+    
+    console.log(`✅ 데이터 생성 완료: ${dataGenResult.totalGenerated}건\n`);
+    
+    // 2단계: 인덱스 검색 성능 측정
+    console.log('🔍 2단계: 인덱스 검색 성능 측정');
+    console.log('─────────────────────────────────────');
+    const indexResults = await measureIndexSearchPerformance(network);
+    
+    // 3단계: 블록체인 직접 조회 성능 측정
+    console.log('⛓️ 3단계: 블록체인 직접 조회 성능 측정');
+    console.log('─────────────────────────────────────');
+    const blockchainResults = await measureBlockchainDirectQueryPerformance(network, dataGenResult.contractAddress);
+    
+    // 4단계: 성능 비교 결과 출력
+    console.log('📊 4단계: 성능 비교 결과');
+    console.log('─────────────────────────────────────');
+    displayPerformanceComparison(indexResults, blockchainResults);
+    
+    const overallEndTime = Date.now();
+    const overallDuration = (overallEndTime - overallStartTime) / 1000;
+    
+    console.log('\n🎉 성능 비교 테스트 완료!');
+    console.log(`⏱️  전체 소요 시간: ${overallDuration.toFixed(2)}초`);
+    console.log(`📍 컨트랙트 주소: ${dataGenResult.contractAddress}`);
+    
+  } catch (error) {
+    console.error(`❌ 성능 비교 테스트 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// 특정 목적에 대한 성능 비교 함수
+async function comparePerformanceByPurpose(network, purpose) {
+  console.log(`\n🚀 "${purpose}" 데이터 성능 비교 시작...\n`);
+  
+  try {
+    // 1. 인덱스 기반 조회 성능 측정
+    console.log('📊 1단계: 인덱스 기반 조회 성능 측정 중...');
+    const indexStartTime = process.hrtime.bigint();
+    
+    // 인덱스에서 TxId 목록 조회
+    const searchResult = await searchByPurposeEVM(network, purpose);
+    const txHashes = searchResult.data || [];
+    
+    console.log(`📝 인덱스에서 ${txHashes.length}개 TxId 조회 완료`);
+    
+    // 각 TxId에 대해 상세 정보 조회 (인덱스에서 조회한 모든 TxId)
+    // 중복 제거 후 처리
+    const uniqueTxHashes = [...new Set(txHashes)];
+    const sampleSize = uniqueTxHashes.length; // 인덱스에서 조회한 모든 고유 TxId
+    const sampleTxHashes = uniqueTxHashes;
+    
+    console.log(`📋 ${sampleSize}개 트랜잭션 상세 정보 조회 중... (인덱스 조회 결과 전체)`);
+    const txDetails = [];
+    for (const txHash of sampleTxHashes) {
+      try {
+        const details = await getEvmTxDetails(network, txHash); // 기존 함수 시그니처 사용
+        if (details) txDetails.push(details);
+      } catch (error) {
+        console.warn(`⚠️  TxId ${txHash} 상세 조회 실패: ${error.message}`);
+      }
+    }
+    
+    const indexEndTime = process.hrtime.bigint();
+    const indexDuration = Number(indexEndTime - indexStartTime) / 1_000_000; // 밀리초로 변환
+    
+    console.log(`✅ 인덱스 기반 조회 완료: ${uniqueTxHashes.length}개 고유 TxId (총 ${txHashes.length}개) + ${txDetails.length}개 상세 조회`);
+    
+    // 2. 블록체인 직접 조회 성능 측정
+    console.log('\n🔍 2단계: 블록체인 직접 조회 성능 측정 중...');
+    const blockchainStartTime = process.hrtime.bigint();
+    
+    // 컨트랙트 주소 가져오기 (최근 배포된 컨트랙트 사용)
+    const contractAddress = await getLatestContractAddress(network);
+    if (!contractAddress) {
+      throw new Error('배포된 컨트랙트를 찾을 수 없습니다. 먼저 데이터를 생성해주세요.');
+    }
+    
+    const provider = getProvider(network);
+    
+    // AccessManagement 컨트랙트 ABI 로드
+    const AccessManagementArtifact = require('../artifacts/contracts/AccessManagement.sol/AccessManagement.json');
+    const contract = new ethers.Contract(contractAddress, AccessManagementArtifact.abi, provider);
+    
+    // 모든 이벤트 조회 후 필터링
+    console.log(`📋 블록체인에서 "${purpose}" 이벤트 직접 조회 중...`);
+    const allEvents = await contract.queryFilter('AccessRequestsSaved');
+    
+    // indexed string은 해시값으로 저장되므로 트랜잭션 데이터에서 원본 값을 디코딩해야 함
+    const filteredEvents = [];
+    for (const event of allEvents) {
+      try {
+        // 트랜잭션 데이터에서 원본 함수 호출 파라미터 디코딩
+        const tx = await provider.getTransaction(event.transactionHash);
+        if (tx && tx.data) {
+          const contractInterface = new ethers.Interface(AccessManagementArtifact.abi);
+          const parsed = contractInterface.parseTransaction({ data: tx.data });
+          
+          if (parsed && parsed.args && parsed.args._purpose === purpose) {
+            filteredEvents.push(event);
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️  이벤트 ${event.transactionHash} 디코딩 실패: ${error.message}`);
+      }
+    }
+    
+    const blockchainEndTime = process.hrtime.bigint();
+    const blockchainDuration = Number(blockchainEndTime - blockchainStartTime) / 1_000_000; // 밀리초로 변환
+    
+    console.log(`✅ 블록체인 직접 조회 완료: ${filteredEvents.length}개 이벤트 발견`);
+    
+    // 3. 결과 비교 및 출력
+    console.log('\n📈 3단계: 성능 비교 결과...');
+    
+    const indexResults = {
+      method: '인덱스 기반 조회',
+      totalCount: uniqueTxHashes.length, // 고유 TxId 개수
+      sampleDetailsCount: txDetails.length,
+      duration: indexDuration,
+      avgPerRecord: uniqueTxHashes.length > 0 ? indexDuration / uniqueTxHashes.length : 0
+    };
+    
+    const blockchainResults = {
+      method: '블록체인 직접 조회',
+      totalCount: filteredEvents.length,
+      duration: blockchainDuration,
+      avgPerRecord: filteredEvents.length > 0 ? blockchainDuration / filteredEvents.length : 0
+    };
+    
+    displayPurposePerformanceComparison(purpose, indexResults, blockchainResults);
+    
+    return {
+      purpose,
+      indexResults,
+      blockchainResults,
+      speedupFactor: blockchainDuration / indexDuration
+    };
+    
+  } catch (error) {
+    console.error(`❌ "${purpose}" 성능 비교 실패: ${error.message}`);
+    throw error;
+  }
+}
+
+// 목적별 성능 비교 결과 출력
+function displayPurposePerformanceComparison(purpose, indexResults, blockchainResults) {
+  const speedupFactor = blockchainResults.duration / indexResults.duration;
+  const speedupPercentage = ((blockchainResults.duration - indexResults.duration) / blockchainResults.duration * 100).toFixed(1);
+  
+  console.log('\n' + '='.repeat(80));
+  console.log(`🎯 "${purpose}" 데이터 성능 비교 결과`);
+  console.log('='.repeat(80));
+  
+  console.log('\n📊 인덱스 기반 조회:');
+  console.log(`   📋 조회된 TxId 수: ${indexResults.totalCount}개`);
+  console.log(`   🔍 상세 조회 샘플: ${indexResults.sampleDetailsCount}개`);
+  console.log(`   ⏱️  총 소요 시간: ${indexResults.duration.toFixed(2)}ms`);
+  console.log(`   📈 평균 처리 시간: ${indexResults.avgPerRecord.toFixed(2)}ms/건`);
+  
+  console.log('\n🔍 블록체인 직접 조회:');
+  console.log(`   📋 조회된 이벤트 수: ${blockchainResults.totalCount}개`);
+  console.log(`   ⏱️  총 소요 시간: ${blockchainResults.duration.toFixed(2)}ms`);
+  console.log(`   📈 평균 처리 시간: ${blockchainResults.avgPerRecord.toFixed(2)}ms/건`);
+  
+  console.log('\n🚀 성능 비교:');
+  if (speedupFactor > 1) {
+    console.log(`   ✅ 인덱스 방식이 ${speedupFactor.toFixed(2)}배 빠름`);
+    console.log(`   📈 성능 향상: ${speedupPercentage}%`);
+  } else {
+    console.log(`   ⚠️  블록체인 직접 조회가 ${(1/speedupFactor).toFixed(2)}배 빠름`);
+    console.log(`   📉 성능 저하: ${Math.abs(speedupPercentage)}%`);
+  }
+  
+  console.log('\n💡 분석:');
+  if (indexResults.totalCount !== blockchainResults.totalCount) {
+    console.log(`   ⚠️  데이터 수 불일치: 인덱스 ${indexResults.totalCount}개 vs 블록체인 ${blockchainResults.totalCount}개`);
+  } else {
+    console.log(`   ✅ 데이터 일치성: ${indexResults.totalCount}개 동일`);
+  }
+  
+  if (speedupFactor > 1) {
+    console.log(`   🎯 인덱스의 O(log n) 검색이 O(n) 전체 스캔보다 효율적`);
+    console.log(`   📊 대용량 데이터에서 성능 차이가 더욱 극명해질 것으로 예상`);
+  }
+  
+  console.log('='.repeat(80));
+}
+
+// Provider 생성 함수
+function getProvider(network) {
+  if (network === 'hardhat') {
+    return ethers.provider;
+  } else if (network === 'hardhat-local' || network === 'localhost') {
+    return new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+  } else {
+    const networkConfig = hre.config.networks[network];
+    if (!networkConfig) {
+      throw new Error(`hardhat.config.js에 ${network} 네트워크 설정이 없습니다.`);
+    }
+    return new ethers.JsonRpcProvider(networkConfig.url);
+  }
+}
+
+// 최근 배포된 컨트랙트 주소 가져오기 (임시 구현)
+async function getLatestContractAddress(network) {
+  // 실제로는 배포 로그나 설정 파일에서 가져와야 하지만,
+  // 여기서는 하드코딩된 주소를 사용하거나 환경변수에서 가져옴
+  // 또는 최근 트랜잭션에서 컨트랙트 생성을 찾을 수 있음
+  
+  // 임시로 하드코딩 (실제 환경에서는 동적으로 가져와야 함)
+  if (network === 'hardhat-local' || network === 'hardhat' || network === 'localhost') {
+    // 가장 최근에 배포된 컨트랙트 주소를 반환
+    // 실제로는 배포 로그에서 가져와야 함
+    return '0x5FbDB2315678afecb367f032d93F642f64180aa3'; // Hardhat 기본 첫 번째 컨트랙트 주소
+  }
+  
+  return null;
+}
+
+// 인덱스 기반 완전 조회 함수 (조회 + 상세 데이터)
+async function searchAndFetchDetailsByPurpose(network, purpose) {
+  console.log(`\n🔍 "${purpose}" 데이터 인덱스 기반 완전 조회 시작...\n`);
+  
+  try {
+    const startTime = process.hrtime.bigint();
+    
+    // 1. 인덱스에서 TxId 목록 조회
+    console.log('📊 1단계: 인덱스에서 TxId 조회 중...');
+    const searchResult = await searchByPurposeEVM(network, purpose);
+    const txHashes = searchResult.data || [];
+    
+    if (txHashes.length === 0) {
+      console.log('❌ 인덱스에서 해당 목적의 데이터를 찾을 수 없습니다.');
+      return {
+        success: false,
+        purpose,
+        totalCount: 0,
+        details: [],
+        duration: 0
+      };
+    }
+    
+    // 중복 제거
+    const uniqueTxHashes = [...new Set(txHashes)];
+    console.log(`📝 인덱스에서 ${uniqueTxHashes.length}개 고유 TxId 조회 완료 (총 ${txHashes.length}개)`);
+    
+    // 2. 모든 TxId에 대해 상세 정보 조회
+    console.log(`📋 2단계: ${uniqueTxHashes.length}개 트랜잭션 상세 정보 조회 중...`);
+    const txDetails = [];
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (let i = 0; i < uniqueTxHashes.length; i++) {
+      const txHash = uniqueTxHashes[i];
+      try {
+        console.log(`   진행률: ${i + 1}/${uniqueTxHashes.length} (${((i + 1) / uniqueTxHashes.length * 100).toFixed(1)}%)`);
+        const details = await getEvmTxDetails(network, txHash);
+        if (details) {
+          txDetails.push({
+            txHash,
+            details,
+            index: i + 1
+          });
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (error) {
+        console.warn(`⚠️  TxId ${txHash} 상세 조회 실패: ${error.message}`);
+        failCount++;
+      }
+      
+      // 너무 빠른 요청 방지 (선택적)
+      if (i < uniqueTxHashes.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+    
+    const endTime = process.hrtime.bigint();
+    const duration = Number(endTime - startTime) / 1_000_000; // 밀리초로 변환
+    
+    // 3. 결과 요약
+    console.log('\n' + '='.repeat(80));
+    console.log(`🎯 "${purpose}" 인덱스 기반 완전 조회 결과`);
+    console.log('='.repeat(80));
+    console.log(`📊 인덱스 조회 결과: ${uniqueTxHashes.length}개 고유 TxId`);
+    console.log(`✅ 상세 조회 성공: ${successCount}개`);
+    console.log(`❌ 상세 조회 실패: ${failCount}개`);
+    console.log(`⏱️  총 소요 시간: ${duration.toFixed(2)}ms`);
+    console.log(`📈 평균 처리 시간: ${(duration / uniqueTxHashes.length).toFixed(2)}ms/건`);
+    console.log('='.repeat(80));
+    
+    // 상세 데이터 샘플 출력 (처음 3개)
+    if (txDetails.length > 0) {
+      console.log('\n📋 상세 데이터 샘플 (처음 3개):');
+      txDetails.slice(0, 3).forEach((item, index) => {
+        console.log(`\n${index + 1}. TxHash: ${item.txHash}`);
+        if (item.details && item.details.functionCall) {
+          console.log(`   목적: ${item.details.functionCall.args._purpose}`);
+          console.log(`   기관: ${item.details.functionCall.args._organizationName}`);
+          console.log(`   리소스 소유자: ${item.details.functionCall.args._resourceOwner}`);
+        }
+      });
+      
+      if (txDetails.length > 3) {
+        console.log(`\n... 그 외 ${txDetails.length - 3}개 더`);
+      }
+    }
+    
+    return {
+      success: true,
+      purpose,
+      totalCount: uniqueTxHashes.length,
+      successCount,
+      failCount,
+      details: txDetails,
+      duration,
+      avgPerRecord: duration / uniqueTxHashes.length
+    };
+    
+  } catch (error) {
+    console.error(`❌ "${purpose}" 인덱스 기반 완전 조회 실패: ${error.message}`);
+    return {
+      success: false,
+      purpose,
+      error: error.message,
+      totalCount: 0,
+      details: [],
+      duration: 0
+    };
+  }
+}
+
 module.exports = {
   searchIndexAll,
   searchFabricIndexAll,
@@ -3007,4 +3913,7 @@ module.exports = {
   createPurposeIndexEVM,
   searchByPurposeEVM,
   fabricRequestData,
+  runPerformanceComparisonTest,
+  comparePerformanceByPurpose,
+  searchAndFetchDetailsByPurpose,
 };
