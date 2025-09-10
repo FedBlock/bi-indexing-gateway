@@ -3,7 +3,7 @@
 const { ethers } = require('hardhat');
 const path = require('path');
 const crypto = require('crypto');
-const IndexingClient = require('../../indexing-client-package/lib/indexing-client');
+const IndexingClient = require('../../bi-indexing-gateway/lib/indexing-client');
 
 // 공통 경로 설정
 const PROTO_PATH = path.join(process.cwd(), '../../idxmngr-go/protos/index_manager.proto');

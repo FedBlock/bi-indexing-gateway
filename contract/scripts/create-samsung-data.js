@@ -3,7 +3,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const { ethers } = require('hardhat');
-const IndexingClient = require('../../indexing-client-package/lib/indexing-client');
+const IndexingClient = require('../../bi-indexing-gateway/lib/indexing-client');
 
 // 지갑 주소 해시 함수
 function hashWalletAddress(address) {
