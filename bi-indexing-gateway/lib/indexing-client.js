@@ -653,17 +653,28 @@ class IndexingClient {
             ]);
             const block = await this.ethProvider.getBlock(tx.blockNumber);
             
-            const args = event.args;
+            // ABI 디코딩으로 완전한 조직명 가져오기
+            const decoded = this.decodeTransactionABI(tx, receipt, abiPath);
+            const accessEvent = decoded.events.find(event => event.name === 'AccessRequestsSaved');
+            
+            let eventData = {};
+            if (accessEvent && accessEvent.parameters) {
+              accessEvent.parameters.forEach(param => {
+                eventData[param.name] = param.value;
+              });
+            }
+            
             return {
               txId: event.transactionHash,
               blockNumber: tx.blockNumber,
               timestamp: block.timestamp,
               date: new Date(block.timestamp * 1000).toISOString(),
               status: receipt.status === 1 ? 'success' : 'failed',
-              requestId: args.requestId?.toString() || 'N/A',
-              requester: args.requester || 'N/A',
-              resourceOwner: args.resourceOwner || 'N/A',
-              purpose: purpose,
+              requestId: eventData.requestId?.toString() || 'N/A',
+              requester: eventData.requester || 'N/A',
+              resourceOwner: eventData.resourceOwner || 'N/A',
+              purpose: eventData.purpose || purpose,
+              organizationName: eventData.organizationName || 'N/A',
               gasUsed: receipt.gasUsed?.toString() || 'N/A',
               gasPrice: tx.gasPrice?.toString() || 'N/A'
             };
