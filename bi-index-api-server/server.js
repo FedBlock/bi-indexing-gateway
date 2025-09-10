@@ -158,13 +158,14 @@ app.get('/api/blockchain-search', async (req, res) => {
 // =========================
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 BI-Index API Server running on port ${PORT}`);
+  console.log(`📡 서버 주소: http://192.168.10.30:${PORT}`);
   console.log(`📡 API 엔드포인트:`);
   console.log(`   - GET /api/blockchain-search?network=hardhat-local&purpose=혈압&indexed=true`);
   console.log(`   - GET /api/blockchain-search?network=hardhat-local&purpose=혈압&indexed=false`);
   console.log('');
   console.log('📋 통합 검색 API 사용법:');
-  console.log('  GET /api/blockchain-search?network=hardhat-local&purpose=수면&indexed=true   (인덱스 검색 - 빠름)');
-  console.log('  GET /api/blockchain-search?network=hardhat-local&purpose=수면&indexed=false  (블록체인 직접 - 느림)');
+  console.log(`  GET http://192.168.10.30:${PORT}/api/blockchain-search?network=hardhat-local&purpose=수면&indexed=true   (인덱스 검색 - 빠름)`);
+  console.log(`  GET http://192.168.10.30:${PORT}/api/blockchain-search?network=hardhat-local&purpose=수면&indexed=false  (블록체인 직접 - 느림)`);
 });
