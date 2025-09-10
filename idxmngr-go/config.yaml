@@ -19,10 +19,10 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
-    - idxid: purpose
-      idxname: HARDHAT-LOCAL PURPOSE Index
+    - idxid: gender
+      idxname: HARDHAT-LOCAL GENDER Index
       keycol: IndexableData
-      filepath: data/hardhat-local/purpose.bf
+      filepath: data/hardhat-local/gender.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052
@@ -33,6 +33,16 @@ items:
       idxname: HARDHAT-LOCAL PURPOSE Index
       keycol: IndexableData
       filepath: data/hardhat-local/purpose.bf
+      blocknum: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: gender
+      idxname: HARDHAT-LOCAL GENDER Index
+      keycol: IndexableData
+      filepath: data/hardhat-local/gender.bf
       blocknum: 0
       keysize: 64
       address: localhost:50052

@@ -2740,6 +2740,69 @@ async function addToPurposeIndexEVM(purpose, txHash, network, organizationName =
   }
 }
 
+// EVM 전용 사용자 정의 인덱스 함수 (gender, age 등)
+async function addToCustomIndex(indexType, indexValue, txHash, network, organizationName = null) {
+  try {
+    console.log(`📝 ${indexType} 인덱스에 저장 중: ${indexValue} → ${txHash}`);
+    
+    // EVM 네트워크만 지원
+    if (network === 'fabric') {
+      throw new Error('Fabric 네트워크는 지원하지 않습니다. EVM 네트워크를 사용하세요.');
+    }
+    
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: PROTO_PATH
+    });
+    
+    await indexingClient.connect();
+    
+    const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
+    const indexID = indexType;
+    const filePath = `data/${networkDir}/${indexType}.bf`;
+    
+    // IndexableData 안에 사용자 정의 값을 포함하여 동적 인덱싱
+    const insertRequest = {
+      IndexID: indexID,
+      BcList: [{
+        TxId: txHash,
+        KeyCol: 'IndexableData',
+        IndexableData: {
+          TxId: txHash,
+          ContractAddress: network === 'monad' ? '0x23EC7332865ecD204539f5C3535175C22D2C6388' : '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+          EventName: 'AccessRequestsSaved',
+          Timestamp: new Date().toISOString(),
+          BlockNumber: 0,
+          DynamicFields: {
+            "key": indexValue,  // 사용자 정의 값을 키로 사용
+            [indexType]: indexValue,  // 동적 필드명
+            "organizationName": organizationName || 'Unknown',
+            "network": network,
+            "timestamp": new Date().toISOString()
+          },
+          SchemaVersion: "1.0"
+        }
+      }],
+      ColName: 'IndexableData',
+      ColIndex: indexID,
+      FilePath: filePath,
+      Network: network
+    };
+    
+    console.log(`  📝 ${indexType} 인덱스 저장: ${indexValue} → ${txHash}`);
+    await indexingClient.insertData(insertRequest);
+    
+    // 안전한 인덱싱을 위한 대기
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    indexingClient.close();
+    
+  } catch (error) {
+    console.error(`❌ ${indexType} 인덱스 추가 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 // EVM 전용 Purpose 기반 검색 함수
 async function searchByPurposeEVM(network, purpose) {
   try {
@@ -3136,18 +3199,25 @@ async function generateDataFromCSV(network, csvFilePath) {
       signer = new ethers.Wallet(networkConfig.accounts[0], provider);
     }
     
-    // 컨트랙트 배포
-    console.log('🏗️ AccessManagement 컨트랙트 배포 중...');
+    // 기존 배포된 컨트랙트 사용
+    const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+    console.log(`🔗 기존 배포된 컨트랙트 사용: ${contractAddress}\n`);
+    
+    // 컨트랙트 인스턴스 생성
     const AccessManagement = await ethers.getContractFactory('AccessManagement', signer);
-    const contract = await AccessManagement.deploy();
-    await contract.waitForDeployment();
-    const contractAddress = await contract.getAddress();
-    console.log(`✅ 컨트랙트 배포 완료: ${contractAddress}\n`);
+    const contract = AccessManagement.attach(contractAddress);
     
     // Purpose 인덱스 생성
     console.log('🔧 Purpose 인덱스 생성 중...');
     await createIndexUnified(network, 'purpose');
     console.log('✅ Purpose 인덱스 생성 완료\n');
+    
+    // Gender 인덱스 생성 (CSV에 gender 컬럼이 있는 경우)
+    if (headers.includes('gender')) {
+      console.log('🔧 Gender 인덱스 생성 중...');
+      await createIndexUnified(network, 'gender');
+      console.log('✅ Gender 인덱스 생성 완료\n');
+    }
     
     // 데이터 처리
     const results = [];
@@ -3169,6 +3239,12 @@ async function generateDataFromCSV(network, csvFilePath) {
         // 인덱스에 저장
         console.log(`📝 Purpose 인덱스에 저장 중: ${row.purpose} → ${tx.hash}`);
         await addToPurposeIndexEVM(row.purpose, tx.hash, network, row.organizationName);
+        
+        // Gender 인덱싱 (gender 컬럼이 있고 값이 있는 경우)
+        if (row.gender && row.gender.trim() !== '') {
+          console.log(`📝 Gender 인덱스에 저장 중: ${row.gender} → ${tx.hash}`);
+          await addToCustomIndex('gender', row.gender, tx.hash, network, row.organizationName);
+        }
         
         results.push({
           purpose: row.purpose,
@@ -3257,13 +3333,13 @@ async function generate2000TestData(network) {
       signer = new ethers.Wallet(networkConfig.accounts[0], provider);
     }
     
-    // 컨트랙트 배포
-    console.log('🏗️ AccessManagement 컨트랙트 배포 중...');
+    // 기존 배포된 컨트랙트 사용
+    const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+    console.log(`🔗 기존 배포된 컨트랙트 사용: ${contractAddress}\n`);
+    
+    // 컨트랙트 인스턴스 생성
     const AccessManagement = await ethers.getContractFactory('AccessManagement', signer);
-    const contract = await AccessManagement.deploy();
-    await contract.waitForDeployment();
-    const contractAddress = await contract.getAddress();
-    console.log(`✅ 컨트랙트 배포 완료: ${contractAddress}\n`);
+    const contract = AccessManagement.attach(contractAddress);
     
     // Purpose 인덱스 생성
     console.log('🔧 Purpose 인덱스 생성 중...');
@@ -3912,6 +3988,7 @@ module.exports = {
   getEvmTxDetails,
   createPurposeIndexEVM,
   searchByPurposeEVM,
+  addToCustomIndex,
   fabricRequestData,
   runPerformanceComparisonTest,
   comparePerformanceByPurpose,
