@@ -1,15 +1,5 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const IndexingClient = require('../bi-indexing-gateway/lib/indexing-client');
+// server.js의 blockchain-search API 부분을 IndexingClient 사용하도록 수정
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// =========================
-// Blockchain Search API
-// =========================로그글ㅡㄹ 추가가
 app.get('/api/blockchain-search', async (req, res) => {
   const startTime = Date.now();
   
@@ -20,7 +10,7 @@ app.get('/api/blockchain-search', async (req, res) => {
     if (purpose) purpose = decodeURIComponent(purpose);
     if (network) network = decodeURIComponent(network);
     
-    // 필수 파라미터 검증왜 닿닿제먼저 해결결
+    // 필수 파라미터 검증
     if (!network) {
       return res.status(400).json({
         success: false,
@@ -38,24 +28,14 @@ app.get('/api/blockchain-search', async (req, res) => {
     }
     
     const useIndexed = indexed === 'true';
-    console.log(`\n🔍 ===== 검색 시작 =====`);
-    console.log(`📝 Purpose: ${purpose}`);
-    console.log(`🌐 Network: ${network}`);
-    console.log(`⚡ 방식: ${useIndexed ? '인덱스 기반 (빠름)' : '블록체인 직접 (느림)'}`);
-    console.log(`⏰ 시작 시간: ${new Date().toISOString()}`);
+    console.log(`🔍 검색 시작: ${purpose} (인덱스: ${useIndexed ? 'ON' : 'OFF'})`);
     
     // IndexingClient 생성
-    const clientCreateStart = Date.now();
+    const IndexingClient = require('../bi-indexing-gateway/lib/indexing-client');
     const indexingClient = new IndexingClient({
       serverAddr: 'localhost:50052',
-      protoPath: path.join(__dirname, '../idxmngr-go/protos/index_manager.proto')
+      protoPath: require('path').join(__dirname, '../idxmngr-go/protos/index_manager.proto')
     });
-    
-    // gRPC 연결
-    const connectStart = Date.now();
-    await indexingClient.connect();
-    const connectTime = Date.now() - connectStart;
-    console.log(`🔌 gRPC 연결 시간: ${connectTime}ms`);
     
     let result;
     
@@ -63,8 +43,7 @@ app.get('/api/blockchain-search', async (req, res) => {
       // ======================
       // 인덱스 기반 검색 (IndexingClient 사용)
       // ======================
-      console.log(`📊 인덱스 기반 검색 시작...`);
-      const indexSearchStart = Date.now();
+      console.log(`📊 인덱스 기반 검색: ${purpose}`);
       
       try {
         result = await indexingClient.searchBlockchainAndIndex(
@@ -73,18 +52,13 @@ app.get('/api/blockchain-search', async (req, res) => {
           '0x5FbDB2315678afecb367f032d93F642f64180aa3'
         );
         
-        const indexSearchTime = Date.now() - indexSearchStart;
-        console.log(`✅ 인덱스 검색 완료! 소요시간: ${indexSearchTime}ms`);
-        
         // 응답 형식 맞추기
         result.indexed = true;
         result.processingTime = `${Date.now() - startTime}ms`;
-        result.indexSearchTime = `${indexSearchTime}ms`;
         result.timestamp = new Date().toISOString();
         
       } catch (error) {
         console.error(`❌ 인덱스 기반 검색 실패:`, error.message);
-        await indexingClient.close();
         return res.status(500).json({
           success: false,
           error: error.message,
@@ -97,8 +71,7 @@ app.get('/api/blockchain-search', async (req, res) => {
       // ======================
       // 블록체인 직접 검색 (IndexingClient 사용)
       // ======================
-      console.log(`🔗 블록체인 직접 검색 시작...`);
-      const directSearchStart = Date.now();
+      console.log(`🔗 블록체인 직접 검색: ${purpose}`);
       
       try {
         result = await indexingClient.searchBlockchainDirect(
@@ -107,18 +80,13 @@ app.get('/api/blockchain-search', async (req, res) => {
           '0x5FbDB2315678afecb367f032d93F642f64180aa3'
         );
         
-        const directSearchTime = Date.now() - directSearchStart;
-        console.log(`✅ 블록체인 직접 검색 완료! 소요시간: ${directSearchTime}ms`);
-        
         // 응답 형식 맞추기
         result.indexed = false;
         result.processingTime = `${Date.now() - startTime}ms`;
-        result.directSearchTime = `${directSearchTime}ms`;
         result.timestamp = new Date().toISOString();
         
       } catch (error) {
         console.error(`❌ 블록체인 직접 검색 실패:`, error.message);
-        await indexingClient.close();
         return res.status(500).json({
           success: false,
           error: error.message,
@@ -130,15 +98,6 @@ app.get('/api/blockchain-search', async (req, res) => {
     
     // 연결 정리
     await indexingClient.close();
-    
-    // 최종 결과 로그
-    const totalTime = Date.now() - startTime;
-    console.log(`\n📊 ===== 검색 완료 =====`);
-    console.log(`⏰ 전체 소요시간: ${totalTime}ms`);
-    console.log(`📝 결과 개수: ${result.totalCount || 0}개`);
-    console.log(`✅ 성공: ${result.success}`);
-    console.log(`⏰ 완료 시간: ${new Date().toISOString()}`);
-    console.log('=' .repeat(30));
     
     // 응답 반환
     res.json(result);
@@ -153,18 +112,9 @@ app.get('/api/blockchain-search', async (req, res) => {
   }
 });
 
-// =========================
-// 서버 시작
-// =========================
+// 사용 예시:
+// GET http://localhost:3001/api/blockchain-search?network=hardhat-local&purpose=혈압&indexed=true
+// → indexingClient.searchBlockchainAndIndex() 호출
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 BI-Index API Server running on port ${PORT}`);
-  console.log(`📡 API 엔드포인트:`);
-  console.log(`   - GET /api/blockchain-search?network=hardhat-local&purpose=혈압&indexed=true`);
-  console.log(`   - GET /api/blockchain-search?network=hardhat-local&purpose=혈압&indexed=false`);
-  console.log('');
-  console.log('📋 통합 검색 API 사용법:');
-  console.log('  GET /api/blockchain-search?network=hardhat-local&purpose=수면&indexed=true   (인덱스 검색 - 빠름)');
-  console.log('  GET /api/blockchain-search?network=hardhat-local&purpose=수면&indexed=false  (블록체인 직접 - 느림)');
-});
+// GET http://localhost:3001/api/blockchain-search?network=hardhat-local&purpose=혈압&indexed=false  
+// → indexingClient.searchBlockchainDirect() 호출
