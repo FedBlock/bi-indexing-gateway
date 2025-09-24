@@ -111,6 +111,16 @@ export const useBiIndexing = (config = {}) => {
     });
   }, [apiCall]);
 
+  // 인덱스 목록 조회
+  const getIndexList = useCallback(async (options = {}) => {
+    const params = new URLSearchParams();
+    if (options.requestMsg) {
+      params.set('requestMsg', options.requestMsg);
+    }
+    const query = params.toString();
+    return apiCall(`/api/index/list${query ? `?${query}` : ''}`);
+  }, [apiCall]);
+
   // 성능 통계 조회
   const getPerformanceStats = useCallback(async () => {
     return apiCall('/api/performance');
@@ -133,6 +143,7 @@ export const useBiIndexing = (config = {}) => {
     
     // 유틸리티
     searchIndex,
+    getIndexList,
     getPerformanceStats,
   };
 };

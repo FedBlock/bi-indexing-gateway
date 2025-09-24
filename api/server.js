@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const IndexingClient = require('../lib/indexing-client');
+// gRPC 게이트웨이 클라이언트 (idxmngr와 직접 통신)
+const IndexingGateway = require('../lib/indexing-client');
 const path = require('path');
 
 const app = express();
@@ -10,24 +11,24 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// IndexingClient 인스턴스 (재사용)
-let client = null;
+// 게이트웨이 인스턴스 (재사용)
+let gateway = null;
 
-// 클라이언트 초기화
-async function initClient() {
-  if (!client) {
-    client = new IndexingClient({
+// gRPC 게이트웨이 초기화
+async function initGateway() {
+  if (!gateway) {
+    gateway = new IndexingGateway({
       serverAddr: 'localhost:50052',
       protoPath: path.join(__dirname, '../../grpc-go/protos/index_manager.proto'),
       batchSize: 10
     });
   }
   
-  if (!client.isConnected) {
-    await client.connect();
+  if (!gateway.isConnected) {
+    await gateway.connect();
   }
   
-  return client;
+  return gateway;
 }
 
 
@@ -35,6 +36,56 @@ function resolveIndexFilePath(indexId, network, filePath) {
   const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
   return filePath || path.posix.join('data', networkDir, `${indexId}.bf`);
 }
+
+// 인덱스 목록 조회 API
+app.get('/api/index/list', async (req, res) => {
+  try {
+    const { requestMsg } = req.query;
+    const indexingGateway = await initGateway();
+    const response = await indexingGateway.getIndexList(requestMsg || 'index-list-request');
+
+    const rawIndexes = response?.IdxList || [];
+    const indexes = rawIndexes.map((item, idx) => {
+      const indexId = item?.IndexID || item?.indexId || `index_${idx}`;
+      const keyCol = item?.KeyCol || item?.keyCol || 'IndexableData';
+      const indexName = item?.IndexName || item?.indexName || indexId;
+
+      // 네트워크 추론: indexId 안에 하이픈으로 network-id가 들어가는 패턴을 우선 사용
+      const lowered = indexId.toLowerCase();
+      let inferredNetwork = null;
+      if (lowered.includes('monad')) {
+        inferredNetwork = 'monad';
+      } else if (lowered.includes('hardhat')) {
+        inferredNetwork = 'hardhat';
+      } else if (lowered.includes('fabric')) {
+        inferredNetwork = 'fabric';
+      }
+
+      return {
+        indexId,
+        indexName,
+        keyColumn: keyCol,
+        network: inferredNetwork,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        indexCount: response?.IndexCnt ?? indexes.length,
+        indexes,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('인덱스 목록 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '인덱스 목록 조회 실패',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
 
 // 인덱스 생성 API
 // Create new index
@@ -51,10 +102,10 @@ app.post('/api/index/create', async (req, res) => {
 
     console.log(`Creating index: ${indexId}, key: ${indexingKey || 'dynamic'}, schema:`, schema);
 
-    const indexingClient = await initClient();
+    const indexingGateway = await initGateway();
     const resolvedFilePath = resolveIndexFilePath(indexId, network, filePath);
     // gRPC 쪽 스키마와 동일한 필드 구조를 유지해야 idxmngr가 올바르게 처리한다
-    const result = await indexingClient.createIndex({
+    const result = await indexingGateway.createIndex({
       IndexID: indexId,
       KeyCol: "IndexableData", // Use supported KeyCol value
       FilePath: resolvedFilePath,
@@ -103,9 +154,9 @@ app.post('/api/index/insert', async (req, res) => {
     
     console.log(`Inserting data: ${indexId}, dynamic key: ${dynamicKey}, data:`, data);
 
-    const indexingClient = await initClient();
+    const indexingGateway = await initGateway();
     const resolvedFilePath = resolveIndexFilePath(indexId, network, filePath);
-    const result = await indexingClient.insertData({
+    const result = await indexingGateway.insertData({
       IndexID: indexId,
       BcList: [{
         TxId: txId,
@@ -151,9 +202,9 @@ app.post('/api/search/integrated', async (req, res) => {
       return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
     }
 
-    const client = await initClient();
+    const gatewayClient = await initGateway();
     
-    const result = await client.searchBlockchainAndIndex(
+    const result = await gatewayClient.searchBlockchainAndIndex(
       purpose,
       network,
       contractAddress,
@@ -185,9 +236,9 @@ app.post('/api/search/direct', async (req, res) => {
       return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
     }
 
-    const client = await initClient();
+    const gatewayClient = await initGateway();
     
-    const result = await client.searchBlockchainDirect(
+    const result = await gatewayClient.searchBlockchainDirect(
       purpose,
       network,
       contractAddress,
@@ -219,9 +270,9 @@ app.post('/api/search/contract', async (req, res) => {
       return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
     }
 
-    const client = await initClient();
+    const gatewayClient = await initGateway();
     
-    const result = await client.getFilteredRequestsByPurpose(
+    const result = await gatewayClient.getFilteredRequestsByPurpose(
       purpose,
       pageSize,
       network
@@ -252,9 +303,9 @@ app.get('/api/requests/all', async (req, res) => {
       return res.status(400).json({ error: 'network는 필수입니다' });
     }
 
-    const client = await initClient();
+    const gatewayClient = await initGateway();
     
-    const result = await client.getAllRequestsWithPaging(
+    const result = await gatewayClient.getAllRequestsWithPaging(
       parseInt(pageSize),
       network
     );
@@ -284,9 +335,9 @@ app.get('/api/requests/count', async (req, res) => {
       return res.status(400).json({ error: 'network는 필수입니다' });
     }
 
-    const client = await initClient();
+    const gatewayClient = await initGateway();
     
-    const totalCount = await client.getTotalRequestCount(network);
+    const totalCount = await gatewayClient.getTotalRequestCount(network);
     
     res.json({
       success: true,
@@ -316,9 +367,9 @@ app.post('/api/requests/range', async (req, res) => {
       return res.status(400).json({ error: 'startId, endId, network는 필수입니다' });
     }
 
-    const client = await initClient();
+    const gatewayClient = await initGateway();
     
-    const result = await client.getRequestsInRange(
+    const result = await gatewayClient.getRequestsInRange(
       parseInt(startId),
       parseInt(endId),
       network
@@ -349,9 +400,9 @@ app.post('/api/index/search', async (req, res) => {
       return res.status(400).json({ error: 'IndexID는 필수입니다' });
     }
 
-    const client = await initClient();
+    const gatewayClient = await initGateway();
     
-    const result = await client.searchData(searchParams);
+    const result = await gatewayClient.searchData(searchParams);
     
     res.json({
       success: true,
@@ -372,9 +423,9 @@ app.post('/api/index/search', async (req, res) => {
 // 성능 통계 조회 API
 app.get('/api/performance', async (req, res) => {
   try {
-    const client = await initClient();
+    const gatewayClient = await initGateway();
     
-    const stats = client.getPerformanceStats();
+    const stats = gatewayClient.getPerformanceStats();
     
     res.json({
       success: true,
@@ -410,8 +461,8 @@ app.listen(port, () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM 신호 수신, 서버 종료 중...');
-  if (client && client.isConnected) {
-    await client.close();
+  if (gateway && gateway.isConnected) {
+    await gateway.close();
   }
   process.exit(0);
 });
