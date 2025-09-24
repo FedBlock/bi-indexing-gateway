@@ -88,7 +88,7 @@ const BiIndexing = ({
             style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
           >
             <option value="integrated"> 통합 검색</option>
-            <option value="direct"> 직접 검색</option>
+            <option value="direct">🔗 직접 검색</option>
             <option value="contract"> 컨트랙트 검색</option>
           </select>
           
