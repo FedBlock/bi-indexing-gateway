@@ -32,50 +32,99 @@ async function initClient() {
 
 
 // 인덱스 생성 API
+// Create new index
 app.post('/api/index/create', async (req, res) => {
   try {
-    const indexInfo = req.body;
-    if (!indexInfo || !indexInfo.name) {
-      return res.status(400).json({ error: '인덱스 정보(name 등)가 필요합니다.' });
+    const { indexId, filePath, network, indexingKey, schema, blockNum } = req.body;
+
+    if (!indexId || !filePath || !network) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: indexId, filePath, network' 
+      });
     }
-    const client = await initClient();
-    const result = await client.createIndex(indexInfo);
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
+
+    console.log(`Creating index: ${indexId}, key: ${indexingKey || 'dynamic'}, schema:`, schema);
+
+    const indexingClient = await initClient();
+    // gRPC 쪽 스키마와 동일한 필드 구조를 유지해야 idxmngr가 올바르게 처리한다
+    const result = await indexingClient.createIndex({
+      IndexID: indexId,
+      KeyCol: "IndexableData", // Use supported KeyCol value
+      FilePath: filePath,
+      Network: network,
+      BlockNum: typeof blockNum === 'number' ? blockNum : 0
+    });
+
+    res.json({ 
+      success: true, 
+      data: result, 
+      indexId: indexId,
+      supportedKeys: indexingKey ? [indexingKey] : ['dynamic - any key from data object']
     });
   } catch (error) {
-    console.error('인덱스 생성 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    console.error('Index creation error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // 인덱스 데이터 삽입 API
+// Insert data into index  
 app.post('/api/index/insert', async (req, res) => {
   try {
-    const indexData = req.body;
-    if (!indexData || !indexData.IndexID) {
-      return res.status(400).json({ error: 'IndexID와 데이터가 필요합니다.' });
+    const { 
+      indexId, 
+      txId, 
+      data, 
+      filePath, 
+      network,
+      contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+      indexingKey // Optional - can be extracted from data if not provided
+    } = req.body;
+    
+    if (!indexId || !txId || !data || !filePath || !network) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: indexId, txId, data, filePath, network' 
+      });
     }
-    const client = await initClient();
-    const result = await client.insertData(indexData);
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
+
+    // Extract key dynamically from data or use provided indexingKey
+    const dynamicKey = indexingKey || data.purpose || data.type || data.category || Object.keys(data)[0] || 'default';
+    
+    console.log(`Inserting data: ${indexId}, dynamic key: ${dynamicKey}, data:`, data);
+
+    const indexingClient = await initClient();
+    const result = await indexingClient.insertData({
+      IndexID: indexId,
+      BcList: [{
+        TxId: txId,
+        KeyCol: 'IndexableData',
+        IndexableData: {
+          TxId: txId,
+          ContractAddress: contractAddress,
+          EventName: 'AccessRequestsSaved',
+          Timestamp: new Date().toISOString(),
+          BlockNumber: 0,
+          DynamicFields: {
+            "key": dynamicKey, // Use dynamic key
+            "network": network,
+            "timestamp": new Date().toISOString(),
+            ...data // Spread all user data fields dynamically
+          },
+          SchemaVersion: "1.0"
+        }
+      }],
+      ColName: 'IndexableData',
+      ColIndex: indexId,
+      FilePath: filePath,
+      Network: network
     });
+
+    res.json({ success: true, data: result, usedKey: dynamicKey });
   } catch (error) {
-    console.error('인덱스 데이터 삽입 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    console.error('Data insertion error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 // Health check
@@ -86,10 +135,10 @@ app.get('/health', (req, res) => {
 // 통합 검색 API (인덱스 + 블록체인)
 app.post('/api/search/integrated', async (req, res) => {
   try {
-    const { purpose, network = 'hardhat-local', contractAddress, abiPath } = req.body;
-    
-    if (!purpose) {
-      return res.status(400).json({ error: 'purpose는 필수입니다' });
+    const { purpose, network, contractAddress, abiPath } = req.body;
+
+    if (!purpose || !network) {
+      return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
     }
 
     const client = await initClient();
@@ -120,10 +169,10 @@ app.post('/api/search/integrated', async (req, res) => {
 // 블록체인 직접 검색 API
 app.post('/api/search/direct', async (req, res) => {
   try {
-    const { purpose, network = 'hardhat-local', contractAddress, abiPath } = req.body;
-    
-    if (!purpose) {
-      return res.status(400).json({ error: 'purpose는 필수입니다' });
+    const { purpose, network, contractAddress, abiPath } = req.body;
+
+    if (!purpose || !network) {
+      return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
     }
 
     const client = await initClient();
@@ -154,10 +203,10 @@ app.post('/api/search/direct', async (req, res) => {
 // 컨트랙트 필터링 검색 API
 app.post('/api/search/contract', async (req, res) => {
   try {
-    const { purpose, pageSize = 100, network = 'hardhat-local' } = req.body;
+    const { purpose, pageSize = 100, network } = req.body;
     
-    if (!purpose) {
-      return res.status(400).json({ error: 'purpose는 필수입니다' });
+    if (!purpose || !network) {
+      return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
     }
 
     const client = await initClient();
@@ -187,7 +236,11 @@ app.post('/api/search/contract', async (req, res) => {
 // 전체 요청 데이터 조회 API
 app.get('/api/requests/all', async (req, res) => {
   try {
-    const { pageSize = 100, network = 'hardhat-local' } = req.query;
+    const { pageSize = 100, network } = req.query;
+
+    if (!network) {
+      return res.status(400).json({ error: 'network는 필수입니다' });
+    }
 
     const client = await initClient();
     
@@ -215,7 +268,11 @@ app.get('/api/requests/all', async (req, res) => {
 // 총 요청 개수 조회 API
 app.get('/api/requests/count', async (req, res) => {
   try {
-    const { network = 'hardhat-local' } = req.query;
+    const { network } = req.query;
+
+    if (!network) {
+      return res.status(400).json({ error: 'network는 필수입니다' });
+    }
 
     const client = await initClient();
     
@@ -243,10 +300,10 @@ app.get('/api/requests/count', async (req, res) => {
 // 범위별 요청 조회 API
 app.post('/api/requests/range', async (req, res) => {
   try {
-    const { startId, endId, network = 'hardhat-local' } = req.body;
+    const { startId, endId, network } = req.body;
     
-    if (!startId || !endId) {
-      return res.status(400).json({ error: 'startId와 endId는 필수입니다' });
+    if (!startId || !endId || !network) {
+      return res.status(400).json({ error: 'startId, endId, network는 필수입니다' });
     }
 
     const client = await initClient();
