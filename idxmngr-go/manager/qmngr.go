@@ -7,6 +7,7 @@ type IndexInfo struct {
 	KeyCol       string `yaml:"keycol"`
 	FilePath     string `yaml:"filepath"`
 	BlockNum     int32  `yaml:"blocknum"`
+	FromBlock    int64  `yaml:"fromblock"`
 	KeySize      int32  `yaml:"keysize"`
 	Address      string `yaml:"address"`
 	CallCnt      int32  `yaml:"callcnt"`

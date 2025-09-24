@@ -79,3 +79,13 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: sample-index
+      idxname: ""
+      keycol: IndexableData
+      filepath: data/hardhat-local/sample.bf
+      blocknum: 0
+      keysize: 30
+      address: localhost:50053
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

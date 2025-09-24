@@ -133,7 +133,11 @@ func insertIndexConfig(idx IndexInfo) {
 
 	// 포트를 50052로 수정
 	idx.Address = "localhost:50052"
-	
+
+	// 새 필드 기본값 설정
+	if idx.FromBlock == 0 {
+		idx.FromBlock = int64(idx.BlockNum)
+	}
 	log.Printf("➕ 새 인덱스 추가: %+v", idx)
 
 	list.Items = append(list.Items, idx)
@@ -469,6 +473,7 @@ func (m *MServer) CreateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 		FilePath: indexinfo.FilePath,
 		KeySize:  indexinfo.KeySize,
 		BlockNum: indexinfo.BlockNum,
+		FromBlock:   int64(indexinfo.BlockNum),
 		//IndexDataCnt: indexinfo.IndexDataCnt,
 	}
 
@@ -522,6 +527,7 @@ func (m *MServer) UpdateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 			FilePath:     idxinfo.FilePath,
 			KeySize:      idxinfo.KeySize,
 			BlockNum:     idxinfo.BlockNum,
+			FromBlock:    value.FromBlock,
 			IndexDataCnt: idxinfo.IndexDataCnt,
 		}
 
