@@ -40,7 +40,7 @@ function resolveIndexFilePath(indexId, network, filePath) {
 // Create new index
 app.post('/api/index/create', async (req, res) => {
   try {
-    const { indexId, filePath, network, indexingKey, schema, blockNum } = req.body;
+    const { indexId, filePath, network, indexingKey, schema, blockNum, fromBlock } = req.body;
 
     if (!indexId || !network) {
       return res.status(400).json({ 
@@ -59,7 +59,8 @@ app.post('/api/index/create', async (req, res) => {
       KeyCol: "IndexableData", // Use supported KeyCol value
       FilePath: resolvedFilePath,
       Network: network,
-      BlockNum: typeof blockNum === 'number' ? blockNum : 0
+      BlockNum: typeof blockNum === 'number' ? blockNum : 0,
+      FromBlock: typeof fromBlock === 'number' ? fromBlock : undefined
     });
 
     res.json({ 
@@ -67,6 +68,7 @@ app.post('/api/index/create', async (req, res) => {
       data: result, 
       indexId: indexId,
       filePath: resolvedFilePath,
+      fromBlock: typeof fromBlock === 'number' ? fromBlock : undefined,
       supportedKeys: indexingKey ? [indexingKey] : ['dynamic - any key from data object']
     });
   } catch (error) {
