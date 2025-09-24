@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 // gRPC 게이트웨이 클라이언트 (idxmngr와 직접 통신)
 const IndexingGateway = require('../lib/indexing-client');
 const path = require('path');
@@ -14,12 +15,125 @@ app.use(express.json());
 // 게이트웨이 인스턴스 (재사용)
 let gateway = null;
 
+const resolveProtoPath = () => {
+  const candidates = [
+    path.join(__dirname, '../../grpc-go/protos/index_manager.proto'),
+    path.join(__dirname, '../../bi-index/grpc-go/protos/index_manager.proto'),
+    path.join(process.cwd(), 'grpc-go/protos/index_manager.proto'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`index_manager.proto 파일을 찾을 수 없습니다. 확인한 경로: ${candidates.join(', ')}`);
+};
+
+const CONFIG_CANDIDATES = [
+  path.join(__dirname, '../../idxmngr-go/config.yaml'),
+  path.join(process.cwd(), 'idxmngr-go/config.yaml'),
+  path.join(__dirname, '../idxmngr-go/config.yaml'),
+];
+
+const parseConfigItems = (content) => {
+  const items = [];
+  let current = null;
+
+  const commitCurrent = () => {
+    if (current) {
+      items.push(current);
+      current = null;
+    }
+  };
+
+  const upsertKeyValue = (segment) => {
+    const [rawKey, ...rest] = segment.split(':');
+    if (!rawKey || rest.length === 0) {
+      return;
+    }
+    const key = rawKey.trim();
+    let value = rest.join(':').trim();
+    if (!value) {
+      current[key] = '';
+      return;
+    }
+    const commentIdx = value.indexOf('#');
+    if (commentIdx !== -1) {
+      value = value.slice(0, commentIdx).trim();
+    }
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    current[key] = value;
+  };
+
+  content.split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      return;
+    }
+
+    if (trimmed.startsWith('- ')) {
+      commitCurrent();
+      current = {};
+      const remainder = trimmed.slice(2).trim();
+      if (remainder) {
+        upsertKeyValue(remainder);
+      }
+      return;
+    }
+
+    if (current && trimmed.includes(':')) {
+      upsertKeyValue(trimmed);
+    }
+  });
+
+  commitCurrent();
+  return items;
+};
+
+const loadIndexConfigMetadata = () => {
+  for (const candidate of CONFIG_CANDIDATES) {
+    try {
+      if (fs.existsSync(candidate)) {
+        const raw = fs.readFileSync(candidate, 'utf8');
+        if (!raw.trim()) {
+          continue;
+        }
+        const items = parseConfigItems(raw).map((item) => {
+          // 키를 소문자로 정규화
+          const normalized = {};
+          Object.entries(item).forEach(([key, value]) => {
+            normalized[key.toLowerCase()] = value;
+          });
+
+          // fromblock, blocknum 등 숫자 필드는 문자열로 두되 필요 시 정수 파싱
+          if (normalized.fromblock !== undefined) {
+            normalized.fromblock = normalized.fromblock.toString();
+          }
+          if (normalized.blocknum !== undefined) {
+            normalized.blocknum = normalized.blocknum.toString();
+          }
+
+          return normalized;
+        });
+        return items;
+      }
+    } catch (err) {
+      console.error('config.yaml 읽기 실패:', err);
+    }
+  }
+  return [];
+};
+
 // gRPC 게이트웨이 초기화
 async function initGateway() {
   if (!gateway) {
     gateway = new IndexingGateway({
       serverAddr: 'localhost:50052',
-      protoPath: path.join(__dirname, '../../grpc-go/protos/index_manager.proto'),
+      protoPath: resolveProtoPath(),
       batchSize: 10
     });
   }
@@ -45,10 +159,14 @@ app.get('/api/index/list', async (req, res) => {
     const response = await indexingGateway.getIndexList(requestMsg || 'index-list-request');
 
     const rawIndexes = response?.IdxList || [];
+    const metadataItems = loadIndexConfigMetadata();
+    const metadataMap = new Map(metadataItems.map((meta) => [String(meta.idxid ?? meta.indexid ?? ''), meta]));
+
     const indexes = rawIndexes.map((item, idx) => {
       const indexId = item?.IndexID || item?.indexId || `index_${idx}`;
       const keyCol = item?.KeyCol || item?.keyCol || 'IndexableData';
       const indexName = item?.IndexName || item?.indexName || indexId;
+      const filePath = item?.FilePath || item?.filePath || null;
 
       // 네트워크 추론: indexId 안에 하이픈으로 network-id가 들어가는 패턴을 우선 사용
       const lowered = indexId.toLowerCase();
@@ -61,12 +179,58 @@ app.get('/api/index/list', async (req, res) => {
         inferredNetwork = 'fabric';
       }
 
-      return {
+      const dataKey = filePath
+        ? path.posix.basename(filePath).replace(/\.bf$/i, '')
+        : null;
+
+      const normalizedIndex = {
         indexId,
         indexName,
         keyColumn: keyCol,
         network: inferredNetwork,
+        filePath,
+        dataKey,
+        fromBlock: item?.FromBlock ?? null,
+        currentBlock: item?.CurrentBlock ?? null,
       };
+
+      const meta = metadataMap.get(String(indexId));
+      if (meta) {
+        if (meta.filepath && !normalizedIndex.filePath) {
+          normalizedIndex.filePath = meta.filepath;
+        }
+        if (meta.datakey) {
+          normalizedIndex.dataKey = meta.datakey;
+        }
+        if (meta.idxname) {
+          normalizedIndex.indexName = meta.idxname;
+          normalizedIndex.category = meta.idxname;
+        }
+        if (meta.fromblock) {
+          normalizedIndex.fromBlock = meta.fromblock;
+        }
+        if (meta.blocknum) {
+          normalizedIndex.blockNum = meta.blocknum;
+        }
+        if (!normalizedIndex.network && meta.filepath) {
+          const segments = meta.filepath.split('/');
+          if (segments.length >= 2) {
+            normalizedIndex.network = segments[1];
+          }
+        }
+      }
+
+      if (!normalizedIndex.category) {
+        normalizedIndex.category = normalizedIndex.indexName;
+      }
+      if (normalizedIndex.fromBlock !== undefined && normalizedIndex.fromBlock !== null) {
+        normalizedIndex.fromBlock = String(normalizedIndex.fromBlock);
+      }
+      if (normalizedIndex.currentBlock !== undefined && normalizedIndex.currentBlock !== null) {
+        normalizedIndex.currentBlock = String(normalizedIndex.currentBlock);
+      }
+
+      return normalizedIndex;
     });
 
     res.json({
