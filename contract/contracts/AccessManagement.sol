@@ -141,4 +141,35 @@ contract AccessManagement {
         if (detail.requester == address(0)) revert RequestNotFound();
         return detail;
     }
+
+    /**
+ * @notice 현재까지 생성된 총 요청 개수를 반환합니다
+ * @return uint256 총 요청 개수 (현재 requestId)
+ */
+function getTotalRequestCount() external view returns (uint256) {
+    return requestId;
+}
+
+/**
+ * @notice 지정된 범위의 요청 데이터를 조회합니다
+ * @param _startId 시작 requestId (1부터 시작)
+ * @param _endId 끝 requestId (포함)
+ * @return RequestDetail[] 범위 내 요청 상세 정보 배열
+ */
+function getRequestsInRange(uint256 _startId, uint256 _endId) 
+    external 
+    view 
+    returns (RequestDetail[] memory) 
+{
+    if (_startId == 0 || _startId > _endId || _endId > requestId) revert InvalidRequestId();
+    
+    uint256 rangeSize = _endId - _startId + 1;
+    RequestDetail[] memory rangeRequests = new RequestDetail[](rangeSize);
+    
+    for (uint256 i = 0; i < rangeSize; i++) {
+        rangeRequests[i] = requestDetail[_startId + i];
+    }
+    
+    return rangeRequests;
+    }
 }   

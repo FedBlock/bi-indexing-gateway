@@ -2,10 +2,12 @@
   "name": "@bi-index/blockchain-indexing-client",
   "version": "1.0.0",
   "description": "Blockchain indexing client for gRPC communication with idxmngr server and Ethereum blockchain integration",
-  "main": "lib/indexing-client.js",
+  "main": "src/index.js",
   "scripts": {
     "test": "node examples/test-client.js",
-    "start": "node examples/basic-usage.js"
+    "start": "node examples/basic-usage.js",
+    "server": "node api/server.js",
+    "dev": "nodemon api/server.js"
   },
   "keywords": [
     "blockchain",
@@ -19,7 +21,9 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.9.0",
     "@grpc/proto-loader": "^0.7.0",
-    "ethers": "^6.15.0"
+    "cors": "^2.8.5",
+    "ethers": "^6.15.0",
+    "express": "^4.21.2"
   },
   "devDependencies": {
     "node": ">=16.0.0"
@@ -29,10 +33,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/blockchain-indexing-client.git"
+    "url": "git+https://github.com/FedBlock/bi-indexing-gateway.git"
   },
   "bugs": {
-    "url": "https://github.com/your-org/blockchain-indexing-client/issues"
+    "url": "https://github.com/FedBlock/bi-indexing-gateway/issues"
   },
-  "homepage": "https://github.com/your-org/blockchain-indexing-client#readme"
+  "homepage": "https://github.com/FedBlock/bi-indexing-gateway#readme",
+  "files": [
+    "src/",
+    "lib/",
+    "config/",
+    "api/",
+    "README.md",
+    "package.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }
