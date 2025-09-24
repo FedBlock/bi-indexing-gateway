@@ -230,20 +230,6 @@ await client.connectEthereumNetwork('custom-network');
 | `hardhat` | `http://localhost:8545` | Hardhat 네트워크 |
 | `monad` | `https://testnet1.monad.xyz` | Monad 테스트넷 |
 
-## 📚 예제
-
-### 완전한 통합 예제
-
-```bash
-node examples/blockchain-integration.js
-```
-
-### 기본 사용법 예제
-
-```bash
-node examples/basic-usage.js
-```
-
 ## 🔍 문제 해결
 
 ### 일반적인 오류

@@ -130,4 +130,4 @@ await getPerformanceStats()
 
 ## 참고
 - 모든 API는 Promise를 반환하며, 에러 발생 시 throw됩니다.
-- 자세한 예제는 README.md 및 examples/react 폴더 참고
+- 사용 예시는 README.md의 "빠른 시작" 섹션을 참고하세요.
