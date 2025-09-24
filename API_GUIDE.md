@@ -108,10 +108,62 @@ POST /api/requests/range
 }
 ```
 
-### 7. 성능 통계
+### 7. 인덱스 검색
+
+```javascript
+POST /api/index/search
+{
+  "IndexID": "purpose",
+  "Field": "IndexableData",
+  "Value": "수면",
+  "FilePath": "data/hardhat-local/purpose.bf",
+  "KeySize": 64,
+  "ComOp": "Eq"
+}
+```
+
+### 8. 성능 통계
 
 ```javascript
 GET /api/performance
+```
+
+## 🔧 인덱스 관리
+
+### 인덱스 생성 방법
+
+현재 시스템에서 인덱스는 **자동 생성**됩니다:
+
+1. **Purpose 인덱스**: 트랜잭션 생성 시 자동으로 purpose별 인덱스 생성
+2. **Wallet 인덱스**: 지갑 주소별 인덱스 자동 생성  
+3. **네트워크별 분리**: `hardhat-local`, `monad` 등 네트워크별로 인덱스 파일 분리
+
+### 인덱스 파일 위치
+
+```
+data/
+├── hardhat-local/
+│   ├── purpose.bf      # Purpose 인덱스
+│   ├── gender.bf       # Gender 인덱스
+│   └── wallet_*.bf     # 지갑별 인덱스
+├── monad/
+│   └── purpose.bf      # Monad 네트워크 Purpose 인덱스
+└── fabric/
+    ├── purpose.bf      # Fabric Purpose 인덱스
+    ├── speed.bf        # PVD Speed 인덱스
+    └── dt.bf          # PVD DateTime 인덱스
+```
+
+### 인덱스 상태 확인
+
+```bash
+# 인덱스 파일 확인
+curl http://localhost:3001/api/performance
+
+# 특정 인덱스 검색
+curl -X POST http://localhost:3001/api/index/search \
+  -H "Content-Type: application/json" \
+  -d '{"IndexID":"purpose","Field":"IndexableData","Value":"수면"}'
 ```
 
 ## 🎯 React Hook API
@@ -188,11 +240,25 @@ const result = await searchContract('혈압', 100, 'hardhat-local');
 
 ## 🏗️ 성능 비교
 
-| 검색 방법 | 속도 | 정확도 | 사용 시나리오 |
-|----------|------|--------|--------------|
-| **통합 검색** | ⚡⚡⚡ | ⭐⭐⭐ | 일반적인 검색 (권장) |
-| **직접 검색** | ⚡ | ⭐⭐⭐ | 인덱스가 없는 경우 |
-| **컨트랙트 검색** | ⚡⚡ | ⭐⭐⭐ | 대량 데이터 페이징 |
+| 검색 방법 | 속도 | 정확도 | 사용 시나리오 | 인덱스 사용 |
+|----------|------|--------|--------------|------------|
+| **통합 검색** | ⚡⚡⚡ | ⭐⭐⭐ | 일반적인 검색 (권장) | ✅ 자동 |
+| **직접 검색** | ⚡ | ⭐⭐⭐ | 인덱스가 없는 경우 | ❌ 없음 |
+| **컨트랙트 검색** | ⚡⚡ | ⭐⭐⭐ | 대량 데이터 페이징 | ❌ 없음 |
+
+### 검색 방법 선택 가이드
+
+1. **🚀 통합 검색** (권장): 
+   - 인덱스에서 트랜잭션 ID 조회 → 블록체인에서 상세 정보 조회
+   - 가장 빠르고 효율적
+
+2. **🔍 직접 검색**:
+   - 모든 블록을 순차 검색
+   - 인덱스가 없거나 완전한 검증이 필요한 경우
+
+3. **📊 컨트랙트 검색**:
+   - 컨트랙트에서 직접 데이터 조회
+   - 페이징 지원으로 대량 데이터 처리 효율적
 
 ## 🔧 환경 변수
 

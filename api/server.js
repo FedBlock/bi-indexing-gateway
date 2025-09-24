@@ -30,6 +30,54 @@ async function initClient() {
   return client;
 }
 
+
+// 인덱스 생성 API
+app.post('/api/index/create', async (req, res) => {
+  try {
+    const indexInfo = req.body;
+    if (!indexInfo || !indexInfo.name) {
+      return res.status(400).json({ error: '인덱스 정보(name 등)가 필요합니다.' });
+    }
+    const client = await initClient();
+    const result = await client.createIndex(indexInfo);
+    res.json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('인덱스 생성 실패:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 인덱스 데이터 삽입 API
+app.post('/api/index/insert', async (req, res) => {
+  try {
+    const indexData = req.body;
+    if (!indexData || !indexData.IndexID) {
+      return res.status(400).json({ error: 'IndexID와 데이터가 필요합니다.' });
+    }
+    const client = await initClient();
+    const result = await client.insertData(indexData);
+    res.json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('인덱스 데이터 삽입 실패:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });

@@ -1,6 +1,96 @@
-# BI-Index Blockchain Indexing Client
+# 🚀 BI-Indexing React SDK
 
-**이더리움 블록체인과 인덱싱 서버를 통합한 완전한 클라이언트 라이브러리**
+블록체인 인덱싱 기능을 React 앱에 쉽게 통합할 수 있는 SDK입니다.
+
+## 📦 설치
+
+### npm으로 설치
+```bash
+npm install @bi-index/blockchain-indexing-client
+```
+
+### yarn으로 설치
+```bash
+yarn add @bi-index/blockchain-indexing-client
+```
+
+### GitHub에서 직접 설치
+```bash
+npm install git+https://github.com/FedBlock/bi-indexing-gateway.git
+```
+
+## 🎯 빠른 시작
+
+### 1. Hook 사용법
+
+```jsx
+import React, { useState } from 'react';
+import { useBiIndexing } from '@bi-index/blockchain-indexing-client';
+
+function MySearchComponent() {
+  const [purpose, setPurpose] = useState('수면');
+  const [results, setResults] = useState(null);
+  
+  const { searchIntegrated, loading, error } = useBiIndexing({
+    baseURL: 'http://localhost:3001', // API 서버 주소
+    defaultNetwork: 'hardhat-local'
+  });
+
+  const handleSearch = async () => {
+    try {
+      const response = await searchIntegrated(purpose);
+      setResults(response.data);
+    } catch (err) {
+      console.error('검색 실패:', err);
+    }
+  };
+
+  return (
+    <div>
+      <input 
+        value={purpose}
+        onChange={(e) => setPurpose(e.target.value)}
+        placeholder="검색할 목적 입력"
+      />
+      <button onClick={handleSearch} disabled={loading}>
+        {loading ? '검색 중...' : '검색'}
+      </button>
+      
+      {error && <div style={{color: 'red'}}>{error}</div>}
+      {results && <div>결과: {results.totalCount}개</div>}
+    </div>
+  );
+}
+```
+
+### 2. 컴포넌트 사용법 (즉시 사용 가능)
+
+```jsx
+import React from 'react';
+import { BiIndexing } from '@bi-index/blockchain-indexing-client';
+
+function App() {
+  const handleResults = (data) => {
+    console.log('검색 결과:', data);
+  };
+
+  const handleError = (error) => {
+    console.error('검색 오류:', error);
+  };
+
+  return (
+    <div>
+      <h1>블록체인 데이터 검색</h1>
+      <BiIndexing 
+        config={{ baseURL: 'http://localhost:3001' }}
+        onResults={handleResults}
+        onError={handleError}
+        style={{ margin: '20px' }}
+      />
+    </div>
+  );
+}
+```
 
 ## 🚀 주요 기능
 
