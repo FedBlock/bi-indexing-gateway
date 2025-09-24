@@ -49,6 +49,7 @@ message IndexInfo{
   int32     IndexDataCnt  = 9;  // (IndexDataCnt/KeyCnt) = key duplication ratio
   string    Param         = 10;
   repeated  QueryCallHist QCnt = 11;
+  int64     FromBlock     = 12;
 }
 
 //GetIndexList
@@ -173,5 +174,4 @@ message IndexableDataM {
      // 인덱싱에 실제로 사용되는 key
      string OrganizationName       = 1;  // 조직명 (삼성전자, LG전자 등)
 }                                  
-
 

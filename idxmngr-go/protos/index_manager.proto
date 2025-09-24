@@ -49,6 +49,7 @@ message IndexInfo{
   int32     IndexDataCnt  = 9;  // (IndexDataCnt/KeyCnt) = key duplication ratio
   string    Param         = 10;
   repeated  QueryCallHist QCnt = 11;
+  int64     FromBlock     = 12;
 }
 
 //GetIndexList
@@ -185,5 +186,4 @@ message IndexableDataM {
      // 스키마 버전 관리
      string SchemaVersion          = 7;  // 데이터 구조 버전 관리
 }                                  
-
 

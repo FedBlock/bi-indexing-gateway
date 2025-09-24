@@ -6,7 +6,7 @@
 // versions:
 // 	protoc-gen-go v1.36.7
 // 	protoc        v3.12.4
-// source: index_manager.proto
+// source: protos/index_manager.proto
 
 package mngrapi
 
@@ -73,11 +73,11 @@ func (x ComparisonOps) String() string {
 }
 
 func (ComparisonOps) Descriptor() protoreflect.EnumDescriptor {
-	return file_index_manager_proto_enumTypes[0].Descriptor()
+	return file_protos_index_manager_proto_enumTypes[0].Descriptor()
 }
 
 func (ComparisonOps) Type() protoreflect.EnumType {
-	return &file_index_manager_proto_enumTypes[0]
+	return &file_protos_index_manager_proto_enumTypes[0]
 }
 
 func (x ComparisonOps) Number() protoreflect.EnumNumber {
@@ -86,7 +86,7 @@ func (x ComparisonOps) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ComparisonOps.Descriptor instead.
 func (ComparisonOps) EnumDescriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{0}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{0}
 }
 
 type QueryCallHist struct {
@@ -99,7 +99,7 @@ type QueryCallHist struct {
 
 func (x *QueryCallHist) Reset() {
 	*x = QueryCallHist{}
-	mi := &file_index_manager_proto_msgTypes[0]
+	mi := &file_protos_index_manager_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -111,7 +111,7 @@ func (x *QueryCallHist) String() string {
 func (*QueryCallHist) ProtoMessage() {}
 
 func (x *QueryCallHist) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[0]
+	mi := &file_protos_index_manager_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -124,7 +124,7 @@ func (x *QueryCallHist) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryCallHist.ProtoReflect.Descriptor instead.
 func (*QueryCallHist) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{0}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *QueryCallHist) GetComOp() ComparisonOps {
@@ -155,13 +155,14 @@ type IndexInfo struct {
 	IndexDataCnt  int32                  `protobuf:"varint,9,opt,name=IndexDataCnt,proto3" json:"IndexDataCnt,omitempty"` // (IndexDataCnt/KeyCnt) = key duplication ratio
 	Param         string                 `protobuf:"bytes,10,opt,name=Param,proto3" json:"Param,omitempty"`
 	QCnt          []*QueryCallHist       `protobuf:"bytes,11,rep,name=QCnt,proto3" json:"QCnt,omitempty"`
+	FromBlock     int64                  `protobuf:"varint,12,opt,name=FromBlock,proto3" json:"FromBlock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *IndexInfo) Reset() {
 	*x = IndexInfo{}
-	mi := &file_index_manager_proto_msgTypes[1]
+	mi := &file_protos_index_manager_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -173,7 +174,7 @@ func (x *IndexInfo) String() string {
 func (*IndexInfo) ProtoMessage() {}
 
 func (x *IndexInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[1]
+	mi := &file_protos_index_manager_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -186,7 +187,7 @@ func (x *IndexInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexInfo.ProtoReflect.Descriptor instead.
 func (*IndexInfo) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{1}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *IndexInfo) GetIndexID() string {
@@ -266,6 +267,13 @@ func (x *IndexInfo) GetQCnt() []*QueryCallHist {
 	return nil
 }
 
+func (x *IndexInfo) GetFromBlock() int64 {
+	if x != nil {
+		return x.FromBlock
+	}
+	return 0
+}
+
 // GetIndexList
 type IndexInfoRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -278,7 +286,7 @@ type IndexInfoRequest struct {
 
 func (x *IndexInfoRequest) Reset() {
 	*x = IndexInfoRequest{}
-	mi := &file_index_manager_proto_msgTypes[2]
+	mi := &file_protos_index_manager_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -290,7 +298,7 @@ func (x *IndexInfoRequest) String() string {
 func (*IndexInfoRequest) ProtoMessage() {}
 
 func (x *IndexInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[2]
+	mi := &file_protos_index_manager_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -303,7 +311,7 @@ func (x *IndexInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexInfoRequest.ProtoReflect.Descriptor instead.
 func (*IndexInfoRequest) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{2}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *IndexInfoRequest) GetRequestMsg() string {
@@ -337,7 +345,7 @@ type IndexList struct {
 
 func (x *IndexList) Reset() {
 	*x = IndexList{}
-	mi := &file_index_manager_proto_msgTypes[3]
+	mi := &file_protos_index_manager_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -349,7 +357,7 @@ func (x *IndexList) String() string {
 func (*IndexList) ProtoMessage() {}
 
 func (x *IndexList) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[3]
+	mi := &file_protos_index_manager_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -362,7 +370,7 @@ func (x *IndexList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexList.ProtoReflect.Descriptor instead.
 func (*IndexList) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{3}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *IndexList) GetIndexCnt() int32 {
@@ -392,7 +400,7 @@ type BcDataList struct {
 
 func (x *BcDataList) Reset() {
 	*x = BcDataList{}
-	mi := &file_index_manager_proto_msgTypes[4]
+	mi := &file_protos_index_manager_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -404,7 +412,7 @@ func (x *BcDataList) String() string {
 func (*BcDataList) ProtoMessage() {}
 
 func (x *BcDataList) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[4]
+	mi := &file_protos_index_manager_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -417,7 +425,7 @@ func (x *BcDataList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BcDataList.ProtoReflect.Descriptor instead.
 func (*BcDataList) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{4}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *BcDataList) GetTxId() string {
@@ -476,7 +484,7 @@ type InsertDatatoIdx struct {
 
 func (x *InsertDatatoIdx) Reset() {
 	*x = InsertDatatoIdx{}
-	mi := &file_index_manager_proto_msgTypes[5]
+	mi := &file_protos_index_manager_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -488,7 +496,7 @@ func (x *InsertDatatoIdx) String() string {
 func (*InsertDatatoIdx) ProtoMessage() {}
 
 func (x *InsertDatatoIdx) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[5]
+	mi := &file_protos_index_manager_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -501,7 +509,7 @@ func (x *InsertDatatoIdx) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InsertDatatoIdx.ProtoReflect.Descriptor instead.
 func (*InsertDatatoIdx) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{5}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *InsertDatatoIdx) GetIndexID() string {
@@ -608,7 +616,7 @@ type IdxMngrResponse struct {
 
 func (x *IdxMngrResponse) Reset() {
 	*x = IdxMngrResponse{}
-	mi := &file_index_manager_proto_msgTypes[6]
+	mi := &file_protos_index_manager_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -620,7 +628,7 @@ func (x *IdxMngrResponse) String() string {
 func (*IdxMngrResponse) ProtoMessage() {}
 
 func (x *IdxMngrResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[6]
+	mi := &file_protos_index_manager_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -633,7 +641,7 @@ func (x *IdxMngrResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IdxMngrResponse.ProtoReflect.Descriptor instead.
 func (*IdxMngrResponse) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{6}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *IdxMngrResponse) GetResponseCode() int32 {
@@ -693,7 +701,7 @@ type SearchRequestM struct {
 
 func (x *SearchRequestM) Reset() {
 	*x = SearchRequestM{}
-	mi := &file_index_manager_proto_msgTypes[7]
+	mi := &file_protos_index_manager_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -705,7 +713,7 @@ func (x *SearchRequestM) String() string {
 func (*SearchRequestM) ProtoMessage() {}
 
 func (x *SearchRequestM) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[7]
+	mi := &file_protos_index_manager_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -718,7 +726,7 @@ func (x *SearchRequestM) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRequestM.ProtoReflect.Descriptor instead.
 func (*SearchRequestM) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{7}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SearchRequestM) GetIndexID() string {
@@ -828,7 +836,7 @@ type IndexValue struct {
 
 func (x *IndexValue) Reset() {
 	*x = IndexValue{}
-	mi := &file_index_manager_proto_msgTypes[8]
+	mi := &file_protos_index_manager_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -840,7 +848,7 @@ func (x *IndexValue) String() string {
 func (*IndexValue) ProtoMessage() {}
 
 func (x *IndexValue) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[8]
+	mi := &file_protos_index_manager_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -853,7 +861,7 @@ func (x *IndexValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexValue.ProtoReflect.Descriptor instead.
 func (*IndexValue) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{8}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *IndexValue) GetTxId() string {
@@ -874,7 +882,7 @@ type RstTxListM struct {
 
 func (x *RstTxListM) Reset() {
 	*x = RstTxListM{}
-	mi := &file_index_manager_proto_msgTypes[9]
+	mi := &file_protos_index_manager_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -886,7 +894,7 @@ func (x *RstTxListM) String() string {
 func (*RstTxListM) ProtoMessage() {}
 
 func (x *RstTxListM) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[9]
+	mi := &file_protos_index_manager_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -899,7 +907,7 @@ func (x *RstTxListM) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RstTxListM.ProtoReflect.Descriptor instead.
 func (*RstTxListM) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{9}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RstTxListM) GetIdxInfo() *IndexInfo {
@@ -932,7 +940,7 @@ type QueryRequest struct {
 
 func (x *QueryRequest) Reset() {
 	*x = QueryRequest{}
-	mi := &file_index_manager_proto_msgTypes[10]
+	mi := &file_protos_index_manager_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -944,7 +952,7 @@ func (x *QueryRequest) String() string {
 func (*QueryRequest) ProtoMessage() {}
 
 func (x *QueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[10]
+	mi := &file_protos_index_manager_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -957,7 +965,7 @@ func (x *QueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRequest.ProtoReflect.Descriptor instead.
 func (*QueryRequest) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{10}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *QueryRequest) GetComOp() ComparisonOps {
@@ -981,7 +989,7 @@ type QueryInfo struct {
 
 func (x *QueryInfo) Reset() {
 	*x = QueryInfo{}
-	mi := &file_index_manager_proto_msgTypes[11]
+	mi := &file_protos_index_manager_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -993,7 +1001,7 @@ func (x *QueryInfo) String() string {
 func (*QueryInfo) ProtoMessage() {}
 
 func (x *QueryInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[11]
+	mi := &file_protos_index_manager_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1006,7 +1014,7 @@ func (x *QueryInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryInfo.ProtoReflect.Descriptor instead.
 func (*QueryInfo) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{11}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *QueryInfo) GetComOp() ComparisonOps {
@@ -1090,7 +1098,7 @@ type PvdHistDataM struct {
 
 func (x *PvdHistDataM) Reset() {
 	*x = PvdHistDataM{}
-	mi := &file_index_manager_proto_msgTypes[12]
+	mi := &file_protos_index_manager_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1102,7 +1110,7 @@ func (x *PvdHistDataM) String() string {
 func (*PvdHistDataM) ProtoMessage() {}
 
 func (x *PvdHistDataM) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[12]
+	mi := &file_protos_index_manager_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1115,7 +1123,7 @@ func (x *PvdHistDataM) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PvdHistDataM.ProtoReflect.Descriptor instead.
 func (*PvdHistDataM) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{12}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *PvdHistDataM) GetObuId() string {
@@ -1346,7 +1354,7 @@ type IndexableDataM struct {
 
 func (x *IndexableDataM) Reset() {
 	*x = IndexableDataM{}
-	mi := &file_index_manager_proto_msgTypes[13]
+	mi := &file_protos_index_manager_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1358,7 +1366,7 @@ func (x *IndexableDataM) String() string {
 func (*IndexableDataM) ProtoMessage() {}
 
 func (x *IndexableDataM) ProtoReflect() protoreflect.Message {
-	mi := &file_index_manager_proto_msgTypes[13]
+	mi := &file_protos_index_manager_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1371,7 +1379,7 @@ func (x *IndexableDataM) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexableDataM.ProtoReflect.Descriptor instead.
 func (*IndexableDataM) Descriptor() ([]byte, []int) {
-	return file_index_manager_proto_rawDescGZIP(), []int{13}
+	return file_protos_index_manager_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *IndexableDataM) GetOrganizationName() string {
@@ -1381,15 +1389,15 @@ func (x *IndexableDataM) GetOrganizationName() string {
 	return ""
 }
 
-var File_index_manager_proto protoreflect.FileDescriptor
+var File_protos_index_manager_proto protoreflect.FileDescriptor
 
-const file_index_manager_proto_rawDesc = "" +
+const file_protos_index_manager_proto_rawDesc = "" +
 	"\n" +
-	"\x13index_manager.proto\x12\n" +
+	"\x1aprotos/index_manager.proto\x12\n" +
 	"idxmngrapi\"X\n" +
 	"\rQueryCallHist\x12/\n" +
 	"\x05ComOp\x18\x01 \x01(\x0e2\x19.idxmngrapi.ComparisonOpsR\x05ComOp\x12\x16\n" +
-	"\x06RstCnt\x18\x02 \x01(\x05R\x06RstCnt\"\xc8\x02\n" +
+	"\x06RstCnt\x18\x02 \x01(\x05R\x06RstCnt\"\xe6\x02\n" +
 	"\tIndexInfo\x12\x18\n" +
 	"\aIndexID\x18\x01 \x01(\tR\aIndexID\x12\x1c\n" +
 	"\tIndexName\x18\x02 \x01(\tR\tIndexName\x12\x16\n" +
@@ -1402,7 +1410,8 @@ const file_index_manager_proto_rawDesc = "" +
 	"\fIndexDataCnt\x18\t \x01(\x05R\fIndexDataCnt\x12\x14\n" +
 	"\x05Param\x18\n" +
 	" \x01(\tR\x05Param\x12-\n" +
-	"\x04QCnt\x18\v \x03(\v2\x19.idxmngrapi.QueryCallHistR\x04QCnt\"`\n" +
+	"\x04QCnt\x18\v \x03(\v2\x19.idxmngrapi.QueryCallHistR\x04QCnt\x12\x1c\n" +
+	"\tFromBlock\x18\f \x01(\x03R\tFromBlock\"`\n" +
 	"\x10IndexInfoRequest\x12\x1e\n" +
 	"\n" +
 	"RequestMsg\x18\x01 \x01(\tR\n" +
@@ -1528,20 +1537,20 @@ const file_index_manager_proto_rawDesc = "" +
 	"\fGetQueryInfo\x12\x18.idxmngrapi.QueryRequest\x1a\x15.idxmngrapi.QueryInfoB\x14Z\x12idxmngr-go/mngrapib\x06proto3"
 
 var (
-	file_index_manager_proto_rawDescOnce sync.Once
-	file_index_manager_proto_rawDescData []byte
+	file_protos_index_manager_proto_rawDescOnce sync.Once
+	file_protos_index_manager_proto_rawDescData []byte
 )
 
-func file_index_manager_proto_rawDescGZIP() []byte {
-	file_index_manager_proto_rawDescOnce.Do(func() {
-		file_index_manager_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_index_manager_proto_rawDesc), len(file_index_manager_proto_rawDesc)))
+func file_protos_index_manager_proto_rawDescGZIP() []byte {
+	file_protos_index_manager_proto_rawDescOnce.Do(func() {
+		file_protos_index_manager_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_protos_index_manager_proto_rawDesc), len(file_protos_index_manager_proto_rawDesc)))
 	})
-	return file_index_manager_proto_rawDescData
+	return file_protos_index_manager_proto_rawDescData
 }
 
-var file_index_manager_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_index_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
-var file_index_manager_proto_goTypes = []any{
+var file_protos_index_manager_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_protos_index_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_protos_index_manager_proto_goTypes = []any{
 	(ComparisonOps)(0),       // 0: idxmngrapi.ComparisonOps
 	(*QueryCallHist)(nil),    // 1: idxmngrapi.QueryCallHist
 	(*IndexInfo)(nil),        // 2: idxmngrapi.IndexInfo
@@ -1558,7 +1567,7 @@ var file_index_manager_proto_goTypes = []any{
 	(*PvdHistDataM)(nil),     // 13: idxmngrapi.PvdHistDataM
 	(*IndexableDataM)(nil),   // 14: idxmngrapi.IndexableDataM
 }
-var file_index_manager_proto_depIdxs = []int32{
+var file_protos_index_manager_proto_depIdxs = []int32{
 	0,  // 0: idxmngrapi.QueryCallHist.ComOp:type_name -> idxmngrapi.ComparisonOps
 	1,  // 1: idxmngrapi.IndexInfo.QCnt:type_name -> idxmngrapi.QueryCallHist
 	2,  // 2: idxmngrapi.IndexList.IdxList:type_name -> idxmngrapi.IndexInfo
@@ -1593,27 +1602,27 @@ var file_index_manager_proto_depIdxs = []int32{
 	0,  // [0:13] is the sub-list for field type_name
 }
 
-func init() { file_index_manager_proto_init() }
-func file_index_manager_proto_init() {
-	if File_index_manager_proto != nil {
+func init() { file_protos_index_manager_proto_init() }
+func file_protos_index_manager_proto_init() {
+	if File_protos_index_manager_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_index_manager_proto_rawDesc), len(file_index_manager_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_protos_index_manager_proto_rawDesc), len(file_protos_index_manager_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_index_manager_proto_goTypes,
-		DependencyIndexes: file_index_manager_proto_depIdxs,
-		EnumInfos:         file_index_manager_proto_enumTypes,
-		MessageInfos:      file_index_manager_proto_msgTypes,
+		GoTypes:           file_protos_index_manager_proto_goTypes,
+		DependencyIndexes: file_protos_index_manager_proto_depIdxs,
+		EnumInfos:         file_protos_index_manager_proto_enumTypes,
+		MessageInfos:      file_protos_index_manager_proto_msgTypes,
 	}.Build()
-	File_index_manager_proto = out.File
-	file_index_manager_proto_goTypes = nil
-	file_index_manager_proto_depIdxs = nil
+	File_protos_index_manager_proto = out.File
+	file_protos_index_manager_proto_goTypes = nil
+	file_protos_index_manager_proto_depIdxs = nil
 }

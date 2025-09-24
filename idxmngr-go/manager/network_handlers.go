@@ -8,7 +8,7 @@ import (
 	"time"
 
 	idxserver "fileindex-go/idxserver_api"
-	mngr "idxmngr-go/mngrapi/protos"
+	mngr "idxmngr-go/mngrapi"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -50,16 +50,16 @@ func NewFabricHandler(config NetworkConfig) *FabricHandler {
 // PutData - Fabric 네트워크에 데이터 저장
 func (h *FabricHandler) PutData(data *mngr.PvdHistDataM) (string, error) {
 	log.Printf("[Fabric] 데이터 저장 중: OBU_ID=%s, Speed=%d", data.ObuId, data.Speed)
-	
+
 	// Fabric 전용 데이터 검증
 	if err := h.ValidateData(data); err != nil {
 		return "", fmt.Errorf("fabric data validation failed: %v", err)
 	}
-	
+
 	// Fabric 전용 처리 로직 (현재는 시뮬레이션)
 	txID := fmt.Sprintf("fabric_%s_%d", data.ObuId, time.Now().Unix())
 	log.Printf("[Fabric] 데이터 저장 완료: TxID=%s", txID)
-	
+
 	return txID, nil
 }
 
@@ -95,7 +95,7 @@ func (h *FabricHandler) GetFileIndexPath(indexType string) string {
 // sendToFileIndex - 실제 파일 인덱스로 데이터 전송
 func (h *FabricHandler) sendToFileIndex(data *mngr.PvdHistDataM, txID string, colName string, filePath string) error {
 	log.Printf("[Fabric] File Index로 데이터 전송: TxID=%s, ColName=%s, FilePath=%s", txID, colName, filePath)
-	
+
 	// fileindex-go 서버에 연결
 	fileIndexAddr := "localhost:50053"
 	conn, err := grpc.Dial(fileIndexAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -103,9 +103,9 @@ func (h *FabricHandler) sendToFileIndex(data *mngr.PvdHistDataM, txID string, co
 		return fmt.Errorf("failed to connect to fileindex server: %v", err)
 	}
 	defer conn.Close()
-	
+
 	client := idxserver.NewHLFDataIndexClient(conn)
-	
+
 	// PVD 데이터를 fileindex-go 형식으로 변환
 	pvdData := &idxserver.PvdHistData{
 		CollectionDt:         data.CollectionDt,
@@ -137,14 +137,14 @@ func (h *FabricHandler) sendToFileIndex(data *mngr.PvdHistDataM, txID string, co
 		MsgId:                data.MsgId,
 		StartvectorHeading:   data.StartvectorHeading,
 	}
-	
+
 	// BcDataInfo 생성
 	bcDataInfo := &idxserver.BcDataInfo{
 		TxId:   txID,
 		KeyCol: colName,
 		Pvd:    pvdData,
 	}
-	
+
 	// InsertData 생성
 	insertData := &idxserver.InsertData{
 		ColIndex: "speed_001",
@@ -152,21 +152,21 @@ func (h *FabricHandler) sendToFileIndex(data *mngr.PvdHistDataM, txID string, co
 		BcList:   []*idxserver.BcDataInfo{bcDataInfo},
 		ColName:  colName,
 	}
-	
+
 	// 스트림을 통해 데이터 전송
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 	defer cancel()
-	
+
 	stream, err := client.InsertIndex(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create insert stream: %v", err)
 	}
-	
+
 	// 데이터 전송
 	if err := stream.Send(insertData); err != nil {
 		return fmt.Errorf("failed to send data to fileindex: %v", err)
 	}
-	
+
 	// 스트림 종료 및 응답 수신
 	response, err := stream.CloseAndRecv()
 	if err != nil {
@@ -178,7 +178,7 @@ func (h *FabricHandler) sendToFileIndex(data *mngr.PvdHistDataM, txID string, co
 	} else {
 		log.Printf("[Fabric] FileIndex 응답: %v", response)
 	}
-	
+
 	log.Printf("[Fabric] PVD 데이터 전송 완료: OBU_ID=%s, Speed=%d", data.ObuId, data.Speed)
 	return nil
 }
@@ -186,25 +186,25 @@ func (h *FabricHandler) sendToFileIndex(data *mngr.PvdHistDataM, txID string, co
 // ProcessIndexing - Fabric 데이터 인덱싱 처리
 func (h *FabricHandler) ProcessIndexing(data *mngr.PvdHistDataM, txID string, colName string) error {
 	log.Printf("[Fabric] 인덱싱 처리 중: OBU_ID=%s, TxID=%s, ColName=%s", data.ObuId, txID, colName)
-	
+
 	// Fabric 전용 인덱싱 로직
 	// 1. 데이터 검증
 	if err := h.ValidateData(data); err != nil {
 		return fmt.Errorf("fabric indexing validation failed: %v", err)
 	}
-	
+
 	// 2. 실제 File Index에 데이터 저장
 	filePath := h.GetFileIndexPath("speed")
 	log.Printf("[Fabric] File Index에 저장: %s", filePath)
-	
+
 	// 3. 실제 인덱싱 처리 - fileindex-go 서버로 데이터 전송
 	if err := h.sendToFileIndex(data, txID, colName, filePath); err != nil {
 		return fmt.Errorf("failed to send data to file index: %v", err)
 	}
-	
+
 	// 4. 인덱싱 완료 로그
 	log.Printf("[Fabric] 인덱싱 완료: %s -> %s", txID, filePath)
-	
+
 	return nil
 }
 
@@ -236,16 +236,16 @@ func NewEVMPublicNetworkHandler(config NetworkConfig) *EVMPublicNetworkHandler {
 // PutData - EVM 네트워크에 데이터 저장
 func (h *EVMPublicNetworkHandler) PutData(data *mngr.PvdHistDataM) (string, error) {
 	log.Printf("[%s] 데이터 저장 중: OBU_ID=%s, Speed=%d", h.networkName, data.ObuId, data.Speed)
-	
+
 	// EVM 전용 데이터 검증
 	if err := h.ValidateData(data); err != nil {
 		return "", fmt.Errorf("%s data validation failed: %v", h.networkName, err)
 	}
-	
+
 	// EVM 전용 처리 로직 (현재는 시뮬레이션)
 	txID := fmt.Sprintf("%s_%s_%d", h.networkName, data.ObuId, time.Now().Unix())
 	log.Printf("[%s] 데이터 저장 완료: TxID=%s", h.networkName, txID)
-	
+
 	return txID, nil
 }
 
@@ -280,7 +280,7 @@ func (h *EVMPublicNetworkHandler) GetFileIndexPath(indexType string) string {
 	if h.networkName == "hardhat" {
 		networkDir = "hardhat-local"
 	}
-	
+
 	// 새로운 폴더 구조: data/{network}/{indexType}.bf
 	return fmt.Sprintf("data/%s/%s.bf", networkDir, indexType)
 }
@@ -288,40 +288,40 @@ func (h *EVMPublicNetworkHandler) GetFileIndexPath(indexType string) string {
 // ProcessIndexing - EVM 데이터 인덱싱 처리
 func (h *EVMPublicNetworkHandler) ProcessIndexing(data *mngr.PvdHistDataM, txID string, colName string) error {
 	log.Printf("[%s] 인덱싱 처리 중: TxID=%s, ColName=%s", h.networkName, txID, colName)
-	
+
 	// EVM 전용 인덱싱 로직 (IndexableData 처리)
 	// 1. 컨트랙트 주소 확인
 	if h.config.ContractAddress == "" {
 		return fmt.Errorf("contract address not configured for %s network", h.networkName)
 	}
-	
+
 	// 2. File Index에 데이터 저장 (시뮬레이션)
 	filePath := h.GetFileIndexPath("speed")
 	log.Printf("[%s] File Index에 저장: %s (Contract: %s, ColName: %s)", filePath, h.config.ContractAddress, h.networkName, colName)
-	
+
 	// 3. 인덱싱 완료 로그
 	log.Printf("[%s] 인덱싱 완료: %s -> %s", txID, filePath, h.networkName)
-	
+
 	return nil
 }
 
 // ProcessIndexingIndexableData - EVM IndexableData 인덱싱 처리 (EVM 네트워크 전용)
 func (h *EVMPublicNetworkHandler) ProcessIndexingIndexableData(indexableData *mngr.IndexableDataM, txID string, colName string) error {
 	log.Printf("[%s] IndexableData 인덱싱 처리 중: TxID=%s, ColName=%s", h.networkName, txID, colName)
-	
+
 	// EVM 전용 IndexableData 인덱싱 로직
 	// 1. 컨트랙트 주소 확인
 	if h.config.ContractAddress == "" {
 		return fmt.Errorf("contract address not configured for %s network", h.networkName)
 	}
-	
+
 	// 2. File Index에 데이터 저장 (시뮬레이션)
 	filePath := h.GetFileIndexPath("speed")
 	log.Printf("[%s] IndexableData File Index에 저장: %s (Contract: %s, ColName: %s)", filePath, h.config.ContractAddress, h.networkName, colName)
-	
+
 	// 3. 인덱싱 완료 로그
 	log.Printf("[%s] IndexableData 인덱싱 완료: %s -> %s", txID, filePath, h.networkName)
-	
+
 	return nil
 }
 
@@ -339,11 +339,11 @@ func NewNetworkHandlerFactory() *NetworkHandlerFactory {
 	factory := &NetworkHandlerFactory{
 		handlers: make(map[string]NetworkHandler),
 	}
-	
+
 	// Config에서 네트워크별 핸들러 생성
 	for network, config := range NetworkConfigs {
 		var handler NetworkHandler
-		
+
 		switch network {
 		case "fabric":
 			handler = NewFabricHandler(config)
@@ -353,10 +353,10 @@ func NewNetworkHandlerFactory() *NetworkHandlerFactory {
 			log.Printf("Unsupported network: %s", network)
 			continue
 		}
-		
+
 		factory.RegisterHandler(network, handler)
 	}
-	
+
 	return factory
 }
 

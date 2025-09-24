@@ -8,7 +8,7 @@ import (
 	"time"
 
 	mg "idxmngr-go/manager"
-	api "idxmngr-go/mngrapi/protos"
+	api "idxmngr-go/mngrapi"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -77,8 +77,6 @@ func readIndexList() {
 
 func main() {
 
-
-
 	// lis, err := net.Listen("tcp", port)
 	// if err != nil {
 	// 	log.Fatal("An error has occurred while retrieving on launch: ", err)
@@ -96,7 +94,7 @@ func main() {
 
 	// config.yaml 읽기
 	mg.ReadIndexConfig()
-	
+
 	pool := mg.NewConnectionPool()
 	defer pool.CloseAllConnections()
 

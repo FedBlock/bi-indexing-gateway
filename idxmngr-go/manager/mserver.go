@@ -17,7 +17,7 @@ import (
 	"time"
 
 	idxserverapi "fileindex-go/idxserver_api" //integrated index server api
-	mngr "idxmngr-go/mngrapi/protos"
+	mngr "idxmngr-go/mngrapi"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -67,10 +67,8 @@ func funcName() string {
 // 24.12.10 updated
 // 모든 인덱스는 기본적으로 50053 포트 사용
 func getPortByIndexID(indexID string) string {
-	return "50053"  // 모든 인덱스가 50053 포트 사용
+	return "50053" // 모든 인덱스가 50053 포트 사용
 }
-
-
 
 func ReadIndexConfig() {
 	data, err := ioutil.ReadFile("./config.yaml")
@@ -97,13 +95,13 @@ func ReadIndexConfig() {
 	for _, idx := range list.Items {
 		MngrIndexList[idx.IdxID] = idx
 	}
-	
+
 	log.Printf("config.yaml에서 %d개의 인덱스 설정을 로드했습니다", len(list.Items))
 }
 
 func insertIndexConfig(idx IndexInfo) {
 	log.Printf("🔍 insertIndexConfig 시작: %s", idx.IdxID)
-	
+
 	// 절대 경로로 config.yaml 읽기
 	configPath := "./config.yaml"
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -111,14 +109,14 @@ func insertIndexConfig(idx IndexInfo) {
 		configPath = "../config.yaml"
 		log.Printf("📁 config.yaml 경로 변경: %s", configPath)
 	}
-	
+
 	log.Printf("📁 config.yaml 읽기 시도: %s", configPath)
-	
+
 	data, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		log.Fatalf("YAML 파일을 읽을 수 없습니다: %v", err)
 	}
-	
+
 	log.Printf("📄 config.yaml 읽기 성공, 크기: %d bytes", len(data))
 	log.Printf("📄 config.yaml 내용: %s", string(data))
 
@@ -128,7 +126,7 @@ func insertIndexConfig(idx IndexInfo) {
 	if err != nil {
 		log.Fatalf("YAML 데이터를 언마샬링할 수 없습니다: %v", err)
 	}
-	
+
 	log.Printf("📊 기존 items 개수: %d", len(list.Items))
 
 	// 포트를 50052로 수정
@@ -141,7 +139,7 @@ func insertIndexConfig(idx IndexInfo) {
 	log.Printf("➕ 새 인덱스 추가: %+v", idx)
 
 	list.Items = append(list.Items, idx)
-	
+
 	log.Printf("📊 추가 후 items 개수: %d", len(list.Items))
 
 	// 수정된 데이터 마샬링
@@ -149,14 +147,13 @@ func insertIndexConfig(idx IndexInfo) {
 	if err != nil {
 		log.Fatalf("수정된 데이터를 마샬링할 수 없습니다: %v", err)
 	}
-	
 
 	// 수정된 데이터 파일에 쓰기
 	err = ioutil.WriteFile(configPath, newData, 0644)
 	if err != nil {
 		log.Fatalf("수정된 데이터를 파일에 쓸 수 없습니다: %v", err)
 	}
-	
+
 	log.Printf("✅ 인덱스 추가 완료: %s", idx.IdxID)
 	// log.Printf("📁 파일 경로: %s", configPath)
 }
@@ -179,6 +176,9 @@ func updateIndexConfig(idx IndexInfo) {
 		if item.IdxID == idx.IdxID {
 			list.Items[i].IndexDataCnt = idx.IndexDataCnt
 			list.Items[i].BlockNum = idx.BlockNum
+			if idx.FromBlock != 0 {
+				list.Items[i].FromBlock = idx.FromBlock
+			}
 		}
 	}
 
@@ -359,6 +359,7 @@ func (m *MServer) GetIndexList(ctx context.Context, in *mngr.IndexInfoRequest) (
 			BlockNum:     val.BlockNum,
 			KeySize:      val.KeySize,
 			IndexDataCnt: val.IndexDataCnt,
+			FromBlock:    val.FromBlock,
 		}
 		Lists = append(Lists, indexVal)
 		//log.Println(indexVal)
@@ -408,7 +409,7 @@ func (m *MServer) CreateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 	// 인덱스 생성 시에는 기본 포트(50053) 사용
 	serverAddr := "localhost:50053"
 	var client idxserverapi.HLFDataIndexClient
-	
+
 	// 기존 인덱스가 있다면 연결 풀에서 가져오기
 	if _, existingClient, err := m.ConnectionPool.GetConnection(idxinfo.IndexID); err == nil {
 		client = existingClient
@@ -466,14 +467,19 @@ func (m *MServer) CreateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 	//indexinfo.FilePath = filePath
 
 	rst, err := client.CreateIndex(ctx, &indexinfo)
+	fromBlock := idxinfo.FromBlock
+	if fromBlock == 0 {
+		fromBlock = int64(idxinfo.BlockNum)
+	}
+
 	indexRequest := IndexInfo{
-		IdxID:    indexinfo.IndexID,
-		IdxName:  indexinfo.IndexName,
-		KeyCol:   indexinfo.KeyCol,
-		FilePath: indexinfo.FilePath,
-		KeySize:  indexinfo.KeySize,
-		BlockNum: indexinfo.BlockNum,
-		FromBlock:   int64(indexinfo.BlockNum),
+		IdxID:     indexinfo.IndexID,
+		IdxName:   indexinfo.IndexName,
+		KeyCol:    indexinfo.KeyCol,
+		FilePath:  indexinfo.FilePath,
+		KeySize:   indexinfo.KeySize,
+		BlockNum:  indexinfo.BlockNum,
+		FromBlock: fromBlock,
 		//IndexDataCnt: indexinfo.IndexDataCnt,
 	}
 
@@ -485,7 +491,7 @@ func (m *MServer) CreateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 	}
 	MngrIndexList[indexRequest.IdxID] = indexRequest
 
-	insertIndexConfig(indexRequest)  // 새 인덱스 추가 (updateIndexConfig가 아님)
+	insertIndexConfig(indexRequest) // 새 인덱스 추가 (updateIndexConfig가 아님)
 
 	resultData := &mngr.IdxMngrResponse{
 		ResponseCode: 200,
@@ -520,6 +526,11 @@ func (m *MServer) UpdateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 	if value, exists := MngrIndexList[idxinfo.IndexID]; exists {
 		log.Println("Update index with ", idxinfo)
 
+		newFromBlock := value.FromBlock
+		if idxinfo.FromBlock != 0 {
+			newFromBlock = idxinfo.FromBlock
+		}
+
 		indexRequest := IndexInfo{
 			IdxID:        idxinfo.IndexID,
 			IdxName:      idxinfo.IndexName,
@@ -527,7 +538,7 @@ func (m *MServer) UpdateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 			FilePath:     idxinfo.FilePath,
 			KeySize:      idxinfo.KeySize,
 			BlockNum:     idxinfo.BlockNum,
-			FromBlock:    value.FromBlock,
+			FromBlock:    newFromBlock,
 			IndexDataCnt: idxinfo.IndexDataCnt,
 		}
 
@@ -563,7 +574,7 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 
 	start := time.Now()
 	log.Printf("🚀 InsertIndexRequest 시작 - 클라이언트 연결됨")
-	
+
 	var idx = 0
 	isFirst := true
 	var cli idxserverapi.HLFDataIndexClient
@@ -584,10 +595,10 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 			log.Printf("❌ 데이터 수신 실패: %v", r_err)
 			return fmt.Errorf("failed to receive data: %v", r_err)
 		}
-		
-		log.Printf("📥 데이터 수신됨: IndexID=%s, Network=%s, ColName=%s", 
-			recvDatas.GetIndexID(), 
-			recvDatas.GetNetwork(), 
+
+		log.Printf("📥 데이터 수신됨: IndexID=%s, Network=%s, ColName=%s",
+			recvDatas.GetIndexID(),
+			recvDatas.GetNetwork(),
 			recvDatas.GetColName())
 
 		// =============================================================================
@@ -600,7 +611,7 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 				network = recvDatas.Network
 			}
 			log.Printf("Processing data for network: %s", network)
-			
+
 			// 해당 네트워크 핸들러 가져오기
 			handler, err := m.NetworkFactory.GetHandler(network)
 			if err != nil {
@@ -612,12 +623,12 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 					recvDatas.FilePath = autoFilePath
 					log.Printf("Auto-generated FilePath: %s", autoFilePath)
 				}
-				
+
 				// 네트워크별 인덱싱 처리
 				for _, bcData := range recvDatas.GetBcList() {
 					if bcData.Pvd != nil {
 						log.Printf("Processing PVD data for %s: OBU_ID=%s, Speed=%d", network, bcData.Pvd.ObuId, bcData.Pvd.Speed)
-						
+
 						// 핸들러에서 인덱싱 처리
 						if err := handler.ProcessIndexing(bcData.Pvd, bcData.TxId, recvDatas.GetColName()); err != nil {
 							log.Printf("Warning: Indexing failed for %s network: %v", network, err)
@@ -626,7 +637,7 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 						log.Printf("Successfully processed indexing for %s network: %s", network, bcData.TxId)
 					} else if bcData.IndexableData != nil {
 						log.Printf("Processing IndexableData for %s: TxID=%s, ColName=%s", network, bcData.TxId, recvDatas.GetColName())
-						
+
 						// 핸들러에서 IndexableData 인덱싱 처리
 						if err := handler.ProcessIndexingIndexableData(bcData.IndexableData, bcData.TxId, recvDatas.GetColName()); err != nil {
 							log.Printf("Warning: IndexableData indexing failed for %s network: %v", network, err)
@@ -637,7 +648,7 @@ func (m *MServer) InsertIndexRequest(stream mngr.IndexManager_InsertIndexRequest
 				}
 			}
 		}
-		
+
 		// =============================================================================
 		// 기존 인덱싱 로직 (기존 코드)
 		// =============================================================================
@@ -808,14 +819,14 @@ func (m *MServer) handleSpatialIndexList(client idxserverapi.HLFDataIndexClient,
 // config.yaml 업데이트 함수
 func updateConfigYamlBlockNum(indexID string, blockNumber int32) error {
 	configPath := "./config.yaml"
-	
+
 	// config.yaml 읽기
 	data, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		log.Printf("config.yaml 파일을 읽을 수 없습니다: %v", err)
 		return err
 	}
-	
+
 	// YAML 데이터 언마샬링
 	var config Config
 	err = yaml.Unmarshal(data, &config)
@@ -823,34 +834,34 @@ func updateConfigYamlBlockNum(indexID string, blockNumber int32) error {
 		log.Printf("YAML 데이터를 언마샬링할 수 없습니다: %v", err)
 		return err
 	}
-	
+
 	// 해당 인덱스 찾기
 	for i, item := range config.Items {
 		if item.IdxID == indexID {
 			oldBlockNum := item.BlockNum
 			config.Items[i].BlockNum = blockNumber
-			
-			log.Printf("📝 config.yaml 업데이트: IndexID=%s, BlockNum: %d → %d", 
+
+			log.Printf("📝 config.yaml 업데이트: IndexID=%s, BlockNum: %d → %d",
 				indexID, oldBlockNum, blockNumber)
-			
+
 			// config.yaml에 저장
 			newData, err := yaml.Marshal(&config)
 			if err != nil {
 				log.Printf("YAML 데이터를 마샬링할 수 없습니다: %v", err)
 				return err
 			}
-			
+
 			err = ioutil.WriteFile(configPath, newData, 0644)
 			if err != nil {
 				log.Printf("config.yaml 파일에 저장할 수 없습니다: %v", err)
 				return err
 			}
-			
+
 			log.Printf("✅ config.yaml 업데이트 완료: IndexID=%s, BlockNum=%d", indexID, blockNumber)
 			return nil
 		}
 	}
-	
+
 	log.Printf("⚠️  인덱스 %s를 config.yaml에서 찾을 수 없습니다", indexID)
 	return fmt.Errorf("index %s not found in config.yaml", indexID)
 }
@@ -885,7 +896,7 @@ func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, re
 			}
 		} else if datas.IndexableData != nil {
 			bcData = &idxserverapi.BcDataInfo{
-				TxId: datas.TxId,
+				TxId:          datas.TxId,
 				IndexableData: convertIndexableDataMToIdxserverApi(datas.IndexableData),
 			}
 		}
@@ -918,7 +929,7 @@ func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, re
 	if err != nil {
 		return fmt.Errorf("failed to receive response from standard index server: %v", err)
 	}
-	
+
 	// 인덱싱 성공 후 config.yaml의 blocknum 업데이트
 	if len(recvDatas.GetBcList()) > 0 {
 		// IndexableData에서 BlockNumber 추출
@@ -934,7 +945,7 @@ func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, re
 			}
 		}
 	}
-	
+
 	//log.Printf("Standard index response: %s", resp.GetResponseMessage())
 	return nil
 }
@@ -983,13 +994,13 @@ func convertIndexableDataMToIdxserverApi(data *mngr.IndexableDataM) *idxserverap
 	}
 
 	return &idxserverapi.IndexableData{
-		TxId:           data.GetTxId(),
+		TxId:            data.GetTxId(),
 		ContractAddress: data.GetContractAddress(),
-		EventName:      data.GetEventName(),
-		Timestamp:      data.GetTimestamp(),
-		BlockNumber:    data.GetBlockNumber(),
-		DynamicFields:  data.GetDynamicFields(),
-		SchemaVersion:  data.GetSchemaVersion(),
+		EventName:       data.GetEventName(),
+		Timestamp:       data.GetTimestamp(),
+		BlockNumber:     data.GetBlockNumber(),
+		DynamicFields:   data.GetDynamicFields(),
+		SchemaVersion:   data.GetSchemaVersion(),
 	}
 }
 
@@ -1054,20 +1065,20 @@ func (m *MServer) buildSearchRequest(req *mngr.SearchRequestM) (*idxserverapi.Se
 	if !exists {
 		return nil, fmt.Errorf("index ID %s not found in configuration", req.IndexID)
 	}
-	
+
 	request := &idxserverapi.SearchRequest{
 		IndexID:  req.IndexID,
 		Field:    req.Field,
 		ComOp:    comOp,
-		FilePath: indexInfo.FilePath,  // config.yaml에서 읽은 FilePath
+		FilePath: indexInfo.FilePath, // config.yaml에서 읽은 FilePath
 		X:        req.X,
 		Y:        req.Y,
 		K:        req.K,
 		Range:    req.Range,
 		Value:    req.Value,
-		Begin:    req.Begin,           // 범위 검색 시작 값 추가
-		End:      req.End,             // 범위 검색 끝 값 추가
-		KeySize:  indexInfo.KeySize,   // config.yaml에서 읽은 KeySize
+		Begin:    req.Begin,         // 범위 검색 시작 값 추가
+		End:      req.End,           // 범위 검색 끝 값 추가
+		KeySize:  indexInfo.KeySize, // config.yaml에서 읽은 KeySize
 	}
 	log.Printf("Built request: %v", request)
 

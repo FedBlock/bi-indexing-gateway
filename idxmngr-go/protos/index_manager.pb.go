@@ -1,5 +1,4 @@
-
-일// btree index package for btree index module 2023-06-10
+// btree index package for btree index module 2023-06-10
 // created by myjang@etri.re.kr
 // Update 2023-07-03
 
@@ -156,6 +155,7 @@ type IndexInfo struct {
 	IndexDataCnt  int32                  `protobuf:"varint,9,opt,name=IndexDataCnt,proto3" json:"IndexDataCnt,omitempty"` // (IndexDataCnt/KeyCnt) = key duplication ratio
 	Param         string                 `protobuf:"bytes,10,opt,name=Param,proto3" json:"Param,omitempty"`
 	QCnt          []*QueryCallHist       `protobuf:"bytes,11,rep,name=QCnt,proto3" json:"QCnt,omitempty"`
+	FromBlock     int64                  `protobuf:"varint,12,opt,name=FromBlock,proto3" json:"FromBlock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -265,6 +265,13 @@ func (x *IndexInfo) GetQCnt() []*QueryCallHist {
 		return x.QCnt
 	}
 	return nil
+}
+
+func (x *IndexInfo) GetFromBlock() int64 {
+	if x != nil {
+		return x.FromBlock
+	}
+	return 0
 }
 
 // GetIndexList
@@ -1441,7 +1448,7 @@ const file_protos_index_manager_proto_rawDesc = "" +
 	"idxmngrapi\"X\n" +
 	"\rQueryCallHist\x12/\n" +
 	"\x05ComOp\x18\x01 \x01(\x0e2\x19.idxmngrapi.ComparisonOpsR\x05ComOp\x12\x16\n" +
-	"\x06RstCnt\x18\x02 \x01(\x05R\x06RstCnt\"\xc8\x02\n" +
+	"\x06RstCnt\x18\x02 \x01(\x05R\x06RstCnt\"\xe6\x02\n" +
 	"\tIndexInfo\x12\x18\n" +
 	"\aIndexID\x18\x01 \x01(\tR\aIndexID\x12\x1c\n" +
 	"\tIndexName\x18\x02 \x01(\tR\tIndexName\x12\x16\n" +
@@ -1454,7 +1461,8 @@ const file_protos_index_manager_proto_rawDesc = "" +
 	"\fIndexDataCnt\x18\t \x01(\x05R\fIndexDataCnt\x12\x14\n" +
 	"\x05Param\x18\n" +
 	" \x01(\tR\x05Param\x12-\n" +
-	"\x04QCnt\x18\v \x03(\v2\x19.idxmngrapi.QueryCallHistR\x04QCnt\"`\n" +
+	"\x04QCnt\x18\v \x03(\v2\x19.idxmngrapi.QueryCallHistR\x04QCnt\x12\x1c\n" +
+	"\tFromBlock\x18\f \x01(\x03R\tFromBlock\"`\n" +
 	"\x10IndexInfoRequest\x12\x1e\n" +
 	"\n" +
 	"RequestMsg\x18\x01 \x01(\tR\n" +

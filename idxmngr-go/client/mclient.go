@@ -16,7 +16,7 @@ package main
 
 import (
 	mserver "idxmngr-go/manager"
-	idxmngr "idxmngr-go/mngrapi/protos"
+	idxmngr "idxmngr-go/mngrapi"
 
 	"context"
 	"encoding/json"
@@ -207,7 +207,7 @@ func PutMultiDataM(client idxmngr.IndexManagerClient, idxID string, idxCol strin
 			txdata := idxmngr.InsertDatatoIdx{
 				IndexID: idxID,
 				ColName: idxCol,
-				TxId:    "dummy_tx_" + strconv.Itoa(idx),  // 더미 TxId 생성
+				TxId:    "dummy_tx_" + strconv.Itoa(idx), // 더미 TxId 생성
 				X:       float32(conv_x),
 				Y:       float32(conv_y),
 				GeoHash: makeKey(conv_x, conv_y),
@@ -251,7 +251,7 @@ func PutMultiDataM(client idxmngr.IndexManagerClient, idxID string, idxCol strin
 			json.Unmarshal(Value, &data)
 
 			txdata := idxmngr.BcDataList{
-				TxId: "dummy_tx_" + strconv.Itoa(idx),  // 더미 TxId 생성
+				TxId: "dummy_tx_" + strconv.Itoa(idx), // 더미 TxId 생성
 				Pvd:  &data,
 			}
 			lists = append(lists, &txdata)
@@ -328,7 +328,7 @@ func IndexDatasByFieldM(client idxmngr.IndexManagerClient, request *idxmngr.Sear
 
 	//time.Sleep(2000 * time.Millisecond)
 	txList := []*idxmngr.IndexValue{}
-	
+
 	// string 타입의 IdxData를 IndexValue 구조체로 변환
 	for _, txId := range data.GetIdxData() {
 		indexValue := &idxmngr.IndexValue{
@@ -425,8 +425,6 @@ func generateOrganizationDummyData(orgName string) []*idxmngr.IndexableDataM {
 	return dummyDataList
 }
 
-
-
 // IndexableData 삽입 함수
 func PutIndexableDataM(client idxmngr.IndexManagerClient, idxID string, idxCol string) {
 	start := time.Now()
@@ -441,16 +439,16 @@ func PutIndexableDataM(client idxmngr.IndexManagerClient, idxID string, idxCol s
 	var bcDataList []*idxmngr.BcDataList
 	for idx, data := range dummyDataList {
 		bcData := &idxmngr.BcDataList{
-			TxId:          fmt.Sprintf("tx_%d", idx),  // 별도 TxId 생성
+			TxId:          fmt.Sprintf("tx_%d", idx), // 별도 TxId 생성
 			IndexableData: data,
 		}
 		bcDataList = append(bcDataList, bcData)
 	}
 
 	insertData := &idxmngr.InsertDatatoIdx{
-		IndexID: idxID,
-		BcList:  bcDataList,
-		ColName: idxCol,
+		IndexID:  idxID,
+		BcList:   bcDataList,
+		ColName:  idxCol,
 		FilePath: "/home/blockchain/bi-index-migration/bi-index/fileindex-go/universal_org_file.bf",
 		// KeySize: 32, // This was removed due to proto definition
 	}
@@ -491,8 +489,6 @@ func PutIndexableDataM(client idxmngr.IndexManagerClient, idxID string, idxCol s
 	log.Printf("IndexableData 삽입 완료. 총 %d개 데이터, 소요시간: %v", len(dummyDataList), time.Since(start))
 }
 
-
-
 // Organization-specific data insertion
 func PutOrganizationDataM(client idxmngr.IndexManagerClient, idxID string, idxCol string, orgName string) {
 	start := time.Now()
@@ -507,7 +503,7 @@ func PutOrganizationDataM(client idxmngr.IndexManagerClient, idxID string, idxCo
 	var bcDataList []*idxmngr.BcDataList
 	for idx, data := range dummyDataList {
 		bcData := &idxmngr.BcDataList{
-			TxId:          fmt.Sprintf("tx_%d", idx),  // 별도 TxId 생성
+			TxId:          fmt.Sprintf("tx_%d", idx), // 별도 TxId 생성
 			IndexableData: data,
 		}
 		bcDataList = append(bcDataList, bcData)
@@ -517,9 +513,9 @@ func PutOrganizationDataM(client idxmngr.IndexManagerClient, idxID string, idxCo
 	filePath := fmt.Sprintf("fileindex-go/%s.bf", strings.ToLower(strings.Replace(orgName, "전자", "", -1)))
 
 	insertData := &idxmngr.InsertDatatoIdx{
-		IndexID: idxID,
-		BcList:  bcDataList,
-		ColName: idxCol,
+		IndexID:  idxID,
+		BcList:   bcDataList,
+		ColName:  idxCol,
 		FilePath: filePath,
 	}
 
@@ -572,7 +568,7 @@ func SearchOrganizationDataM(client idxmngr.IndexManagerClient, idxID string, fi
 
 	// 기존의 IndexDatasByFieldM 함수 사용
 	result := IndexDatasByFieldM(client, searchRequest)
-	
+
 	log.Printf("검색 결과: %+v", result)
 	log.Printf("%s 데이터 검색 완료", value)
 }
@@ -690,7 +686,6 @@ func main() {
 		})
 
 	// TODO 사용자별 Wallet 인덱스 생성
-	
 
 	// ===== INDEX INFORMATION =====
 	case "indexlist":
@@ -707,7 +702,7 @@ func main() {
 		PutPublicBC(qe.MngrClient, "fileidx_org", "OrganizationName")
 	case "finsertuniversalorg": //fileindex-universal-organization
 		PutPublicBC(qe.MngrClient, "fileidx_universal_org", "IndexableData")
-	
+
 	//Query
 	case "exacts": //btree-speed
 		IndexDatasByFieldM(qe.MngrClient, &idxmngr.SearchRequestM{IndexID: "btridx_sp", Field: "Speed", Value: "100", ComOp: idxmngr.ComparisonOps_Eq}) //42
@@ -853,15 +848,12 @@ type PVD_CSV struct {
 	Startvector_heading   int    `csv:"STARTVECTOR_HEADING" json:"startvector_heading"`
 }
 
-
-
-
 // SearchContractTransactions searches for indexed contract transactions
 func SearchContractTransactions(client idxmngr.IndexManagerClient, indexID string, field string, value string) {
 	log.SetPrefix("[SearchContractTransactions] ")
-	
+
 	log.Printf("Searching for contract transactions in index: %s, field: %s, value: %s", indexID, field, value)
-	
+
 	// Create search request
 	searchRequest := &idxmngr.SearchRequestM{
 		IndexID: indexID,
@@ -869,22 +861,20 @@ func SearchContractTransactions(client idxmngr.IndexManagerClient, indexID strin
 		Value:   value,
 		ComOp:   idxmngr.ComparisonOps_Eq,
 	}
-	
+
 	// Search for transactions
 	results := IndexDatasByFieldM(client, searchRequest)
-	
+
 	if results == nil {
 		log.Println("No contract transactions found")
 		return
 	}
-	
+
 	log.Printf("Found %d contract transactions:", len(results))
 	for i, result := range results {
 		log.Printf("  [%d] TxId: %s", i+1, result.TxId)
 	}
 }
-
-
 
 // 범용 데이터 삽입 함수 (Public Block Chain 데이터)
 func PutPublicBC(client idxmngr.IndexManagerClient, idxID string, idxCol string) *idxmngr.IdxMngrResponse {
@@ -902,15 +892,15 @@ func PutPublicBC(client idxmngr.IndexManagerClient, idxID string, idxCol string)
 		bcData := &idxmngr.BcDataList{
 			TxId:          fmt.Sprintf("tx_%d", idx),
 			KeyCol:        idxCol,
-			IndexableData: data,  // IndexableDataM 구조체
+			IndexableData: data, // IndexableDataM 구조체
 		}
 		bcDataList = append(bcDataList, bcData)
 	}
 
 	insertData := &idxmngr.InsertDatatoIdx{
-		IndexID: idxID,
-		BcList:  bcDataList,
-		ColName: idxCol,
+		IndexID:  idxID,
+		BcList:   bcDataList,
+		ColName:  idxCol,
 		FilePath: fmt.Sprintf("fileindex-go/%s.bf", strings.ToLower(idxID)),
 	}
 
@@ -948,7 +938,7 @@ func PutPublicBC(client idxmngr.IndexManagerClient, idxID string, idxCol string)
 	}
 
 	log.Printf("Public BC 데이터 삽입 완료. 총 %d개 데이터, 소요시간: %v", len(dummyDataList), time.Since(start))
-	
+
 	return &idxmngr.IdxMngrResponse{
 		ResponseCode:    200,
 		ResponseMessage: "Public BC Data Inserted Successfully",
@@ -960,7 +950,7 @@ func PutPublicBC(client idxmngr.IndexManagerClient, idxID string, idxCol string)
 // Public BC 더미 데이터 생성 함수
 func generatePublicBCDummyData() []*idxmngr.IndexableDataM {
 	var dataList []*idxmngr.IndexableDataM
-	
+
 	// JavaScript와 유사한 더미 데이터 생성
 	for i := 0; i < 5; i++ {
 		data := &idxmngr.IndexableDataM{
@@ -968,14 +958,14 @@ func generatePublicBCDummyData() []*idxmngr.IndexableDataM {
 		}
 		dataList = append(dataList, data)
 	}
-	
+
 	return dataList
 }
 
 // PVD 데이터를 Fabric 인덱스에 삽입하는 함수
 func PutPvdDataToFabricIndex(client idxmngr.IndexManagerClient, txID string, obuID string, speed int32, collectionDt string) error {
 	log.Printf("PVD 데이터를 Fabric 인덱스에 삽입: TxID=%s, OBU=%s, Speed=%d", txID, obuID, speed)
-	
+
 	// Speed 인덱스에 삽입
 	speedBcData := &idxmngr.BcDataList{
 		TxId:   txID,
@@ -986,7 +976,7 @@ func PutPvdDataToFabricIndex(client idxmngr.IndexManagerClient, txID string, obu
 			CollectionDt: collectionDt,
 		},
 	}
-	
+
 	speedInsertData := &idxmngr.InsertDatatoIdx{
 		IndexID:  "speed",
 		BcList:   []*idxmngr.BcDataList{speedBcData},
@@ -996,7 +986,7 @@ func PutPvdDataToFabricIndex(client idxmngr.IndexManagerClient, txID string, obu
 		FilePath: "data/fabric/speed.bf",
 		Network:  "fabric",
 	}
-	
+
 	// DT 인덱스에 삽입
 	dtBcData := &idxmngr.BcDataList{
 		TxId:   txID,
@@ -1007,7 +997,7 @@ func PutPvdDataToFabricIndex(client idxmngr.IndexManagerClient, txID string, obu
 			CollectionDt: collectionDt,
 		},
 	}
-	
+
 	dtInsertData := &idxmngr.InsertDatatoIdx{
 		IndexID:  "dt",
 		BcList:   []*idxmngr.BcDataList{dtBcData},
@@ -1017,48 +1007,48 @@ func PutPvdDataToFabricIndex(client idxmngr.IndexManagerClient, txID string, obu
 		FilePath: "data/fabric/dt.bf",
 		Network:  "fabric",
 	}
-	
+
 	// Speed 인덱스 삽입
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
 	defer cancel()
-	
+
 	speedStream, err := client.InsertIndexRequest(ctx)
 	if err != nil {
 		return fmt.Errorf("Speed 인덱스 스트림 생성 실패: %v", err)
 	}
-	
+
 	if err := speedStream.Send(speedInsertData); err != nil {
 		return fmt.Errorf("Speed 인덱스 데이터 전송 실패: %v", err)
 	}
-	
+
 	speedStream.CloseSend()
 	speedResponse, err := speedStream.CloseAndRecv()
 	if err != nil {
 		return fmt.Errorf("Speed 인덱스 응답 실패: %v", err)
 	}
-	
+
 	log.Printf("Speed 인덱스 삽입 완료: %v", speedResponse)
-	
+
 	// DT 인덱스 삽입
 	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Minute*2)
 	defer cancel2()
-	
+
 	dtStream, err := client.InsertIndexRequest(ctx2)
 	if err != nil {
 		return fmt.Errorf("DT 인덱스 스트림 생성 실패: %v", err)
 	}
-	
+
 	if err := dtStream.Send(dtInsertData); err != nil {
 		return fmt.Errorf("DT 인덱스 데이터 전송 실패: %v", err)
 	}
-	
+
 	dtStream.CloseSend()
 	dtResponse, err := dtStream.CloseAndRecv()
 	if err != nil {
 		return fmt.Errorf("DT 인덱스 응답 실패: %v", err)
 	}
-	
+
 	log.Printf("DT 인덱스 삽입 완료: %v", dtResponse)
-	
+
 	return nil
 }
