@@ -146,9 +146,9 @@ async function initGateway() {
 }
 
 
-function resolveIndexFilePath(indexId, network, filePath) {
+function resolveIndexFilePath(schema, network, filePath) {
   const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
-  return filePath || path.posix.join('data', networkDir, `${indexId}.bf`);
+  return filePath || path.posix.join('data', networkDir, `${schema}.bf`);
 }
 
 // 인덱스 목록 조회 API
@@ -255,22 +255,32 @@ app.get('/api/index/list', async (req, res) => {
 // Create new index
 app.post('/api/index/create', async (req, res) => {
   try {
-    const { indexId, filePath, network, indexingKey, schema, blockNum, fromBlock } = req.body;
+    const {
+      schema: schemaFromRequest,
+      indexId: legacyIndexId,
+      filePath,
+      network,
+      indexingKey,
+      blockNum,
+      fromBlock,
+    } = req.body;
 
-    if (!indexId || !network) {
+    const schema = schemaFromRequest || legacyIndexId;
+
+    if (!schema || !network) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Missing required fields: indexId, network' 
+        error: 'Missing required fields: schema, network' 
       });
     }
 
-    console.log(`Creating index: ${indexId}, key: ${indexingKey || 'dynamic'}, schema:`, schema);
+    console.log(`Creating index - schema: ${schema}, key: ${indexingKey || 'dynamic'}`);
 
     const indexingGateway = await initGateway();
-    const resolvedFilePath = resolveIndexFilePath(indexId, network, filePath);
+    const resolvedFilePath = resolveIndexFilePath(schema, network, filePath);
     // gRPC 쪽 스키마와 동일한 필드 구조를 유지해야 idxmngr가 올바르게 처리한다
     const result = await indexingGateway.createIndex({
-      IndexID: indexId,
+      IndexID: schema,
       KeyCol: "IndexableData", // Use supported KeyCol value
       FilePath: resolvedFilePath,
       Network: network,
@@ -281,7 +291,8 @@ app.post('/api/index/create', async (req, res) => {
     res.json({ 
       success: true, 
       data: result, 
-      indexId: indexId,
+      indexId: schema,
+      schema,
       filePath: resolvedFilePath,
       fromBlock: typeof fromBlock === 'number' ? fromBlock : undefined,
       supportedKeys: indexingKey ? [indexingKey] : ['dynamic - any key from data object']
