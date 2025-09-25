@@ -394,15 +394,15 @@ app.post('/api/index/create', async (req, res) => {
       }),
     });
 
-    res.json({ 
-      success: true, 
-      data: result, 
+    res.json({
+      success: true,
+      data: result,
       indexId,
       indexName,
       schema,
       filePath: resolvedFilePath,
       fromBlock: typeof fromBlock === 'number' ? fromBlock : undefined,
-      supportedKeys: indexingKey ? [indexingKey] : ['dynamic - any key from data object']
+      indexingKey: indexingKey || indexName
     });
   } catch (error) {
     console.error('Index creation error:', error);
