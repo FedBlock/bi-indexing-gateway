@@ -15,6 +15,20 @@ app.use(express.json());
 // 게이트웨이 인스턴스 (재사용)
 let gateway = null;
 
+const slugify = (value, fallback = 'index') => {
+  if (!value) {
+    return fallback;
+  }
+
+  const slug = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || fallback;
+};
+
 const resolveProtoPath = () => {
   const candidates = [
     path.join(__dirname, '../../grpc-go/protos/index_manager.proto'),
@@ -32,10 +46,43 @@ const resolveProtoPath = () => {
 };
 
 const CONFIG_CANDIDATES = [
-  path.join(__dirname, '../../idxmngr-go/config.yaml'),
+  path.join(__dirname, '../../bi-index/idxmngr-go/config.yaml'),
+  path.join(process.cwd(), '../bi-index/idxmngr-go/config.yaml'),
   path.join(process.cwd(), 'idxmngr-go/config.yaml'),
-  path.join(__dirname, '../idxmngr-go/config.yaml'),
 ];
+
+const resolveIdxmngrRoot = () => {
+  for (const candidate of CONFIG_CANDIDATES) {
+    if (fs.existsSync(candidate)) {
+      return path.dirname(candidate);
+    }
+  }
+  return null;
+};
+
+const computeNextIndexId = (metadataItems) => {
+  let maxNumericId = 0;
+
+  metadataItems.forEach((item) => {
+    const rawId = String(item.idxid ?? item.indexid ?? '').trim();
+    if (!rawId) {
+      return;
+    }
+
+    const match = rawId.match(/(\d+)$/);
+    if (!match) {
+      return;
+    }
+
+    const num = parseInt(match[1], 10);
+    if (!Number.isNaN(num)) {
+      maxNumericId = Math.max(maxNumericId, num);
+    }
+  });
+
+  const next = maxNumericId + 1;
+  return String(next).padStart(3, '0');
+};
 
 const parseConfigItems = (content) => {
   const items = [];
@@ -146,9 +193,28 @@ async function initGateway() {
 }
 
 
-function resolveIndexFilePath(schema, network, filePath) {
+function resolveIndexFilePath({ schema, indexId, network, filePath, metadata }) {
+  if (filePath) {
+    return filePath;
+  }
+
   const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
-  return filePath || path.posix.join('data', networkDir, `${schema}.bf`);
+  const effectiveMetadata = metadata || loadIndexConfigMetadata();
+
+  if (indexId) {
+    const matched = effectiveMetadata.find((item) => {
+      const itemId = String(item.idxid ?? item.indexid ?? '').trim();
+      return itemId === indexId;
+    });
+
+    if (matched && matched.filepath) {
+      return matched.filepath;
+    }
+  }
+
+  const schemaSlug = slugify(schema, 'index');
+  const baseName = schemaSlug || 'index';
+  return path.posix.join('data', networkDir, `${baseName}.bf`);
 }
 
 // 인덱스 목록 조회 API
@@ -160,7 +226,14 @@ app.get('/api/index/list', async (req, res) => {
 
     const rawIndexes = response?.IdxList || [];
     const metadataItems = loadIndexConfigMetadata();
-    const metadataMap = new Map(metadataItems.map((meta) => [String(meta.idxid ?? meta.indexid ?? ''), meta]));
+    const metadataMap = new Map(
+      metadataItems.map((meta) => {
+        const metaId = String(meta.idxid ?? meta.indexid ?? '');
+        const metaPath = String(meta.filepath ?? '');
+        const key = `${metaId}::${metaPath}`;
+        return [key, meta];
+      })
+    );
 
     const indexes = rawIndexes.map((item, idx) => {
       const indexId = item?.IndexID || item?.indexId || `index_${idx}`;
@@ -186,6 +259,7 @@ app.get('/api/index/list', async (req, res) => {
       const normalizedIndex = {
         indexId,
         indexName,
+        indexingKey: item?.IndexingKey || item?.indexingKey || null,
         keyColumn: keyCol,
         network: inferredNetwork,
         filePath,
@@ -194,7 +268,9 @@ app.get('/api/index/list', async (req, res) => {
         currentBlock: item?.CurrentBlock ?? null,
       };
 
-      const meta = metadataMap.get(String(indexId));
+      const metaKey = `${indexId}::${normalizedIndex.filePath || ''}`;
+      const metaFallbackKey = `${indexId}::`;
+      const meta = metadataMap.get(metaKey) || metadataMap.get(metaFallbackKey);
       if (meta) {
         if (meta.filepath && !normalizedIndex.filePath) {
           normalizedIndex.filePath = meta.filepath;
@@ -205,6 +281,9 @@ app.get('/api/index/list', async (req, res) => {
         if (meta.idxname) {
           normalizedIndex.indexName = meta.idxname;
           normalizedIndex.category = meta.idxname;
+        }
+        if (meta.indexingkey) {
+          normalizedIndex.indexingKey = meta.indexingkey;
         }
         if (meta.fromblock) {
           normalizedIndex.fromBlock = meta.fromblock;
@@ -222,6 +301,9 @@ app.get('/api/index/list', async (req, res) => {
 
       if (!normalizedIndex.category) {
         normalizedIndex.category = normalizedIndex.indexName;
+      }
+      if (!normalizedIndex.indexingKey) {
+        normalizedIndex.indexingKey = normalizedIndex.indexName || normalizedIndex.indexId;
       }
       if (normalizedIndex.fromBlock !== undefined && normalizedIndex.fromBlock !== null) {
         normalizedIndex.fromBlock = String(normalizedIndex.fromBlock);
@@ -256,8 +338,8 @@ app.get('/api/index/list', async (req, res) => {
 app.post('/api/index/create', async (req, res) => {
   try {
     const {
-      schema: schemaFromRequest,
-      indexId: legacyIndexId,
+      schema,
+      indexId: requestedIndexId,
       indexName: providedIndexName,
       filePath,
       network,
@@ -266,35 +348,56 @@ app.post('/api/index/create', async (req, res) => {
       fromBlock,
     } = req.body;
 
-    const schema = schemaFromRequest || legacyIndexId;
-    const indexName = providedIndexName || indexingKey || schema;
-
     if (!schema || !network) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields: schema, network' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: schema, network'
       });
     }
 
-    console.log(`Creating index - schema: ${schema}, key: ${indexingKey || 'dynamic'}`);
+    const metadataItems = loadIndexConfigMetadata();
+    const autoGeneratedIndexId = computeNextIndexId(metadataItems);
+    const indexId = String(requestedIndexId || autoGeneratedIndexId).trim();
+    const indexName = providedIndexName || schema;
+    const schemaSlug = slugify(schema, 'schema');
+
+    console.log(`Creating index - schema: ${schema}, indexId: ${indexId}, key: ${indexingKey || 'dynamic'}`);
+
+    const resolvedFilePath = resolveIndexFilePath({
+      schema: schemaSlug,
+      indexId,
+      network,
+      filePath,
+      metadata: metadataItems,
+    });
+
+    const idxmngrRoot = resolveIdxmngrRoot();
+    if (idxmngrRoot) {
+      const targetDir = path.join(idxmngrRoot, ...resolvedFilePath.split('/').slice(0, -1));
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
 
     const indexingGateway = await initGateway();
-    const resolvedFilePath = resolveIndexFilePath(schema, network, filePath);
     // gRPC 쪽 스키마와 동일한 필드 구조를 유지해야 idxmngr가 올바르게 처리한다
     const result = await indexingGateway.createIndex({
-      IndexID: schema,
+      IndexID: indexId,
       IndexName: indexName,
+      IndexingKey: indexingKey || indexName,
       KeyCol: "IndexableData", // Use supported KeyCol value
       FilePath: resolvedFilePath,
       Network: network,
       BlockNum: typeof blockNum === 'number' ? blockNum : 0,
-      FromBlock: typeof fromBlock === 'number' ? fromBlock : undefined
+      FromBlock: typeof fromBlock === 'number' ? fromBlock : undefined,
+      Param: JSON.stringify({
+        schema,
+        indexingKey: indexingKey || null,
+      }),
     });
 
     res.json({ 
       success: true, 
       data: result, 
-      indexId: schema,
+      indexId,
       indexName,
       schema,
       filePath: resolvedFilePath,
@@ -334,7 +437,14 @@ app.post('/api/index/insert', async (req, res) => {
     console.log(`Inserting data: ${indexId}, dynamic key: ${dynamicKey}, data:`, data);
 
     const indexingGateway = await initGateway();
-    const resolvedFilePath = resolveIndexFilePath(indexId, network, filePath);
+    const metadataItems = loadIndexConfigMetadata();
+    const resolvedFilePath = resolveIndexFilePath({
+      indexId,
+      network,
+      filePath,
+      metadata: metadataItems,
+      schema: data?.schema || null,
+    });
     const result = await indexingGateway.insertData({
       IndexID: indexId,
       BcList: [{
