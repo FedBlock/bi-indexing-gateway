@@ -258,6 +258,7 @@ app.post('/api/index/create', async (req, res) => {
     const {
       schema: schemaFromRequest,
       indexId: legacyIndexId,
+      indexName: providedIndexName,
       filePath,
       network,
       indexingKey,
@@ -266,6 +267,7 @@ app.post('/api/index/create', async (req, res) => {
     } = req.body;
 
     const schema = schemaFromRequest || legacyIndexId;
+    const indexName = providedIndexName || indexingKey || schema;
 
     if (!schema || !network) {
       return res.status(400).json({ 
@@ -281,6 +283,7 @@ app.post('/api/index/create', async (req, res) => {
     // gRPC 쪽 스키마와 동일한 필드 구조를 유지해야 idxmngr가 올바르게 처리한다
     const result = await indexingGateway.createIndex({
       IndexID: schema,
+      IndexName: indexName,
       KeyCol: "IndexableData", // Use supported KeyCol value
       FilePath: resolvedFilePath,
       Network: network,
@@ -292,6 +295,7 @@ app.post('/api/index/create', async (req, res) => {
       success: true, 
       data: result, 
       indexId: schema,
+      indexName,
       schema,
       filePath: resolvedFilePath,
       fromBlock: typeof fromBlock === 'number' ? fromBlock : undefined,
