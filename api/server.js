@@ -449,28 +449,36 @@ app.post('/api/index/insert', async (req, res) => {
       indexingKey // Optional - can be extracted from data if not provided
     } = req.body;
     
-    if (!indexId || !txId || !data || !network) {
+    if (!txId || !data || !network) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Missing required fields: indexId, txId, data, network' 
+        error: 'Missing required fields: txId, data, network' 
       });
     }
 
     const networkKey = resolveNetworkKey(network);
     const effectiveSchema = schema || INDEX_SCHEMA;
-    const resolvedIndexId = indexId || buildIndexId(networkKey);
+    const metadataItems = loadIndexConfigMetadata();
+    const resolvedIndexId = indexId && String(indexId).trim();
+    if (!resolvedIndexId) {
+      return res.status(400).json({
+        success: false,
+        error: 'indexId is required when inserting data',
+      });
+    }
     const resolvedFilePath = resolveIndexFilePath({
       schema: effectiveSchema,
       indexId: resolvedIndexId,
       network: networkKey,
       filePath,
+      metadata: metadataItems,
     });
-    const resolvedKeySize = Number(keySize || INDEX_KEY_SIZE);
+    const resolvedKeySize = Number(keySize) > 0 ? Number(keySize) : INDEX_KEY_SIZE;
 
     // Extract key dynamically from data or use provided indexingKey
     const dynamicKey = indexingKey || data.purpose || data.type || data.category || Object.keys(data)[0] || 'default';
     
-    console.log(`Inserting data: ${indexId}, dynamic key: ${dynamicKey}, data:`, data);
+    console.log(`Inserting data: ${resolvedIndexId}, dynamic key: ${dynamicKey}, data:`, data);
 
     const indexingGateway = await initGateway();
     const result = await indexingGateway.insertData({
