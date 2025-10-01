@@ -433,6 +433,38 @@ app.post('/api/index/create', async (req, res) => {
   }
 });
 
+// 인덱스 기본 설정 조회 API
+app.get('/api/index/config', async (req, res) => {
+  try {
+    const requestedNetwork = req.query.network;
+    const networkKey = resolveNetworkKey(requestedNetwork);
+    const metadataItems = loadIndexConfigMetadata();
+    const matched = metadataItems.find((item) => {
+      const filePath = item.filepath || '';
+      return filePath.includes(`/${networkKey}/`);
+    });
+
+    const schema = matched?.idxname || INDEX_SCHEMA;
+    const indexId = matched?.idxid || buildIndexId(networkKey);
+    const keySize = Number(matched?.keysize) > 0 ? Number(matched.keysize) : INDEX_KEY_SIZE;
+    const filePath = matched?.filepath || buildIndexFilePath(networkKey);
+
+    res.json({
+      success: true,
+      data: {
+        indexId,
+        schema,
+        network: networkKey,
+        filePath,
+        keySize,
+      },
+    });
+  } catch (error) {
+    console.error('Index config lookup failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 인덱스 데이터 삽입 API
 // Insert data into index  
 app.post('/api/index/insert', async (req, res) => {
