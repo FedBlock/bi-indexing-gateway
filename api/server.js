@@ -444,10 +444,15 @@ app.get('/api/index/config', async (req, res) => {
       return filePath.includes(`/${networkKey}/`);
     });
 
-    const schema = matched?.idxname || INDEX_SCHEMA;
-    const indexId = matched?.idxid || buildIndexId(networkKey);
-    const keySize = Number(matched?.keysize) > 0 ? Number(matched.keysize) : INDEX_KEY_SIZE;
-    const filePath = matched?.filepath || buildIndexFilePath(networkKey);
+    if (!matched) {
+      res.status(404).json({ success: false, error: `No index config found for network ${networkKey}` });
+      return;
+    }
+
+    const schema = matched.idxname || INDEX_SCHEMA;
+    const indexId = matched.idxid || buildIndexId(networkKey);
+    const keySize = Number(matched.keysize) > 0 ? Number(matched.keysize) : INDEX_KEY_SIZE;
+    const filePath = matched.filepath || buildIndexFilePath(networkKey);
 
     res.json({
       success: true,
@@ -489,28 +494,56 @@ app.post('/api/index/insert', async (req, res) => {
     }
 
     const networkKey = resolveNetworkKey(network);
-    const effectiveSchema = schema || INDEX_SCHEMA;
     const metadataItems = loadIndexConfigMetadata();
-    const resolvedIndexId = indexId && String(indexId).trim();
-    if (!resolvedIndexId) {
+    if (!indexId) {
       return res.status(400).json({
         success: false,
-        error: 'indexId is required when inserting data',
+        error: 'indexId is required and must exist in config.yaml',
       });
     }
-    const resolvedFilePath = resolveIndexFilePath({
-      schema: effectiveSchema,
-      indexId: resolvedIndexId,
-      network: networkKey,
-      filePath,
-      metadata: metadataItems,
+    const resolvedIndexId = String(indexId).trim();
+    const matchedConfig = metadataItems.find((item) => {
+      const itemId = String(item.idxid ?? '').trim();
+      const file = item.filepath || '';
+      return itemId === resolvedIndexId && file.includes(`/${networkKey}/`);
     });
-    const resolvedKeySize = Number(keySize) > 0 ? Number(keySize) : INDEX_KEY_SIZE;
+
+    if (!matchedConfig) {
+      return res.status(404).json({
+        success: false,
+        error: `indexId ${resolvedIndexId} (network ${networkKey}) not found in config` ,
+      });
+    }
+
+    const effectiveSchema = schema || matchedConfig.idxname || INDEX_SCHEMA;
+    const resolvedFilePath = filePath || matchedConfig.filepath;
+    const resolvedKeySize = Number(keySize) > 0 ? Number(keySize) : Number(matchedConfig.keysize) || INDEX_KEY_SIZE;
 
     // Extract key dynamically from data or use provided indexingKey
     const dynamicKey = indexingKey || data.purpose || data.type || data.category || Object.keys(data)[0] || 'default';
     
     console.log(`Inserting data: ${resolvedIndexId}, dynamic key: ${dynamicKey}, data:`, data);
+
+    // Create proper DynamicFields object
+    const dynamicFields = {
+      "key": dynamicKey,
+      "network": network,
+      "timestamp": new Date().toISOString(),
+      "purpose": data.purpose || '',
+      "organization": data.organization || '',
+      "requester": data.requester || '',
+      "blockNumber": data.blockNumber || 0,
+      "txStatus": data.txStatus || 1
+    };
+
+    // Ensure all data fields are properly included
+    Object.keys(data).forEach(key => {
+      if (data[key] !== undefined && data[key] !== null) {
+        dynamicFields[key] = data[key];
+      }
+    });
+
+    console.log(`DynamicFields created:`, dynamicFields);
 
     const indexingGateway = await initGateway();
     const result = await indexingGateway.insertData({
@@ -523,13 +556,8 @@ app.post('/api/index/insert', async (req, res) => {
           ContractAddress: contractAddress,
           EventName: 'AccessRequestsSaved',
           Timestamp: new Date().toISOString(),
-          BlockNumber: 0,
-          DynamicFields: {
-            "key": dynamicKey, // Use dynamic key
-            "network": network,
-            "timestamp": new Date().toISOString(),
-            ...data // Spread all user data fields dynamically
-          },
+          BlockNumber: data.blockNumber || 0,
+          DynamicFields: dynamicFields,
           SchemaVersion: "1.0"
         }
       }],
