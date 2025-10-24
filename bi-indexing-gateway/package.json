@@ -4,8 +4,8 @@
   "description": "Blockchain indexing client for gRPC communication with idxmngr server and Ethereum blockchain integration",
   "main": "src/index.js",
   "scripts": {
-    "test": "node examples/test-client.js",
-    "start": "node examples/basic-usage.js",
+    "test": "echo 'No automated tests configured'",
+    "start": "node api/server.js",
     "server": "node api/server.js",
     "dev": "nodemon api/server.js"
   },

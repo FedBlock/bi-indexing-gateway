@@ -31,35 +31,44 @@ async function initClient() {
 }
 
 
+function resolveIndexFilePath(indexId, network, filePath) {
+  const networkDir = (network === 'hardhat' || network === 'localhost') ? 'hardhat-local' : network;
+  return filePath || path.posix.join('data', networkDir, `${indexId}.bf`);
+}
+
 // 인덱스 생성 API
 // Create new index
 app.post('/api/index/create', async (req, res) => {
   try {
-    const { indexId, filePath, network, indexingKey, schema, blockNum } = req.body;
+    const { indexId, filePath, network, indexingKey, schema, blockNum, fromBlock } = req.body;
 
-    if (!indexId || !filePath || !network) {
+    if (!indexId || !network) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Missing required fields: indexId, filePath, network' 
+        error: 'Missing required fields: indexId, network' 
       });
     }
 
     console.log(`Creating index: ${indexId}, key: ${indexingKey || 'dynamic'}, schema:`, schema);
 
     const indexingClient = await initClient();
+    const resolvedFilePath = resolveIndexFilePath(indexId, network, filePath);
     // gRPC 쪽 스키마와 동일한 필드 구조를 유지해야 idxmngr가 올바르게 처리한다
     const result = await indexingClient.createIndex({
       IndexID: indexId,
       KeyCol: "IndexableData", // Use supported KeyCol value
-      FilePath: filePath,
+      FilePath: resolvedFilePath,
       Network: network,
-      BlockNum: typeof blockNum === 'number' ? blockNum : 0
+      BlockNum: typeof blockNum === 'number' ? blockNum : 0,
+      FromBlock: typeof fromBlock === 'number' ? fromBlock : undefined
     });
 
     res.json({ 
       success: true, 
       data: result, 
       indexId: indexId,
+      filePath: resolvedFilePath,
+      fromBlock: typeof fromBlock === 'number' ? fromBlock : undefined,
       supportedKeys: indexingKey ? [indexingKey] : ['dynamic - any key from data object']
     });
   } catch (error) {
@@ -82,10 +91,10 @@ app.post('/api/index/insert', async (req, res) => {
       indexingKey // Optional - can be extracted from data if not provided
     } = req.body;
     
-    if (!indexId || !txId || !data || !filePath || !network) {
+    if (!indexId || !txId || !data || !network) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Missing required fields: indexId, txId, data, filePath, network' 
+        error: 'Missing required fields: indexId, txId, data, network' 
       });
     }
 
@@ -95,6 +104,7 @@ app.post('/api/index/insert', async (req, res) => {
     console.log(`Inserting data: ${indexId}, dynamic key: ${dynamicKey}, data:`, data);
 
     const indexingClient = await initClient();
+    const resolvedFilePath = resolveIndexFilePath(indexId, network, filePath);
     const result = await indexingClient.insertData({
       IndexID: indexId,
       BcList: [{
@@ -117,11 +127,11 @@ app.post('/api/index/insert', async (req, res) => {
       }],
       ColName: 'IndexableData',
       ColIndex: indexId,
-      FilePath: filePath,
+      FilePath: resolvedFilePath,
       Network: network
     });
 
-    res.json({ success: true, data: result, usedKey: dynamicKey });
+    res.json({ success: true, data: result, usedKey: dynamicKey, filePath: resolvedFilePath });
   } catch (error) {
     console.error('Data insertion error:', error);
     res.status(500).json({ success: false, error: error.message });
