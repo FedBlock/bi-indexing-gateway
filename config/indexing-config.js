@@ -7,11 +7,11 @@ module.exports = {
   serverAddr: process.env.INDEXING_SERVER_ADDR || 'localhost:50052',
   
   // Protobuf 파일 경로 (URL 또는 로컬 경로)
-  protoPath: process.env.PROTO_PATH || 'https://api.bi-index.com/protos/index_manager.proto',
+  protoPath: process.env.PROTO_PATH || '/home/blockchain/fedblock/bi-index/idxmngr-go/protos/index_manager.proto',
   
   // 기본 gRPC 옵션
   grpcOptions: {
-    keepCase: true,
+    keepCase: false,  // protobuf 필드 이름을 snake_case로 변환
     longs: String,
     enums: String,
     defaults: true,

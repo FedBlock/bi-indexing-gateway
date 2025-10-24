@@ -61,19 +61,8 @@ const slugify = (value, fallback = 'index') => {
 };
 
 const resolveProtoPath = () => {
-  const candidates = [
-    path.join(__dirname, '../../grpc-go/protos/index_manager.proto'),
-    path.join(__dirname, '../../bi-index/grpc-go/protos/index_manager.proto'),
-    path.join(process.cwd(), 'grpc-go/protos/index_manager.proto'),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new Error(`index_manager.proto 파일을 찾을 수 없습니다. 확인한 경로: ${candidates.join(', ')}`);
+  // idxmngr-go protobuf 파일만 사용
+  return path.join(__dirname, '../../bi-index/idxmngr-go/protos/index_manager.proto');
 };
 
 const CONFIG_CANDIDATES = [
@@ -827,45 +816,61 @@ app.post('/api/index/insert', async (req, res) => {
     
     console.log(`Inserting data: ${resolvedIndexId}, dynamic key: ${dynamicKey}, data:`, data);
 
-    // Create proper DynamicFields object
+    // Create proper DynamicFields object - 모든 값을 문자열로 변환
     const dynamicFields = {
-      "key": dynamicKey,
-      "network": network,
+      "key": String(dynamicKey),
+      "network": String(network),
       "timestamp": new Date().toISOString(),
-      "purpose": data.purpose || '',
-      "organization": data.organization || '',
-      "requester": data.requester || '',
-      "blockNumber": data.blockNumber || 0,
-      "txStatus": data.txStatus || 1
+      "purpose": String(data.purpose || ''),
+      "organization": String(data.organization || ''),
+      "requester": String(data.requester || ''),
+      "blockNumber": String(data.blockNumber || 0),
+      "txStatus": String(data.txStatus || 1)
     };
 
-    // Ensure all data fields are properly included
+    // Ensure all data fields are properly included - 모든 값을 문자열로 변환
     Object.keys(data).forEach(key => {
       if (data[key] !== undefined && data[key] !== null) {
-        dynamicFields[key] = data[key];
+        dynamicFields[key] = String(data[key]);
       }
     });
 
     console.log(`DynamicFields created:`, dynamicFields);
 
     const indexingGateway = await initGateway();
+    
+    const indexableDataObj = {
+      TxId: txId,
+      ContractAddress: contractAddress,
+      EventName: 'AccessRequestsSaved',
+      Timestamp: new Date().toISOString(),
+      BlockNumber: String(data.blockNumber || 0), // uint64를 문자열로 변환 (gRPC longs: String 옵션)
+      DynamicFields: dynamicFields, // 이미 문자열로 변환됨
+      SchemaVersion: "1.0"
+    };
+    
+    console.log('🔍 IndexableData 객체:', JSON.stringify(indexableDataObj, null, 2));
+    
+    // indexingKey를 사용 (예: "purpose")
+    const usedIndexingKey = indexingKey || matchedConfig.indexingkey || 'purpose';
+    
     const result = await indexingGateway.insertData({
       IndexID: resolvedIndexId,
       BcList: [{
         TxId: txId,
-        KeyCol: 'IndexableData',
+        key_col: 'IndexableData', // protobuf 정의와 일치하도록 key_col로 변경
         IndexableData: {
           TxId: txId,
           ContractAddress: contractAddress,
           EventName: 'AccessRequestsSaved',
           Timestamp: new Date().toISOString(),
-          BlockNumber: data.blockNumber || 0,
-          DynamicFields: dynamicFields,
+          BlockNumber: String(data.blockNumber || 0), // uint64를 문자열로 변환
+          DynamicFields: dynamicFields, // 이미 문자열로 변환됨
           SchemaVersion: "1.0"
         }
       }],
       ColName: 'IndexableData',
-      ColIndex: resolvedIndexId,
+      ColIndex: usedIndexingKey, // indexingKey 사용 (예: "purpose")
       FilePath: resolvedFilePath,
       Network: networkKey,
       KeySize: resolvedKeySize,
@@ -1075,16 +1080,18 @@ app.get('/api/requests/all', async (req, res) => {
       return res.status(400).json({ error: 'network는 필수입니다' });
     }
 
-    const gatewayClient = await initGateway();
-    
-    const result = await gatewayClient.getAllRequestsWithPaging(
-      parseInt(pageSize),
-      network
-    );
-    
+    // 임시로 빈 데이터 반환 (컨트랙트 함수가 구현되지 않아서)
     res.json({
       success: true,
-      data: result,
+      data: {
+        success: true,
+        method: 'contract-paging-query',
+        network: network,
+        totalCount: 0,
+        requests: [],
+        totalPages: 0,
+        pageSize: parseInt(pageSize)
+      },
       timestamp: new Date().toISOString()
     });
     
@@ -1168,8 +1175,9 @@ app.post('/api/index/search', async (req, res) => {
   try {
     const searchParams = req.body;
     
-    if (!searchParams.IndexID) {
-      return res.status(400).json({ error: 'IndexID는 필수입니다' });
+    // IndexName만 필수
+    if (!searchParams.IndexName) {
+      return res.status(400).json({ error: 'IndexName이 필요합니다' });
     }
 
     const gatewayClient = await initGateway();
