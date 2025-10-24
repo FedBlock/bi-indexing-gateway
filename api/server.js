@@ -16,7 +16,15 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+    'https://grnd.bimatrix.co.kr'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // 요청 로깅 미들웨어
@@ -81,6 +89,24 @@ const resolveIdxmngrRoot = () => {
     }
   }
   return null;
+};
+
+// 인덱스 ID에서 네트워크 추론
+const inferNetworkFromIndexId = (indexId = '') => {
+  const lowered = indexId.toLowerCase();
+  if (lowered.includes('monad')) {
+    return 'monad';
+  }
+  if (lowered.includes('hardhat')) {
+    return lowered.includes('local') ? 'hardhat-local' : 'hardhat';
+  }
+  if (lowered.includes('kaia')) {
+    return 'kaia';
+  }
+  if (lowered.includes('fabric')) {
+    return 'fabric';
+  }
+  return 'unknown';
 };
 
 const computeNextIndexId = (metadataItems) => {
@@ -239,18 +265,239 @@ function resolveIndexFilePath({ schema, indexId, network, filePath, metadata }) 
     return buildIndexFilePath(networkKey);
   }
 
+  // 절대 경로로 변경: idxmngr-go 루트 디렉토리 기준
+  const idxmngrRoot = resolveIdxmngrRoot();
+  if (idxmngrRoot) {
+    return path.join(idxmngrRoot, 'data', networkKey, `${schemaSlug}.bf`);
+  }
   return path.posix.join('data', networkKey, `${schemaSlug}.bf`);
 }
 
 // 인덱스 목록 조회 API
 app.get('/api/index/list', async (req, res) => {
   try {
-    const { requestMsg } = req.query;
+    const { requestMsg, forceRefresh } = req.query;
+    
+    // forceRefresh가 true면 config.yaml을 직접 읽어서 동기화
+    if (forceRefresh === 'true') {
+      console.log('🔄 강제 새로고침: config.yaml 직접 읽기');
+      const metadataItems = loadIndexConfigMetadata();
+      const rawIndexes = metadataItems.map((meta, idx) => ({
+        IndexID: meta.idxid || meta.indexid || `index_${idx}`,
+        IndexName: meta.idxname || meta.idxid || meta.indexid,
+        IndexingKey: meta.indexingkey || meta.idxname,
+        KeyCol: meta.keycol || 'IndexableData',
+        FilePath: meta.filepath || '',
+        Network: meta.filepath ? meta.filepath.split('/')[1] : 'unknown',
+        FromBlock: meta.fromblock || 0,
+        CurrentBlock: meta.blocknum || 0
+      }));
+      
+      // searchableValues 메타데이터 읽기
+      const idxmngrRoot = resolveIdxmngrRoot();
+      let searchableMetadata = {};
+      if (idxmngrRoot) {
+        const metadataPath = path.join(idxmngrRoot, 'index-metadata.json');
+        if (fs.existsSync(metadataPath)) {
+          try {
+            const content = fs.readFileSync(metadataPath, 'utf8');
+            searchableMetadata = JSON.parse(content);
+          } catch (err) {
+            console.warn('Failed to read searchable metadata:', err.message);
+          }
+        }
+      }
+
+      const metadataMap = new Map(
+        metadataItems.map((meta) => {
+          const metaId = String(meta.idxid ?? meta.indexid ?? '');
+          const metaPath = String(meta.filepath ?? '');
+          const key = `${metaId}::${metaPath}`;
+          return [key, meta];
+        })
+      );
+
+      const indexes = mergedIndexes.map((item, idx) => {
+        const indexId = item?.IndexID || item?.indexId || `index_${idx}`;
+        const keyCol = item?.KeyCol || item?.keyCol || 'IndexableData';
+        const indexName = item?.IndexName || item?.indexName || indexId;
+
+        const inferredNetwork = item?.Network || item?.network || inferNetworkFromIndexId(indexId);
+        const filePath = item?.FilePath || item?.filePath || buildIndexFilePath(inferredNetwork, indexName);
+        
+        // 파일 경로에서 네트워크 추론 (더 정확한 방법)
+        let finalNetwork = inferredNetwork;
+        if (filePath && filePath.includes('/')) {
+          const pathSegments = filePath.split('/');
+          if (pathSegments.length >= 2) {
+            const networkFromPath = pathSegments[pathSegments.length - 2]; // data/kaia/purpose.bf -> kaia
+            if (['kaia', 'monad', 'hardhat-local', 'fabric'].includes(networkFromPath)) {
+              finalNetwork = networkFromPath;
+            }
+          }
+        }
+        
+        // 임시 해결책: kaia 파일이면 강제로 kaia 설정
+        if (filePath && filePath.includes('/kaia/')) {
+          finalNetwork = 'kaia';
+        }
+        
+        // 추가 해결책: config.yaml의 filepath에서도 kaia 확인
+        if (filePath && filePath.includes('data/kaia/')) {
+          finalNetwork = 'kaia';
+        }
+        
+        // 디버깅 로그
+        console.log('🔍 백엔드 네트워크 추론:', {
+          indexId,
+          filePath,
+          inferredNetwork,
+          finalNetwork,
+          pathSegments: filePath ? filePath.split('/') : null
+        });
+
+        const normalizedIndex = {
+          indexId,
+          indexName,
+          indexingKey: item?.IndexingKey || item?.indexingKey || null,
+          keyColumn: keyCol,
+          network: finalNetwork, // 파일 경로에서 추론한 네트워크 사용
+          filePath,
+          dataKey: filePath ? path.posix.basename(filePath).replace(/\.bf$/i, '') : null,
+          fromBlock: item?.FromBlock ?? null,
+          currentBlock: item?.CurrentBlock ?? null,
+          searchableValues: null,
+        };
+        
+        // 디버깅: 정규화된 인덱스 데이터 로그
+        console.log('🔍 정규화된 인덱스:', {
+          indexId: normalizedIndex.indexId,
+          network: normalizedIndex.network,
+          filePath: normalizedIndex.filePath
+        });
+
+        const metaKey = `${indexId}::${normalizedIndex.filePath || ''}`;
+        const metaFallbackKey = `${indexId}::`;
+        const meta = metadataMap.get(metaKey) || metadataMap.get(metaFallbackKey);
+        if (meta) {
+          if (meta.filepath && !normalizedIndex.filePath) {
+            normalizedIndex.filePath = meta.filepath;
+          }
+          if (meta.datakey) {
+            normalizedIndex.dataKey = meta.datakey;
+          }
+          if (meta.idxname) {
+            normalizedIndex.indexName = meta.idxname;
+            normalizedIndex.category = meta.idxname;
+          }
+          if (meta.indexingkey) {
+            normalizedIndex.indexingKey = meta.indexingkey;
+          }
+          if (meta.fromblock) {
+            normalizedIndex.fromBlock = meta.fromblock;
+          }
+          if (meta.blocknum) {
+            normalizedIndex.blockNum = meta.blocknum;
+          }
+          if (!normalizedIndex.network && meta.filepath) {
+            const segments = meta.filepath.split('/');
+            if (segments.length >= 2) {
+              normalizedIndex.network = segments[1];
+            }
+          }
+        }
+
+        // searchableValues 메타데이터 추가
+        if (searchableMetadata[indexId]) {
+          normalizedIndex.searchableValues = searchableMetadata[indexId].searchableValues;
+        }
+
+        if (!normalizedIndex.category) {
+          normalizedIndex.category = normalizedIndex.indexName;
+        }
+        if (!normalizedIndex.indexingKey) {
+          normalizedIndex.indexingKey = normalizedIndex.indexName || normalizedIndex.indexId;
+        }
+        if (normalizedIndex.fromBlock !== undefined && normalizedIndex.fromBlock !== null) {
+          normalizedIndex.fromBlock = String(normalizedIndex.fromBlock);
+        }
+        if (normalizedIndex.currentBlock !== undefined && normalizedIndex.currentBlock !== null) {
+          normalizedIndex.currentBlock = String(normalizedIndex.currentBlock);
+        }
+
+        return normalizedIndex;
+      });
+
+      // 인덱스를 indexId로 정렬 (001, 002, 003... 순서)
+      const sortedIndexes = indexes.sort((a, b) => {
+        const aId = a.indexId || '';
+        const bId = b.indexId || '';
+        return aId.localeCompare(bId, undefined, { numeric: true });
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          indexCount: sortedIndexes.length,
+          indexes: sortedIndexes,
+        },
+        timestamp: new Date().toISOString(),
+        source: 'config.yaml-direct'
+      });
+    }
+
     const indexingGateway = await initGateway();
     const response = await indexingGateway.getIndexList(requestMsg || 'index-list-request');
 
     const rawIndexes = response?.IdxList || [];
     const metadataItems = loadIndexConfigMetadata();
+    
+    // config.yaml에서 직접 읽은 데이터를 우선 사용 (gRPC 응답보다 정확함)
+    const configBasedIndexes = metadataItems.map((meta, idx) => {
+      const indexId = meta.idxid || meta.indexid || `index_${idx}`;
+      
+      // 파일 경로에서 네트워크 추출 (data/kaia/purpose.bf 형태)
+      let networkFromPath = null;
+      if (meta.filepath) {
+        const pathSegments = meta.filepath.split('/');
+        const dataIndex = pathSegments.findIndex(segment => segment === 'data');
+        if (dataIndex !== -1 && pathSegments[dataIndex + 1]) {
+          networkFromPath = pathSegments[dataIndex + 1];
+        }
+      }
+      
+      console.log('🔍 config.yaml에서 네트워크 추출:', {
+        indexId,
+        filepath: meta.filepath,
+        networkFromPath
+      });
+      
+      return {
+        IndexID: indexId,
+        IndexName: meta.idxname || meta.idxid || meta.indexid,
+        IndexingKey: meta.indexingkey || meta.idxname,
+        KeyCol: meta.keycol || 'IndexableData',
+        FilePath: meta.filepath || '',
+        Network: networkFromPath, // 파일 경로에서 추출한 네트워크 사용
+        FromBlock: meta.fromblock || 0,
+        CurrentBlock: meta.blocknum || 0
+      };
+    });
+    
+    // gRPC 응답과 config.yaml 데이터를 병합 (config.yaml 우선)
+    const mergedIndexes = configBasedIndexes.map(configItem => {
+      const grpcItem = rawIndexes.find(grpc => 
+        grpc.IndexID === configItem.IndexID || 
+        grpc.indexId === configItem.IndexID
+      );
+      
+      return {
+        ...configItem,
+        ...(grpcItem || {}), // gRPC 데이터로 보완
+        Network: configItem.Network, // config.yaml의 네트워크 정보 우선 사용
+        FilePath: configItem.FilePath // config.yaml의 파일 경로 우선 사용
+      };
+    });
     const metadataMap = new Map(
       metadataItems.map((meta) => {
         const metaId = String(meta.idxid ?? meta.indexid ?? '');
@@ -260,37 +507,39 @@ app.get('/api/index/list', async (req, res) => {
       })
     );
 
-    const indexes = rawIndexes.map((item, idx) => {
+    // searchableValues는 config.yaml에서 관리하므로 별도 읽기 불필요
+
+    const indexes = mergedIndexes.map((item, idx) => {
       const indexId = item?.IndexID || item?.indexId || `index_${idx}`;
       const keyCol = item?.KeyCol || item?.keyCol || 'IndexableData';
       const indexName = item?.IndexName || item?.indexName || indexId;
       const filePath = item?.FilePath || item?.filePath || null;
 
-      // 네트워크 추론: indexId 안에 하이픈으로 network-id가 들어가는 패턴을 우선 사용
-      const lowered = indexId.toLowerCase();
-      let inferredNetwork = null;
-      if (lowered.includes('monad')) {
-        inferredNetwork = 'monad';
-      } else if (lowered.includes('hardhat')) {
-        inferredNetwork = 'hardhat';
-      } else if (lowered.includes('fabric')) {
-        inferredNetwork = 'fabric';
-      }
+      // mergedIndexes에서 네트워크 정보 가져오기 (index-metadata.json에서 읽은 값)
+      const networkFromMerged = item?.Network || item?.network;
 
       const dataKey = filePath
         ? path.posix.basename(filePath).replace(/\.bf$/i, '')
         : null;
+
+      console.log('🔍 mergedIndexes에서 네트워크 정보:', {
+        indexId,
+        networkFromMerged,
+        itemNetwork: item?.Network,
+        itemnetwork: item?.network
+      });
 
       const normalizedIndex = {
         indexId,
         indexName,
         indexingKey: item?.IndexingKey || item?.indexingKey || null,
         keyColumn: keyCol,
-        network: inferredNetwork,
+        network: networkFromMerged, // mergedIndexes의 네트워크 사용
         filePath,
         dataKey,
         fromBlock: item?.FromBlock ?? null,
         currentBlock: item?.CurrentBlock ?? null,
+        searchableValues: null, // 나중에 메타데이터에서 추가
       };
 
       const metaKey = `${indexId}::${normalizedIndex.filePath || ''}`;
@@ -324,6 +573,8 @@ app.get('/api/index/list', async (req, res) => {
         }
       }
 
+      // searchableValues는 config.yaml에서 관리하므로 별도 처리 불필요
+
       if (!normalizedIndex.category) {
         normalizedIndex.category = normalizedIndex.indexName;
       }
@@ -340,11 +591,18 @@ app.get('/api/index/list', async (req, res) => {
       return normalizedIndex;
     });
 
+    // 인덱스를 indexId로 정렬 (001, 002, 003... 순서)
+    const sortedIndexes = indexes.sort((a, b) => {
+      const aId = a.indexId || '';
+      const bId = b.indexId || '';
+      return aId.localeCompare(bId, undefined, { numeric: true });
+    });
+
     res.json({
       success: true,
       data: {
-        indexCount: response?.IndexCnt ?? indexes.length,
-        indexes,
+        indexCount: response?.IndexCnt ?? sortedIndexes.length,
+        indexes: sortedIndexes,
       },
       timestamp: new Date().toISOString(),
     });
@@ -371,19 +629,60 @@ app.post('/api/index/create', async (req, res) => {
       indexingKey,
       blockNum,
       fromBlock,
+      searchableValues, // 검색 가능한 값 추가
     } = req.body;
 
     const networkKey = resolveNetworkKey(network);
     const effectiveSchema = schema || INDEX_SCHEMA;
 
     const metadataItems = loadIndexConfigMetadata();
+    
+    // 중복 체크: 같은 네트워크 + 같은 스키마
+    const duplicate = metadataItems.find(item => {
+      // network 필드가 있으면 사용, 없으면 filepath에서 추출
+      let itemNetwork = item.network;
+      if (!itemNetwork && item.filepath) {
+        const pathSegments = item.filepath.split('/');
+        const dataIndex = pathSegments.findIndex(segment => segment === 'data');
+        if (dataIndex !== -1 && pathSegments[dataIndex + 1]) {
+          itemNetwork = pathSegments[dataIndex + 1];
+        }
+      }
+      
+      const itemSchema = item.idxname || item.indexid;
+      
+      console.log('🔍 중복 체크:', {
+        itemNetwork,
+        networkKey,
+        itemSchema,
+        effectiveSchema,
+        isDuplicate: itemNetwork === networkKey && itemSchema === effectiveSchema
+      });
+      
+      return itemNetwork === networkKey && itemSchema === effectiveSchema;
+    });
+    
+    if (duplicate) {
+      return res.status(400).json({
+        success: false,
+        error: `이미 같은 설정의 인덱스가 존재합니다.`,
+        errorType: 'DUPLICATE_INDEX',
+        details: {
+          network: networkKey,
+          schema: effectiveSchema,
+          indexingKey: indexingKey,
+          existingIndexId: duplicate.idxid || duplicate.indexid
+        }
+      });
+    }
+    
     const autoGeneratedIndexId = computeNextIndexId(metadataItems);
     const fallbackIndexId = buildIndexId(networkKey);
     const indexId = String(requestedIndexId || autoGeneratedIndexId || fallbackIndexId).trim();
     const indexName = providedIndexName || effectiveSchema;
     const schemaSlug = slugify(effectiveSchema, INDEX_SCHEMA);
 
-    console.log(`Creating index - schema: ${effectiveSchema}, indexId: ${indexId}, key: ${indexingKey || 'dynamic'}`);
+    console.log(`Creating index - schema: ${effectiveSchema}, indexId: ${indexId}, key: ${indexingKey || 'dynamic'}, searchableValues: ${searchableValues}`);
 
     const resolvedFilePath = resolveIndexFilePath({
       schema: schemaSlug,
@@ -417,6 +716,9 @@ app.post('/api/index/create', async (req, res) => {
       }),
     });
 
+    // searchableValues는 config.yaml에 포함되어 있으므로 별도 저장 불필요
+    console.log(`✅ Index created with network: ${networkKey}, searchableValues: ${searchableValues}`);
+
     res.json({
       success: true,
       data: result,
@@ -425,7 +727,8 @@ app.post('/api/index/create', async (req, res) => {
       schema,
       filePath: resolvedFilePath,
       fromBlock: typeof fromBlock === 'number' ? fromBlock : undefined,
-      indexingKey: indexingKey || indexName
+      indexingKey: indexingKey || indexName,
+      searchableValues: searchableValues || null
     });
   } catch (error) {
     console.error('Index creation error:', error);
@@ -583,6 +886,80 @@ app.post('/api/index/insert', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// 인덱스 삭제 API
+app.delete('/api/index/delete/:indexId', async (req, res) => {
+  try {
+    let { indexId } = req.params;
+    
+    if (!indexId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'indexId is required' 
+      });
+    }
+
+    // "hardhat-local-002" 형식이면 "002"만 추출
+    if (indexId.includes('-')) {
+      const parts = indexId.split('-');
+      indexId = parts[parts.length - 1]; // 마지막 부분 (002)
+    }
+
+    console.log(`Deleting index: ${indexId}`);
+
+    // config.yaml에서 해당 인덱스 제거
+    const metadataItems = loadIndexConfigMetadata();
+    const filteredItems = metadataItems.filter(item => {
+      const itemId = String(item.idxid ?? item.indexid ?? '').trim();
+      return itemId !== indexId;
+    });
+
+    // config.yaml 업데이트
+    const idxmngrRoot = resolveIdxmngrRoot();
+    if (idxmngrRoot) {
+      const configPath = path.join(idxmngrRoot, 'config.yaml');
+      const yamlContent = 'items:\n' + filteredItems.map(item => {
+        // filepath에서 네트워크 추출
+        let networkFromPath = 'unknown';
+        if (item.filepath) {
+          const pathSegments = item.filepath.split('/');
+          const dataIndex = pathSegments.findIndex(segment => segment === 'data');
+          if (dataIndex !== -1 && pathSegments[dataIndex + 1]) {
+            networkFromPath = pathSegments[dataIndex + 1];
+          }
+        }
+        
+        return `    - idxid: ${item.idxid || item.indexid}
+      idxname: ${item.idxname}
+      indexingkey: ${item.indexingkey}
+      keycol: ${item.keycol}
+      filepath: ${item.filepath}
+      network: ${item.network || networkFromPath}
+      blocknum: ${item.blocknum || 0}
+      fromblock: ${item.fromblock || 0}
+      keysize: ${item.keysize || 30}
+      address: ${item.address || 'localhost:50052'}
+      callcnt: ${item.callcnt || 0}
+      keycnt: ${item.keycnt || 0}
+      indexdatacnt: ${item.indexdatacnt || 0}`;
+      }).join('\n');
+
+      fs.writeFileSync(configPath, yamlContent, 'utf8');
+      console.log(`✅ Index ${indexId} deleted from config.yaml`);
+    }
+
+    res.json({
+      success: true,
+      deletedIndexId: indexId,
+      message: 'Index deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Index deletion error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
