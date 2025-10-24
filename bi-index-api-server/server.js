@@ -1,7 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const IndexingClient = require('../bi-indexing-gateway/lib/indexing-client');
+const INDEXING_CLIENT_PATH = path.resolve(__dirname, '../../bi-indexing-gateway/lib/indexing-client');
+// bi-indexing-gateway를 bi-index 루트 밖(동일 상위 디렉터리)으로 이동해도 참조할 수 있도록 절대 경로로 변환한다
+// (__dirname = bi-index/bi-index-api-server, ../../ = bi-index-migration)
+const IndexingClient = require(INDEXING_CLIENT_PATH);
 
 const app = express();
 app.use(cors());

@@ -93,6 +93,13 @@ func ReadIndexConfig() {
 	}
 
 	for _, idx := range list.Items {
+		if idx.IndexingKey == "" {
+			if idx.IdxName != "" {
+				idx.IndexingKey = idx.IdxName
+			} else {
+				idx.IndexingKey = idx.IdxID
+			}
+		}
 		MngrIndexList[idx.IdxID] = idx
 	}
 
@@ -135,6 +142,28 @@ func insertIndexConfig(idx IndexInfo) {
 	// 새 필드 기본값 설정
 	if idx.FromBlock == 0 {
 		idx.FromBlock = int64(idx.BlockNum)
+	}
+	if idx.IndexingKey == "" {
+		if idx.IdxName != "" {
+			idx.IndexingKey = idx.IdxName
+		} else {
+			idx.IndexingKey = idx.IdxID
+		}
+	}
+	
+	// Network 필드 설정 (filepath에서 추출)
+	if idx.Network == "" && idx.FilePath != "" {
+		pathSegments := strings.Split(idx.FilePath, "/")
+		dataIndex := -1
+		for i, segment := range pathSegments {
+			if segment == "data" {
+				dataIndex = i
+				break
+			}
+		}
+		if dataIndex != -1 && dataIndex+1 < len(pathSegments) {
+			idx.Network = pathSegments[dataIndex+1]
+		}
 	}
 	log.Printf("➕ 새 인덱스 추가: %+v", idx)
 
@@ -354,6 +383,7 @@ func (m *MServer) GetIndexList(ctx context.Context, in *mngr.IndexInfoRequest) (
 		indexVal := &mngr.IndexInfo{
 			IndexID:      val.IdxID,
 			IndexName:    val.IdxName,
+			IndexingKey:  val.IndexingKey,
 			KeyCol:       val.KeyCol,
 			FilePath:     val.FilePath,
 			BlockNum:     val.BlockNum,
@@ -473,14 +503,22 @@ func (m *MServer) CreateIndexRequest(c context.Context, idxinfo *mngr.IndexInfo)
 	}
 
 	indexRequest := IndexInfo{
-		IdxID:     indexinfo.IndexID,
-		IdxName:   indexinfo.IndexName,
-		KeyCol:    indexinfo.KeyCol,
-		FilePath:  indexinfo.FilePath,
-		KeySize:   indexinfo.KeySize,
-		BlockNum:  indexinfo.BlockNum,
+		IdxID:     idxinfo.IndexID,
+		IdxName:   idxinfo.IndexName,
+		IndexingKey: idxinfo.IndexingKey,
+		KeyCol:    idxinfo.KeyCol,
+		FilePath:  idxinfo.FilePath,
+		KeySize:   idxinfo.KeySize,
+		BlockNum:  idxinfo.BlockNum,
 		FromBlock: fromBlock,
 		//IndexDataCnt: indexinfo.IndexDataCnt,
+	}
+	if indexRequest.IndexingKey == "" {
+		if indexRequest.IdxName != "" {
+			indexRequest.IndexingKey = indexRequest.IdxName
+		} else {
+			indexRequest.IndexingKey = indexRequest.IdxID
+		}
 	}
 
 	if err != nil {

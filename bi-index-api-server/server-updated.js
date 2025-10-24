@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const IndexingClient = require('../bi-indexing-gateway/lib/indexing-client');
+const INDEXING_CLIENT_PATH = path.resolve(__dirname, '../../bi-indexing-gateway/lib/indexing-client');
+const IndexingClient = require(INDEXING_CLIENT_PATH);
 
 const app = express();
 app.use(cors());

@@ -4,8 +4,10 @@ package manager
 type IndexInfo struct {
 	IdxID        string `yaml:"idxid"`
 	IdxName      string `yaml:"idxname"`
+	IndexingKey  string `yaml:"indexingkey"`
 	KeyCol       string `yaml:"keycol"`
 	FilePath     string `yaml:"filepath"`
+	Network      string `yaml:"network"`
 	BlockNum     int32  `yaml:"blocknum"`
 	FromBlock    int64  `yaml:"fromblock"`
 	KeySize      int32  `yaml:"keysize"`

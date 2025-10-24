@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { ethers } = require("hardhat");
+const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
@@ -15,7 +16,15 @@ async function deployContract(network) {
   try {
     let deployer, provider;
     
-    if (network === 'monad') {
+    if (network === 'kaia') {
+      // Kaia 네트워크용 계정 설정
+      const networkConfig = hre.config.networks[network];
+      provider = new ethers.JsonRpcProvider(networkConfig.url);
+      deployer = new ethers.Wallet(networkConfig.accounts[0], provider);
+      
+      console.log('👥 Kaia 테스트 계정들:');
+      console.log(`   🏗️  배포자: ${deployer.address}\n`);
+    } else if (network === 'monad') {
       // Monad 네트워크용 계정 설정
       const networkConfig = hre.config.networks[network];
       provider = new ethers.JsonRpcProvider(networkConfig.url);
@@ -111,11 +120,14 @@ async function main() {
   
   console.log(`🔧 Contract Deployer - 네트워크: ${network}`);
   console.log('=====================================\n');
+  console.log('📋 명령행 인수:', args);
+  console.log('🌐 선택된 네트워크:', network);
   
   try {
     await deployContract(network);
   } catch (error) {
     console.error(`❌ 배포 실패: ${error.message}`);
+    console.error('스택 트레이스:', error.stack);
     process.exit(1);
   }
 }

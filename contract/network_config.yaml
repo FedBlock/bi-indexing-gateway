@@ -1,5 +1,13 @@
 networks:
   hardhat-local:
     contract_address: '0x5FbDB2315678afecb367f032d93F642f64180aa3'
-    deployed_at: '2025-09-01T04:40:44.880Z'
+    deployed_at: '2025-10-24T01:42:37.776Z'
     network_type: hardhat-local
+  monad:
+    contract_address: '0x693570F190EbFaAf2E314D353849751b4f237357'
+    deployed_at: '2025-10-22T01:28:58.110Z'
+    network_type: monad
+  kaia:
+    contract_address: '0x35Aeb97df598CA4C7f537E7A3253a4222CF04300'
+    deployed_at: '2025-10-22T02:30:52.696Z'
+    network_type: kaia

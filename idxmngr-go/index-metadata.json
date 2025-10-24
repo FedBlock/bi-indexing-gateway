@@ -1,0 +1,74 @@
+{
+  "003": {
+    "indexId": "003",
+    "network": "kaia",
+    "schema": "purpose",
+    "searchableValues": [
+      "심박수",
+      "혈당",
+      "혈압"
+    ],
+    "createdAt": "2025-10-24T04:26:56.592Z",
+    "updatedAt": "2025-10-24T04:26:56.592Z"
+  },
+  "004": {
+    "indexId": "004",
+    "network": "kaia",
+    "schema": "purpose",
+    "searchableValues": [
+      "심박수",
+      "혈당",
+      "혈압"
+    ],
+    "createdAt": "2025-10-24T04:04:06.715Z",
+    "updatedAt": "2025-10-24T04:04:06.715Z"
+  },
+  "005": {
+    "indexId": "005",
+    "network": "kaia",
+    "schema": "purpose",
+    "searchableValues": [
+      "심박수",
+      "혈당",
+      "혈압"
+    ],
+    "createdAt": "2025-10-24T04:04:15.092Z",
+    "updatedAt": "2025-10-24T04:04:15.092Z"
+  },
+  "006": {
+    "indexId": "006",
+    "network": "kaia",
+    "schema": "purpose",
+    "searchableValues": [
+      "심박수",
+      "혈당",
+      "혈압"
+    ],
+    "createdAt": "2025-10-24T04:04:46.129Z",
+    "updatedAt": "2025-10-24T04:04:46.129Z"
+  },
+  "001": {
+    "indexId": "001",
+    "network": "kaia",
+    "schema": "purpose",
+    "searchableValues": [
+      "심박수",
+      "혈당",
+      "혈압"
+    ],
+    "createdAt": "2025-10-24T04:06:26.576Z",
+    "updatedAt": "2025-10-24T04:06:26.576Z"
+  },
+  "002": {
+    "indexId": "002",
+    "network": "kaia",
+    "schema": "purpose",
+    "searchableValues": [
+      "심박수",
+      "혈당",
+      "혈압"
+    ],
+    "createdAt": "2025-10-24T04:11:53.113Z",
+    "updatedAt": "2025-10-24T04:11:53.113Z"
+  }
+}
