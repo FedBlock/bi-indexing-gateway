@@ -112,6 +112,7 @@ message SearchRequestM{
   float       range   = 12;
   string      FilePath      = 13;  //file index storage FilePath
   int32       KeySize       = 14;
+  string      IndexName     = 15;  //index name (e.g. "purpose")
 }
 message IndexValue{         //updated(1004)
   string    TxId  = 1;

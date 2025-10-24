@@ -86,6 +86,7 @@ message SearchRequest{
   float       range   = 12;
   string  FilePath  = 13;  //file index storage FilePath
   int32  keySize     = 14;
+  string  IndexName  = 15;  //index name (e.g. "purpose")
 }
 
 message RstTxList{

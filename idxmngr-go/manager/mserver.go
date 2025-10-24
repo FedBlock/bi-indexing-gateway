@@ -926,6 +926,26 @@ func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, re
 	for _, datas := range recvDatas.GetBcList() {
 		// PVD 데이터가 있으면 PVD 사용, IndexableData가 있으면 IndexableData 사용
 		var bcData *idxserverapi.BcDataInfo
+		
+		// IndexableData 디버깅 로그 추가
+		log.Printf("🔍 BcList 데이터 디버깅:")
+		log.Printf("  TxId: %s", datas.TxId)
+		log.Printf("  KeyCol: %s", datas.KeyCol)
+		log.Printf("  IndexableData != nil: %v", datas.IndexableData != nil)
+		log.Printf("  Pvd != nil: %v", datas.Pvd != nil)
+		
+		// IndexableData 원시 데이터 출력
+		if datas.IndexableData != nil {
+			log.Printf("🔍 IndexableData 원시 데이터:")
+			log.Printf("  GetTxId(): %s", datas.IndexableData.GetTxId())
+			log.Printf("  GetContractAddress(): %s", datas.IndexableData.GetContractAddress())
+			log.Printf("  GetEventName(): %s", datas.IndexableData.GetEventName())
+			log.Printf("  GetTimestamp(): %s", datas.IndexableData.GetTimestamp())
+			log.Printf("  GetBlockNumber(): %d", datas.IndexableData.GetBlockNumber())
+			log.Printf("  GetDynamicFields(): %v", datas.IndexableData.GetDynamicFields())
+			log.Printf("  GetSchemaVersion(): %s", datas.IndexableData.GetSchemaVersion())
+		}
+		
 		if datas.Pvd != nil {
 			convertedPvd := convertPvdHistDataMToIdxserverApi(datas.Pvd)
 			bcData = &idxserverapi.BcDataInfo{
@@ -933,22 +953,46 @@ func (m *MServer) handleStandardIndex(client idxserverapi.HLFDataIndexClient, re
 				Pvd:  convertedPvd,
 			}
 		} else if datas.IndexableData != nil {
+			log.Printf("🔍 IndexableData 처리 시작: %s", datas.TxId)
 			bcData = &idxserverapi.BcDataInfo{
 				TxId:          datas.TxId,
 				IndexableData: convertIndexableDataMToIdxserverApi(datas.IndexableData),
 			}
+		} else {
+			log.Printf("⚠️ IndexableData와 Pvd 모두 nil: %s", datas.TxId)
 		}
 		if bcData != nil {
 			bclist = append(bclist, bcData)
 		}
 	}
+	// IndexID를 받은 후 config.yaml에서 해당하는 idxname을 찾아서 처리
+	var targetIndexInfo *IndexInfo
+	for _, indexInfo := range MngrIndexList {
+		if indexInfo.IdxID == recvDatas.IndexID {
+			targetIndexInfo = &indexInfo
+			log.Printf("✅ IndexID %s found in MngrIndexList, idxname: %s", recvDatas.IndexID, indexInfo.IdxName)
+			break
+		}
+	}
+	
+	if targetIndexInfo == nil {
+		log.Printf("❌ IndexID %s not found in MngrIndexList", recvDatas.IndexID)
+		log.Printf("Available IndexIDs in MngrIndexList:")
+		for _, indexInfo := range MngrIndexList {
+			log.Printf("  - IdxID: %s, IdxName: %s", indexInfo.IdxID, indexInfo.IdxName)
+		}
+		return fmt.Errorf("IndexID %s not found in MngrIndexList", recvDatas.IndexID)
+	}
+	
 	insList := &idxserverapi.InsertData{
-		ColIndex: recvDatas.IndexID,
+		ColIndex: targetIndexInfo.IdxName, // IndexName 사용 (예: "purpose")
 		BcList:   bclist,
 		ColName:  recvDatas.ColName,
-		FilePath: MngrIndexList[recvDatas.IndexID].FilePath,
-		KeySize:  MngrIndexList[recvDatas.IndexID].KeySize,
+		FilePath: targetIndexInfo.FilePath,
+		KeySize:  targetIndexInfo.KeySize,
 	}
+	
+	log.Printf("📤 fileindex-go로 전송: ColIndex=%s (IdxName), IndexID=%s", targetIndexInfo.IdxName, recvDatas.IndexID)
 
 	// KeySize 검증 추가
 	if insList.KeySize <= 0 {
@@ -1028,8 +1072,19 @@ func convertPvdHistDataMToIdxserverApi(data *mngr.PvdHistDataM) *idxserverapi.Pv
 
 func convertIndexableDataMToIdxserverApi(data *mngr.IndexableDataM) *idxserverapi.IndexableData {
 	if data == nil {
+		log.Printf("⚠️ IndexableDataM이 nil입니다")
 		return nil
 	}
+
+	// 디버깅 로그 추가
+	log.Printf("🔍 IndexableDataM 필드들:")
+	log.Printf("  TxId: '%s'", data.GetTxId())
+	log.Printf("  ContractAddress: '%s'", data.GetContractAddress())
+	log.Printf("  EventName: '%s'", data.GetEventName())
+	log.Printf("  Timestamp: '%s'", data.GetTimestamp())
+	log.Printf("  BlockNumber: %d", data.GetBlockNumber())
+	log.Printf("  DynamicFields: %v", data.GetDynamicFields())
+	log.Printf("  SchemaVersion: '%s'", data.GetSchemaVersion())
 
 	return &idxserverapi.IndexableData{
 		TxId:            data.GetTxId(),
@@ -1098,25 +1153,44 @@ func (m *MServer) buildSearchRequest(req *mngr.SearchRequestM) (*idxserverapi.Se
 		return nil, fmt.Errorf("invalid Comparison Operation: %d", req.GetComOp())
 	}
 
-	// config.yaml에서 읽은 설정 사용
-	indexInfo, exists := MngrIndexList[req.IndexID]
+	// IndexName은 필수
+	if req.IndexName == "" {
+		return nil, fmt.Errorf("IndexName is required")
+	}
+	
+	log.Printf("🔍 Searching for index with IndexName: %s", req.IndexName)
+	
+	// config.yaml에서 IndexName으로 검색 (idxname 필드로 매칭)
+	var indexInfo IndexInfo
+	var exists bool
+	
+	for _, info := range MngrIndexList {
+		if info.IdxName == req.IndexName {
+			indexInfo = info
+			exists = true
+			log.Printf("✅ Found index by IndexName: %s", req.IndexName)
+			break
+		}
+	}
+	
 	if !exists {
-		return nil, fmt.Errorf("index ID %s not found in configuration", req.IndexID)
+		return nil, fmt.Errorf("index with name '%s' not found in configuration", req.IndexName)
 	}
 
 	request := &idxserverapi.SearchRequest{
-		IndexID:  req.IndexID,
-		Field:    req.Field,
-		ComOp:    comOp,
-		FilePath: indexInfo.FilePath, // config.yaml에서 읽은 FilePath
-		X:        req.X,
-		Y:        req.Y,
-		K:        req.K,
-		Range:    req.Range,
-		Value:    req.Value,
-		Begin:    req.Begin,         // 범위 검색 시작 값 추가
-		End:      req.End,           // 범위 검색 끝 값 추가
-		KeySize:  indexInfo.KeySize, // config.yaml에서 읽은 KeySize
+		IndexID:   indexInfo.IdxID,   // config.yaml의 실제 IndexID 사용
+		IndexName: indexInfo.IdxName, // IndexName 추가
+		Field:     req.Field,
+		ComOp:     comOp,
+		FilePath:  indexInfo.FilePath, // config.yaml에서 읽은 FilePath
+		X:         req.X,
+		Y:         req.Y,
+		K:         req.K,
+		Range:     req.Range,
+		Value:     req.Value,
+		Begin:     req.Begin,         // 범위 검색 시작 값 추가
+		End:       req.End,           // 범위 검색 끝 값 추가
+		KeySize:   indexInfo.KeySize, // config.yaml에서 읽은 KeySize
 	}
 	log.Printf("Built request: %v", request)
 

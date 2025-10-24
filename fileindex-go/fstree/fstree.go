@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	fsindex "fileindex-go/idxserver_api"
 
 	"github.com/timtadh/fs2/bptree"
@@ -21,6 +23,94 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// Config 구조체 정의
+type Config struct {
+	Items []struct {
+		IdxID       string `yaml:"idxid"`
+		IdxName     string `yaml:"idxname"`
+		IndexingKey string `yaml:"indexingkey"`
+		KeyCol      string `yaml:"keycol"`
+		FilePath    string `yaml:"filepath"`
+		Network     string `yaml:"network"`
+		BlockNum    int32  `yaml:"blocknum"`
+		FromBlock   int64  `yaml:"fromblock"`
+		KeySize     int32  `yaml:"keysize"`
+		Address     string `yaml:"address"`
+		CallCnt     int32  `yaml:"callcnt"`
+		KeyCnt      int32  `yaml:"keycnt"`
+		IndexDataCnt int32 `yaml:"indexdatacnt"`
+	} `yaml:"items"`
+}
+
+// config.yaml에서 indexingkey 값을 읽어오는 함수
+func getIndexingKeyFromConfig(indexID string) string {
+	// config.yaml 파일 경로
+	configPath := "/home/blockchain/fedblock/bi-index/idxmngr-go/config.yaml"
+	
+	// 파일 읽기
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		log.Printf("❌ config.yaml 읽기 실패: %v, 기본값 'purpose' 사용", err)
+		return "purpose"
+	}
+	
+	// YAML 파싱
+	var config Config
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		log.Printf("❌ config.yaml 파싱 실패: %v, 기본값 'purpose' 사용", err)
+		return "purpose"
+	}
+	
+	// 해당 IndexID의 indexingkey 찾기
+	for _, item := range config.Items {
+		if item.IdxID == indexID {
+			log.Printf("✅ config.yaml에서 indexingkey 찾음: %s -> %s", indexID, item.IndexingKey)
+			return item.IndexingKey
+		}
+	}
+	
+	log.Printf("⚠️ IndexID %s에 해당하는 indexingkey를 찾을 수 없음, 기본값 'purpose' 사용", indexID)
+	return "purpose"
+}
+
+// config.yaml에서 IndexableData 트리의 키를 찾는 함수 (네트워크 + 인덱스명으로 매핑)
+func getIndexableDataTreeKey(indexID string) string {
+	// config.yaml 파일 경로
+	configPath := "/home/blockchain/fedblock/bi-index/idxmngr-go/config.yaml"
+	
+	// 파일 읽기
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		log.Printf("❌ config.yaml 읽기 실패: %v, 기본값 'purpose' 사용", err)
+		return "purpose"
+	}
+	
+	// YAML 파싱
+	var config Config
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		log.Printf("❌ config.yaml 파싱 실패: %v, 기본값 'purpose' 사용", err)
+		return "purpose"
+	}
+	
+	// 해당 IndexID의 인덱스명 찾기
+	log.Printf("🔍 config.yaml에서 IndexID %s 찾는 중...", indexID)
+	log.Printf("🔍 config.yaml Items 개수: %d", len(config.Items))
+	for i, item := range config.Items {
+		log.Printf("🔍 Items[%d]: IdxID='%s', IdxName='%s'", i, item.IdxID, item.IdxName)
+		if item.IdxID == indexID {
+			// 인덱스명만 사용 (네트워크는 별도 관리)
+			treeKey := item.IdxName
+			log.Printf("✅ IndexableData 트리 키 생성: %s -> %s (인덱스명: %s)", indexID, treeKey, item.IdxName)
+			return treeKey
+		}
+	}
+	
+	log.Printf("⚠️ IndexID %s에 해당하는 정보를 찾을 수 없음, 기본값 'purpose' 사용", indexID)
+	return "purpose"
+}
 
 type IndexServer struct {
 	fsindex.UnimplementedHLFDataIndexServer
@@ -66,7 +156,7 @@ func LoadExistingIndexes() {
 	}
 	
 	lines := strings.Split(string(data), "\n")
-	var currentIndexID, currentKeyCol, currentFilePath string
+	var currentIndexID, currentIndexName, currentKeyCol, currentFilePath string
 	var currentKeySize int
 	
 	for _, line := range lines {
@@ -74,6 +164,8 @@ func LoadExistingIndexes() {
 		
 		if strings.HasPrefix(line, "- idxid:") {
 			currentIndexID = strings.TrimSpace(strings.TrimPrefix(line, "- idxid:"))
+		} else if strings.HasPrefix(line, "idxname:") {
+			currentIndexName = strings.TrimSpace(strings.TrimPrefix(line, "idxname:"))
 		} else if strings.HasPrefix(line, "keycol:") {
 			currentKeyCol = strings.TrimSpace(strings.TrimPrefix(line, "keycol:"))
 		} else if strings.HasPrefix(line, "filepath:") {
@@ -88,18 +180,26 @@ func LoadExistingIndexes() {
 		// 하나의 인덱스 정보가 완성되면 로드
 		if currentIndexID != "" && currentKeyCol != "" && currentFilePath != "" && currentKeySize > 0 {
 			if currentKeyCol == "IndexableData" {
-				// IndexableData 트리 로드
-				var tree *bptree.BpTree
-				if err := openOrCreateIndex(currentFilePath, currentKeySize, &tree); err == nil {
-					IndexableDataTrees[currentIndexID] = tree
-					log.Printf("✅ IndexableData 트리 자동 로드 완료: %s -> %s", currentIndexID, currentFilePath)
+				// IndexableData 트리 로드 - IndexName 필수
+				if currentIndexName == "" {
+					log.Printf("❌ IndexableData 트리 로드 실패: IndexName이 비어있음 (IndexID: %s)", currentIndexID)
 				} else {
-					log.Printf("❌ IndexableData 트리 자동 로드 실패: %s -> %v", currentIndexID, err)
+					var tree *bptree.BpTree
+					if err := openOrCreateIndex(currentFilePath, currentKeySize, &tree); err == nil {
+						// IndexableData 트리는 인덱스명으로만 키를 저장
+						treeKey := currentIndexName
+						log.Printf("🔍 트리 저장 - IndexID: '%s', IndexName: '%s', treeKey: '%s'", currentIndexID, currentIndexName, treeKey)
+						IndexableDataTrees[treeKey] = tree
+						log.Printf("✅ IndexableData 트리 자동 로드 완료: %s -> %s (인덱스명으로 저장)", treeKey, currentFilePath)
+					} else {
+						log.Printf("❌ IndexableData 트리 자동 로드 실패: %s -> %v", currentIndexName, err)
+					}
 				}
 			}
 			
 			// 다음 인덱스를 위해 초기화
 			currentIndexID = ""
+			currentIndexName = ""
 			currentKeyCol = ""
 			currentFilePath = ""
 			currentKeySize = 0
@@ -357,28 +457,42 @@ func (h IndexServer) InsertIndex(stream fsindex.HLFDataIndex_InsertIndexServer) 
 					continue
 				}
 			case "IndexableData":  // 범용 데이터용 인덱싱
-		// 동적으로 해당 인덱스의 트리 사용
-		indexID := recvDatas.GetColIndex()
-		log.Printf("IndexableData 인덱싱 - IndexID: %s, IndexableDataTrees 크기: %d", indexID, len(IndexableDataTrees))
+		// IndexID를 indexName으로 직접 사용
+		indexName := recvDatas.GetColIndex()
+		log.Printf("IndexableData 인덱싱 - IndexName: '%s', IndexableDataTrees 크기: %d", indexName, len(IndexableDataTrees))
 		
-		tree, exists := IndexableDataTrees[indexID]
+		// IndexableDataTrees의 키들을 로그로 출력
+		keys := make([]string, 0, len(IndexableDataTrees))
+		for k := range IndexableDataTrees {
+			keys = append(keys, k)
+		}
+		log.Printf("IndexableDataTrees 키들: %v", keys)
+		
+		// 각 키의 길이와 내용을 자세히 출력
+		for i, key := range keys {
+			log.Printf("  키[%d]: '%s' (길이: %d)", i, key, len(key))
+		}
+		
+		tree, exists := IndexableDataTrees[indexName]
 		if !exists {
-			log.Printf("IndexableData 트리를 찾을 수 없음: %s", indexID)
+			log.Printf("IndexableData 트리를 찾을 수 없음: %s", indexName)
 			continue
 		}
 		if tree == nil {
-			log.Printf("IndexableData 트리가 nil임: %s", indexID)
+			log.Printf("IndexableData 트리가 nil임: %s", indexName)
 			continue
 		}
-		log.Printf("IndexableData 트리 찾음: %s", indexID)
+		log.Printf("IndexableData 트리 찾음: %s", indexName)
 		targetTree = &tree
-		// IndexableData에서 DynamicFields의 key 필드만 확인
+		// IndexableData에서 DynamicFields의 indexName 필드 값을 사용 (예: "purpose" 필드의 값 "심박수")
 		if rec.IndexableData != nil && rec.IndexableData.DynamicFields != nil {
-			if keyValue, exists := rec.IndexableData.DynamicFields["key"]; exists {
+			// indexName을 키로 사용하여 DynamicFields에서 값 추출
+			if keyValue, exists := rec.IndexableData.DynamicFields[indexName]; exists {
 				key = stringToFixedBytes(keyValue, keySize)
-				log.Printf("Using key field as key: %s for TxId: %s", keyValue, rec.TxId)
+				log.Printf("✅ Using %s field value as key: '%s' for TxId: %s", indexName, keyValue, rec.TxId)
 			} else {
-				log.Printf("key field not found in DynamicFields at index: %d", idx)
+				log.Printf("❌ %s field not found in DynamicFields at index: %d, available fields: %v", 
+					indexName, idx, rec.IndexableData.DynamicFields)
 				continue
 			}
 		} else {
@@ -860,18 +974,21 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 		}, nil
 
 	case "IndexableData":  // IndexableData용 검색
-		// 동적으로 해당 인덱스의 트리 사용
-		indexID := req.IndexID
+		// IndexName을 직접 사용 (없으면 IndexID 사용)
+		indexName := req.IndexName
+		if indexName == "" {
+			indexName = req.IndexID // 하위 호환성을 위해 IndexID도 지원
+		}
 		log.Printf("=== IndexableData Tree Status ===")
-		log.Printf("Looking for IndexID: %s", indexID)
+		log.Printf("IndexName: %s", indexName)
 		log.Printf("Available trees: %d", len(IndexableDataTrees))
 		for k := range IndexableDataTrees {
 			log.Printf("  - %s", k)
 		}
 		
-		tree, exists := IndexableDataTrees[indexID]
+		tree, exists := IndexableDataTrees[indexName]
 		if !exists {
-			log.Printf("IndexableData 트리를 찾을 수 없음: %s", indexID)
+			log.Printf("IndexableData 트리를 찾을 수 없음: %s", indexName)
 			return &fsindex.RstTxList{
 				IndexID: req.IndexID,
 				Key:     req.Key,
@@ -880,14 +997,14 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 		}
 		
 		if tree == nil {
-			log.Printf("IndexableData 트리가 nil임: %s", indexID)
+			log.Printf("IndexableData 트리가 nil임: %s", indexName)
 			return &fsindex.RstTxList{
 				IndexID: req.IndexID,
 				Key:     req.Key,
 				IdxData: []string{},
 			}, nil
 		}
-		log.Printf("IndexableData 트리 찾음: %s", indexID)
+		log.Printf("IndexableData 트리 찾음: %s", indexName)
 
 		start := time.Now()
 		txlist := []string{}

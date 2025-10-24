@@ -703,6 +703,7 @@ type SearchRequestM struct {
 	Range         float32                `protobuf:"fixed32,12,opt,name=range,proto3" json:"range,omitempty"`
 	FilePath      string                 `protobuf:"bytes,13,opt,name=FilePath,proto3" json:"FilePath,omitempty"` //file index storage FilePath
 	KeySize       int32                  `protobuf:"varint,14,opt,name=KeySize,proto3" json:"KeySize,omitempty"`
+	IndexName     string                 `protobuf:"bytes,15,opt,name=IndexName,proto3" json:"IndexName,omitempty"` //index name (e.g. "purpose")
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -833,6 +834,13 @@ func (x *SearchRequestM) GetKeySize() int32 {
 		return x.KeySize
 	}
 	return 0
+}
+
+func (x *SearchRequestM) GetIndexName() string {
+	if x != nil {
+		return x.IndexName
+	}
+	return ""
 }
 
 type IndexValue struct {
@@ -1507,7 +1515,7 @@ const file_protos_index_manager_proto_rawDesc = "" +
 	"\x0fResponseMessage\x18\x02 \x01(\tR\x0fResponseMessage\x12\x1a\n" +
 	"\bDuration\x18\x03 \x01(\x03R\bDuration\x12\x18\n" +
 	"\aIndexID\x18\x04 \x01(\tR\aIndexID\x127\n" +
-	"\vIndexStatus\x18\x05 \x01(\v2\x15.idxmngrapi.IndexInfoR\vIndexStatus\"\xcb\x02\n" +
+	"\vIndexStatus\x18\x05 \x01(\v2\x15.idxmngrapi.IndexInfoR\vIndexStatus\"\xe9\x02\n" +
 	"\x0eSearchRequestM\x12\x18\n" +
 	"\aIndexID\x18\x01 \x01(\tR\aIndexID\x12\x10\n" +
 	"\x03Key\x18\x02 \x01(\tR\x03Key\x12\x12\n" +
@@ -1523,7 +1531,8 @@ const file_protos_index_manager_proto_rawDesc = "" +
 	"\x01k\x18\v \x01(\x05R\x01k\x12\x14\n" +
 	"\x05range\x18\f \x01(\x02R\x05range\x12\x1a\n" +
 	"\bFilePath\x18\r \x01(\tR\bFilePath\x12\x18\n" +
-	"\aKeySize\x18\x0e \x01(\x05R\aKeySize\" \n" +
+	"\aKeySize\x18\x0e \x01(\x05R\aKeySize\x12\x1c\n" +
+	"\tIndexName\x18\x0f \x01(\tR\tIndexName\" \n" +
 	"\n" +
 	"IndexValue\x12\x12\n" +
 	"\x04TxId\x18\x01 \x01(\tR\x04TxId\"i\n" +

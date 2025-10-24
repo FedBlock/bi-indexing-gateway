@@ -5,8 +5,8 @@ items:
       keycol: IndexableData
       filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/purpose.bf
       network: kaia
-      blocknum: 0
-      fromblock: 111
+      blocknum: 199659208
+      fromblock: 0
       keysize: 64
       address: localhost:50052
       callcnt: 0

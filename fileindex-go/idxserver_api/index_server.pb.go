@@ -533,6 +533,7 @@ type SearchRequest struct {
 	Range         float32                `protobuf:"fixed32,12,opt,name=range,proto3" json:"range,omitempty"`
 	FilePath      string                 `protobuf:"bytes,13,opt,name=FilePath,proto3" json:"FilePath,omitempty"` //file index storage FilePath
 	KeySize       int32                  `protobuf:"varint,14,opt,name=keySize,proto3" json:"keySize,omitempty"`
+	IndexName     string                 `protobuf:"bytes,15,opt,name=IndexName,proto3" json:"IndexName,omitempty"` //index name (e.g. "purpose")
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -663,6 +664,13 @@ func (x *SearchRequest) GetKeySize() int32 {
 		return x.KeySize
 	}
 	return 0
+}
+
+func (x *SearchRequest) GetIndexName() string {
+	if x != nil {
+		return x.IndexName
+	}
+	return ""
 }
 
 type RstTxList struct {
@@ -1141,7 +1149,7 @@ const file_protos_index_server_proto_rawDesc = "" +
 	"\x04TxId\x18\x06 \x01(\tR\x04TxId\x12\x12\n" +
 	"\x04time\x18\a \x01(\x04R\x04time\x12\x1a\n" +
 	"\bFilePath\x18\b \x01(\tR\bFilePath\x12\x18\n" +
-	"\aKeySize\x18\t \x01(\x05R\aKeySize\"\xc9\x02\n" +
+	"\aKeySize\x18\t \x01(\x05R\aKeySize\"\xe7\x02\n" +
 	"\rSearchRequest\x12\x18\n" +
 	"\aIndexID\x18\x01 \x01(\tR\aIndexID\x12\x10\n" +
 	"\x03Key\x18\x02 \x01(\tR\x03Key\x12\x12\n" +
@@ -1157,7 +1165,8 @@ const file_protos_index_server_proto_rawDesc = "" +
 	"\x01k\x18\v \x01(\x05R\x01k\x12\x14\n" +
 	"\x05range\x18\f \x01(\x02R\x05range\x12\x1a\n" +
 	"\bFilePath\x18\r \x01(\tR\bFilePath\x12\x18\n" +
-	"\akeySize\x18\x0e \x01(\x05R\akeySize\"Q\n" +
+	"\akeySize\x18\x0e \x01(\x05R\akeySize\x12\x1c\n" +
+	"\tIndexName\x18\x0f \x01(\tR\tIndexName\"Q\n" +
 	"\tRstTxList\x12\x18\n" +
 	"\aIndexID\x18\x01 \x01(\tR\aIndexID\x12\x10\n" +
 	"\x03Key\x18\x02 \x01(\tR\x03Key\x12\x18\n" +
