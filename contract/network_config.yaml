@@ -8,6 +8,6 @@ networks:
     deployed_at: '2025-10-22T01:28:58.110Z'
     network_type: monad
   kaia:
-    contract_address: '0x35Aeb97df598CA4C7f537E7A3253a4222CF04300'
-    deployed_at: '2025-10-22T02:30:52.696Z'
+    contract_address: '0xcBf9a9d52b75218D06af17f03D8a236550db879F'
+    deployed_at: '2025-10-27T02:16:38.944Z'
     network_type: kaia

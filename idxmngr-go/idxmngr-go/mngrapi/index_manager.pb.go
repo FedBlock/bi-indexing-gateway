@@ -891,7 +891,8 @@ type RstTxListM struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	IdxInfo       *IndexInfo             `protobuf:"bytes,1,opt,name=idxInfo,proto3" json:"idxInfo,omitempty"`
 	Key           string                 `protobuf:"bytes,2,opt,name=Key,proto3" json:"Key,omitempty"`
-	IdxData       []string               `protobuf:"bytes,3,rep,name=IdxData,proto3" json:"IdxData,omitempty"` //updated(1004)
+	IdxData       []string               `protobuf:"bytes,3,rep,name=IdxData,proto3" json:"IdxData,omitempty"`           //updated(1004) - tx 해시 리스트
+	DetailedData  []*IndexableDataM      `protobuf:"bytes,4,rep,name=DetailedData,proto3" json:"DetailedData,omitempty"` // 상세 정보 포함
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -943,6 +944,13 @@ func (x *RstTxListM) GetKey() string {
 func (x *RstTxListM) GetIdxData() []string {
 	if x != nil {
 		return x.IdxData
+	}
+	return nil
+}
+
+func (x *RstTxListM) GetDetailedData() []*IndexableDataM {
+	if x != nil {
+		return x.DetailedData
 	}
 	return nil
 }
@@ -1535,12 +1543,13 @@ const file_protos_index_manager_proto_rawDesc = "" +
 	"\tIndexName\x18\x0f \x01(\tR\tIndexName\" \n" +
 	"\n" +
 	"IndexValue\x12\x12\n" +
-	"\x04TxId\x18\x01 \x01(\tR\x04TxId\"i\n" +
+	"\x04TxId\x18\x01 \x01(\tR\x04TxId\"\xa9\x01\n" +
 	"\n" +
 	"RstTxListM\x12/\n" +
 	"\aidxInfo\x18\x01 \x01(\v2\x15.idxmngrapi.IndexInfoR\aidxInfo\x12\x10\n" +
 	"\x03Key\x18\x02 \x01(\tR\x03Key\x12\x18\n" +
-	"\aIdxData\x18\x03 \x03(\tR\aIdxData\"?\n" +
+	"\aIdxData\x18\x03 \x03(\tR\aIdxData\x12>\n" +
+	"\fDetailedData\x18\x04 \x03(\v2\x1a.idxmngrapi.IndexableDataMR\fDetailedData\"?\n" +
 	"\fQueryRequest\x12/\n" +
 	"\x05ComOp\x18\x01 \x01(\x0e2\x19.idxmngrapi.ComparisonOpsR\x05ComOp\"\xba\x01\n" +
 	"\tQueryInfo\x12/\n" +
@@ -1658,28 +1667,29 @@ var file_protos_index_manager_proto_depIdxs = []int32{
 	2,  // 8: idxmngrapi.IdxMngrResponse.IndexStatus:type_name -> idxmngrapi.IndexInfo
 	0,  // 9: idxmngrapi.SearchRequestM.ComOp:type_name -> idxmngrapi.ComparisonOps
 	2,  // 10: idxmngrapi.RstTxListM.idxInfo:type_name -> idxmngrapi.IndexInfo
-	0,  // 11: idxmngrapi.QueryRequest.ComOp:type_name -> idxmngrapi.ComparisonOps
-	0,  // 12: idxmngrapi.QueryInfo.ComOp:type_name -> idxmngrapi.ComparisonOps
-	15, // 13: idxmngrapi.IndexableDataM.DynamicFields:type_name -> idxmngrapi.IndexableDataM.DynamicFieldsEntry
-	2,  // 14: idxmngrapi.Index_manager.CreateIndexRequest:input_type -> idxmngrapi.IndexInfo
-	2,  // 15: idxmngrapi.Index_manager.UpdateIndexRequest:input_type -> idxmngrapi.IndexInfo
-	6,  // 16: idxmngrapi.Index_manager.InsertIndexRequest:input_type -> idxmngrapi.InsertDatatoIdx
-	8,  // 17: idxmngrapi.Index_manager.GetindexDataByFieldM:input_type -> idxmngrapi.SearchRequestM
-	2,  // 18: idxmngrapi.Index_manager.GetIndexInfo:input_type -> idxmngrapi.IndexInfo
-	3,  // 19: idxmngrapi.Index_manager.GetIndexList:input_type -> idxmngrapi.IndexInfoRequest
-	11, // 20: idxmngrapi.Index_manager.GetQueryInfo:input_type -> idxmngrapi.QueryRequest
-	7,  // 21: idxmngrapi.Index_manager.CreateIndexRequest:output_type -> idxmngrapi.IdxMngrResponse
-	7,  // 22: idxmngrapi.Index_manager.UpdateIndexRequest:output_type -> idxmngrapi.IdxMngrResponse
-	7,  // 23: idxmngrapi.Index_manager.InsertIndexRequest:output_type -> idxmngrapi.IdxMngrResponse
-	10, // 24: idxmngrapi.Index_manager.GetindexDataByFieldM:output_type -> idxmngrapi.RstTxListM
-	7,  // 25: idxmngrapi.Index_manager.GetIndexInfo:output_type -> idxmngrapi.IdxMngrResponse
-	4,  // 26: idxmngrapi.Index_manager.GetIndexList:output_type -> idxmngrapi.IndexList
-	12, // 27: idxmngrapi.Index_manager.GetQueryInfo:output_type -> idxmngrapi.QueryInfo
-	21, // [21:28] is the sub-list for method output_type
-	14, // [14:21] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	14, // 11: idxmngrapi.RstTxListM.DetailedData:type_name -> idxmngrapi.IndexableDataM
+	0,  // 12: idxmngrapi.QueryRequest.ComOp:type_name -> idxmngrapi.ComparisonOps
+	0,  // 13: idxmngrapi.QueryInfo.ComOp:type_name -> idxmngrapi.ComparisonOps
+	15, // 14: idxmngrapi.IndexableDataM.DynamicFields:type_name -> idxmngrapi.IndexableDataM.DynamicFieldsEntry
+	2,  // 15: idxmngrapi.Index_manager.CreateIndexRequest:input_type -> idxmngrapi.IndexInfo
+	2,  // 16: idxmngrapi.Index_manager.UpdateIndexRequest:input_type -> idxmngrapi.IndexInfo
+	6,  // 17: idxmngrapi.Index_manager.InsertIndexRequest:input_type -> idxmngrapi.InsertDatatoIdx
+	8,  // 18: idxmngrapi.Index_manager.GetindexDataByFieldM:input_type -> idxmngrapi.SearchRequestM
+	2,  // 19: idxmngrapi.Index_manager.GetIndexInfo:input_type -> idxmngrapi.IndexInfo
+	3,  // 20: idxmngrapi.Index_manager.GetIndexList:input_type -> idxmngrapi.IndexInfoRequest
+	11, // 21: idxmngrapi.Index_manager.GetQueryInfo:input_type -> idxmngrapi.QueryRequest
+	7,  // 22: idxmngrapi.Index_manager.CreateIndexRequest:output_type -> idxmngrapi.IdxMngrResponse
+	7,  // 23: idxmngrapi.Index_manager.UpdateIndexRequest:output_type -> idxmngrapi.IdxMngrResponse
+	7,  // 24: idxmngrapi.Index_manager.InsertIndexRequest:output_type -> idxmngrapi.IdxMngrResponse
+	10, // 25: idxmngrapi.Index_manager.GetindexDataByFieldM:output_type -> idxmngrapi.RstTxListM
+	7,  // 26: idxmngrapi.Index_manager.GetIndexInfo:output_type -> idxmngrapi.IdxMngrResponse
+	4,  // 27: idxmngrapi.Index_manager.GetIndexList:output_type -> idxmngrapi.IndexList
+	12, // 28: idxmngrapi.Index_manager.GetQueryInfo:output_type -> idxmngrapi.QueryInfo
+	22, // [22:29] is the sub-list for method output_type
+	15, // [15:22] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_protos_index_manager_proto_init() }

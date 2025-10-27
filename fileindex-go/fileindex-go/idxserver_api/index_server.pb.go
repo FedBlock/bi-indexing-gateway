@@ -678,6 +678,7 @@ type RstTxList struct {
 	IndexID       string                 `protobuf:"bytes,1,opt,name=IndexID,proto3" json:"IndexID,omitempty"`
 	Key           string                 `protobuf:"bytes,2,opt,name=Key,proto3" json:"Key,omitempty"`
 	IdxData       []string               `protobuf:"bytes,3,rep,name=IdxData,proto3" json:"IdxData,omitempty"`
+	DetailedData  []*IndexableData       `protobuf:"bytes,4,rep,name=DetailedData,proto3" json:"DetailedData,omitempty"` // 상세 정보 포함
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -729,6 +730,13 @@ func (x *RstTxList) GetKey() string {
 func (x *RstTxList) GetIdxData() []string {
 	if x != nil {
 		return x.IdxData
+	}
+	return nil
+}
+
+func (x *RstTxList) GetDetailedData() []*IndexableData {
+	if x != nil {
+		return x.DetailedData
 	}
 	return nil
 }
@@ -1166,11 +1174,12 @@ const file_protos_index_server_proto_rawDesc = "" +
 	"\x05range\x18\f \x01(\x02R\x05range\x12\x1a\n" +
 	"\bFilePath\x18\r \x01(\tR\bFilePath\x12\x18\n" +
 	"\akeySize\x18\x0e \x01(\x05R\akeySize\x12\x1c\n" +
-	"\tIndexName\x18\x0f \x01(\tR\tIndexName\"Q\n" +
+	"\tIndexName\x18\x0f \x01(\tR\tIndexName\"\x8f\x01\n" +
 	"\tRstTxList\x12\x18\n" +
 	"\aIndexID\x18\x01 \x01(\tR\aIndexID\x12\x10\n" +
 	"\x03Key\x18\x02 \x01(\tR\x03Key\x12\x18\n" +
-	"\aIdxData\x18\x03 \x03(\tR\aIdxData\"\xe6\x02\n" +
+	"\aIdxData\x18\x03 \x03(\tR\aIdxData\x12<\n" +
+	"\fDetailedData\x18\x04 \x03(\v2\x18.idxserver.IndexableDataR\fDetailedData\"\xe6\x02\n" +
 	"\rIndexableData\x12\x12\n" +
 	"\x04TxId\x18\x01 \x01(\tR\x04TxId\x12(\n" +
 	"\x0fContractAddress\x18\x02 \x01(\tR\x0fContractAddress\x12\x1c\n" +
@@ -1265,20 +1274,21 @@ var file_protos_index_server_proto_depIdxs = []int32{
 	3,  // 3: idxserver.InsertData.BcList:type_name -> idxserver.BcDataInfo
 	2,  // 4: idxserver.InsertData.Response:type_name -> idxserver.IdxResponse
 	0,  // 5: idxserver.SearchRequest.ComOp:type_name -> idxserver.ComparisonOps
-	10, // 6: idxserver.IndexableData.DynamicFields:type_name -> idxserver.IndexableData.DynamicFieldsEntry
-	1,  // 7: idxserver.HLFDataIndex.CreateIndex:input_type -> idxserver.CreateRequest
-	4,  // 8: idxserver.HLFDataIndex.InsertIndex:input_type -> idxserver.InsertData
-	5,  // 9: idxserver.HLFDataIndex.InsertSIndex:input_type -> idxserver.InsertSData
-	6,  // 10: idxserver.HLFDataIndex.GetindexDataByField:input_type -> idxserver.SearchRequest
-	2,  // 11: idxserver.HLFDataIndex.CreateIndex:output_type -> idxserver.IdxResponse
-	2,  // 12: idxserver.HLFDataIndex.InsertIndex:output_type -> idxserver.IdxResponse
-	2,  // 13: idxserver.HLFDataIndex.InsertSIndex:output_type -> idxserver.IdxResponse
-	7,  // 14: idxserver.HLFDataIndex.GetindexDataByField:output_type -> idxserver.RstTxList
-	11, // [11:15] is the sub-list for method output_type
-	7,  // [7:11] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	8,  // 6: idxserver.RstTxList.DetailedData:type_name -> idxserver.IndexableData
+	10, // 7: idxserver.IndexableData.DynamicFields:type_name -> idxserver.IndexableData.DynamicFieldsEntry
+	1,  // 8: idxserver.HLFDataIndex.CreateIndex:input_type -> idxserver.CreateRequest
+	4,  // 9: idxserver.HLFDataIndex.InsertIndex:input_type -> idxserver.InsertData
+	5,  // 10: idxserver.HLFDataIndex.InsertSIndex:input_type -> idxserver.InsertSData
+	6,  // 11: idxserver.HLFDataIndex.GetindexDataByField:input_type -> idxserver.SearchRequest
+	2,  // 12: idxserver.HLFDataIndex.CreateIndex:output_type -> idxserver.IdxResponse
+	2,  // 13: idxserver.HLFDataIndex.InsertIndex:output_type -> idxserver.IdxResponse
+	2,  // 14: idxserver.HLFDataIndex.InsertSIndex:output_type -> idxserver.IdxResponse
+	7,  // 15: idxserver.HLFDataIndex.GetindexDataByField:output_type -> idxserver.RstTxList
+	12, // [12:16] is the sub-list for method output_type
+	8,  // [8:12] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_protos_index_server_proto_init() }

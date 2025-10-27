@@ -1098,7 +1098,7 @@ func convertIndexableDataMToIdxserverApi(data *mngr.IndexableDataM) *idxserverap
 }
 
 func (m *MServer) GetindexDataByFieldM(c context.Context, req *mngr.SearchRequestM) (*mngr.RstTxListM, error) {
-	log.SetPrefix("[" + funcName() + "] ")
+	log.디Prefix("[" + funcName() + "] ")
 	log.Printf("queryDatasByField =  %s", req.String())
 
 	_, client, err := m.ConnectionPool.GetConnection(req.IndexID)
