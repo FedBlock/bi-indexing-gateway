@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>제주도 과속 구간 히트맵 | FedBlock PVD Analytics</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Leaflet.heat CSS -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        
+        #header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        #header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        
+        #header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        #container {
+            display: flex;
+            height: calc(100vh - 100px);
+        }
+        
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+        
+        #sidebar {
+            width: 350px;
+            background: #16213e;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.3);
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .stat-card .sub-value {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        
+        .location-item {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .location-item:hover {
+            background: #1a4d7a;
+            transform: translateX(5px);
+        }
+        
+        .location-item .rank {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #667eea;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .location-item .info {
+            display: inline-block;
+            vertical-align: top;
+        }
+        
+        .location-item .count {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+        
+        .location-item .speed {
+            color: #ffd93d;
+            font-size: 12px;
+        }
+        
+        .controls {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .controls label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .controls input[type="range"] {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .controls button {
+            width: 100%;
+            padding: 10px;
+            background: #667eea;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+        
+        .controls button:hover {
+            background: #764ba2;
+        }
+        
+        .legend {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .legend h4 {
+            margin: 0 0 5px 0;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .legend-color {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            vertical-align: middle;
+            border-radius: 3px;
+        }
+        
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            padding: 30px;
+            border-radius: 10px;
+            z-index: 9999;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>🚗 제주도 과속 구간 히트맵</h1>
+        <p>블록체인 기반 PVD(Probe Vehicle Data) 분석 시스템</p>
+    </div>
+    
+    <div id="container">
+        <div id="map"></div>
+        
+        <div id="sidebar">
+            <!-- 통계 카드 -->
+            <div class="stat-card">
+                <h3>총 과속 건수</h3>
+                <div class="value" id="totalSpeeding">-</div>
+                <div class="sub-value" id="speedingRate">-</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>과속 다발 지역</h3>
+                <div class="value" id="hotspotCount">-</div>
+                <div class="sub-value">분석 완료</div>
+            </div>
+            
+            <!-- 컨트롤 -->
+            <div class="controls">
+                <h3 style="margin-bottom: 10px;">히트맵 설정</h3>
+                
+                <label>
+                    강도 (Intensity): <span id="intensityValue">50</span>
+                </label>
+                <input type="range" id="intensitySlider" min="10" max="100" value="50">
+                
+                <label>
+                    반경 (Radius): <span id="radiusValue">25</span>px
+                </label>
+                <input type="range" id="radiusSlider" min="10" max="50" value="25">
+                
+                <label>
+                    최소 과속 횟수: <span id="minCountValue">1</span>
+                </label>
+                <input type="range" id="minCountSlider" min="1" max="50" value="1">
+                
+                <button onclick="updateHeatmap()">히트맵 갱신</button>
+                <button onclick="downloadData()">데이터 다운로드</button>
+            </div>
+            
+            <!-- 과속 다발 지역 TOP 10 -->
+            <div class="section">
+                <h2>🔥 과속 다발 지역 TOP 10</h2>
+                <div id="topLocations">
+                    <p style="text-align: center; opacity: 0.5;">데이터 로딩 중...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="loading">
+        <div class="spinner"></div>
+        <p style="text-align: center;">데이터 로딩 중...</p>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Leaflet.heat Plugin -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <script>
+        let map;
+        let heatLayer;
+        let originalData = [];
+        let markers = [];
+        
+        // 지도 초기화
+        function initMap() {
+            // 제주도 중심 좌표
+            map = L.map('map').setView([33.45, 126.55], 11);
+            
+            // 타일 레이어 추가 (어두운 테마)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // 범례 추가
+            const legend = L.control({position: 'bottomright'});
+            legend.onAdd = function(map) {
+                const div = L.DomUtil.create('div', 'legend');
+                div.innerHTML = `
+                    <h4>과속 빈도</h4>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: rgba(0,255,0,0.6)"></span>
+                        낮음 (1-5회)
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: rgba(255,255,0,0.6)"></span>
+                        보통 (6-15회)
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: rgba(255,165,0,0.6)"></span>
+                        높음 (16-30회)
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: rgba(255,0,0,0.6)"></span>
+                        매우 높음 (31회+)
+                    </div>
+                `;
+                return div;
+            };
+            legend.addTo(map);
+        }
+        
+        // 데이터 로드
+        async function loadData() {
+            try {
+                const response = await fetch('analysis-results/heatmap-data.json');
+                const data = await response.json();
+                originalData = data;
+                
+                // 통계 업데이트
+                updateStats(data);
+                
+                // 히트맵 생성
+                createHeatmap(data);
+                
+                // TOP 위치 표시
+                displayTopLocations(data.slice(0, 10));
+                
+                // 로딩 화면 숨기기
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('데이터 로드 오류:', error);
+                alert('데이터를 불러올 수 없습니다. analyze-speeding.js를 먼저 실행해주세요.');
+            }
+        }
+        
+        // 통계 업데이트
+        function updateStats(data) {
+            const totalSpeeding = data.reduce((sum, item) => sum + item.count, 0);
+            const hotspotCount = data.length;
+            
+            document.getElementById('totalSpeeding').textContent = totalSpeeding.toLocaleString();
+            document.getElementById('speedingRate').textContent = `${hotspotCount}개 지역에서 발생`;
+            document.getElementById('hotspotCount').textContent = hotspotCount;
+        }
+        
+        // 히트맵 생성
+        function createHeatmap(data) {
+            // 기존 레이어 제거
+            if (heatLayer) {
+                map.removeLayer(heatLayer);
+            }
+            
+            // 필터링
+            const minCount = parseInt(document.getElementById('minCountSlider').value);
+            const filteredData = data.filter(item => item.count >= minCount);
+            
+            // 히트맵 데이터 변환 [lat, lng, intensity]
+            const heatData = filteredData.map(item => [
+                item.lat,
+                item.lng,
+                item.count / 10 // intensity 조정
+            ]);
+            
+            // 설정값 가져오기
+            const radius = parseInt(document.getElementById('radiusSlider').value);
+            const maxIntensity = parseInt(document.getElementById('intensitySlider').value) / 10;
+            
+            // 히트맵 레이어 생성
+            heatLayer = L.heatLayer(heatData, {
+                radius: radius,
+                blur: 20,
+                maxZoom: 17,
+                max: maxIntensity,
+                gradient: {
+                    0.0: 'blue',
+                    0.3: 'cyan',
+                    0.5: 'lime',
+                    0.7: 'yellow',
+                    1.0: 'red'
+                }
+            }).addTo(map);
+        }
+        
+        // TOP 위치 표시
+        function displayTopLocations(topData) {
+            const container = document.getElementById('topLocations');
+            container.innerHTML = '';
+            
+            topData.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'location-item';
+                div.innerHTML = `
+                    <span class="rank">${index + 1}</span>
+                    <div class="info">
+                        <div class="count">과속 ${item.count}회</div>
+                        <div class="speed">평균 ${item.avgSpeed}km/h | 최고 ${item.maxSpeed}km/h</div>
+                        <div style="font-size: 11px; opacity: 0.7; margin-top: 3px;">
+                            ${item.lat.toFixed(4)}, ${item.lng.toFixed(4)}
+                        </div>
+                    </div>
+                `;
+                
+                // 클릭 시 지도 이동
+                div.onclick = () => {
+                    map.setView([item.lat, item.lng], 15);
+                    
+                    // 마커 추가
+                    markers.forEach(m => map.removeLayer(m));
+                    markers = [];
+                    
+                    const marker = L.circleMarker([item.lat, item.lng], {
+                        radius: 10,
+                        fillColor: '#ff0000',
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <b>과속 다발 지역 #${index + 1}</b><br>
+                        과속 횟수: ${item.count}회<br>
+                        평균 속도: ${item.avgSpeed}km/h<br>
+                        최고 속도: ${item.maxSpeed}km/h<br>
+                        관련 차량: ${item.vehicleCount}대
+                    `).openPopup();
+                    
+                    markers.push(marker);
+                };
+                
+                container.appendChild(div);
+            });
+        }
+        
+        // 히트맵 갱신
+        function updateHeatmap() {
+            document.getElementById('intensityValue').textContent = 
+                document.getElementById('intensitySlider').value;
+            document.getElementById('radiusValue').textContent = 
+                document.getElementById('radiusSlider').value;
+            document.getElementById('minCountValue').textContent = 
+                document.getElementById('minCountSlider').value;
+            
+            createHeatmap(originalData);
+        }
+        
+        // 슬라이더 이벤트
+        document.getElementById('intensitySlider').addEventListener('input', function() {
+            document.getElementById('intensityValue').textContent = this.value;
+        });
+        
+        document.getElementById('radiusSlider').addEventListener('input', function() {
+            document.getElementById('radiusValue').textContent = this.value;
+        });
+        
+        document.getElementById('minCountSlider').addEventListener('input', function() {
+            document.getElementById('minCountValue').textContent = this.value;
+        });
+        
+        // 데이터 다운로드
+        function downloadData() {
+            const dataStr = JSON.stringify(originalData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'speeding-heatmap-data.json';
+            link.click();
+        }
+        
+        // 초기화
+        window.onload = function() {
+            initMap();
+            loadData();
+        };
+    </script>
+</body>
+</html>
+

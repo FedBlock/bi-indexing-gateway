@@ -67,7 +67,7 @@ contract PvdRecord {
     event PvdUpdated(string indexed obuId, string txId);
     event PvdDeleted(string indexed obuId);
     event PvdRead(string indexed obuId);
-
+        
     // 접근 제어
     address public owner;
     mapping(address => bool) public authorizedUsers;
