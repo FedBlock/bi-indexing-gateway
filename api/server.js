@@ -1,8 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
+const ethers = require('ethers');
 // gRPC 게이트웨이 클라이언트 (idxmngr와 직접 통신)
 const IndexingGateway = require('../lib/indexing-client');
+const IndexingClient = IndexingGateway;  // 별칭
 const {
   INDEX_SCHEMA,
   INDEX_KEY_SIZE,
@@ -618,6 +620,7 @@ app.post('/api/index/create', async (req, res) => {
       indexingKey,
       blockNum,
       fromBlock,
+      keySize, // keySize 추가
       searchableValues, // 검색 가능한 값 추가
     } = req.body;
 
@@ -688,6 +691,9 @@ app.post('/api/index/create', async (req, res) => {
     }
 
     const indexingGateway = await initGateway();
+    // keySize 처리: 요청에서 받은 값 또는 기본값 사용
+    const effectiveKeySize = Number(keySize) > 0 ? Number(keySize) : INDEX_KEY_SIZE;
+    
     // gRPC 쪽 스키마와 동일한 필드 구조를 유지해야 idxmngr가 올바르게 처리한다
     const result = await indexingGateway.createIndex({
       IndexID: indexId,
@@ -699,6 +705,7 @@ app.post('/api/index/create', async (req, res) => {
       Network: networkKey,
       BlockNum: typeof blockNum === 'number' ? blockNum : 0,
       FromBlock: typeof fromBlock === 'number' ? fromBlock : undefined,
+      KeySize: effectiveKeySize, // KeySize 추가
       Param: JSON.stringify({
         schema,
         indexingKey: indexingKey || null,
@@ -839,10 +846,13 @@ app.post('/api/index/insert', async (req, res) => {
 
     const indexingGateway = await initGateway();
     
+    // EventName을 요청에서 받거나 기본값 사용
+    const eventName = req.body.eventName || data.eventName || 'AccessRequestsSaved';
+    
     const indexableDataObj = {
       TxId: txId,
       ContractAddress: contractAddress,
-      EventName: 'AccessRequestsSaved',
+      EventName: eventName,
       Timestamp: new Date().toISOString(),
       BlockNumber: String(data.blockNumber || 0), // uint64를 문자열로 변환 (gRPC longs: String 옵션)
       DynamicFields: dynamicFields, // 이미 문자열로 변환됨
@@ -862,7 +872,7 @@ app.post('/api/index/insert', async (req, res) => {
         IndexableData: {
           TxId: txId,
           ContractAddress: contractAddress,
-          EventName: 'AccessRequestsSaved',
+          EventName: eventName,  // 동적 이벤트명 사용
           Timestamp: new Date().toISOString(),
           BlockNumber: String(data.blockNumber || 0), // uint64를 문자열로 변환
           DynamicFields: dynamicFields, // 이미 문자열로 변환됨
@@ -968,6 +978,484 @@ app.delete('/api/index/delete/:indexId', async (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// =========================
+// 🔹 범용 인덱스 데이터 조회 API (Raw)
+// =========================
+app.get('/api/index/raw', async (req, res) => {
+  try {
+    const { indexId, network = 'hardhat-local', limit = 100 } = req.query;
+    
+    if (!indexId) {
+      return res.status(400).json({
+        success: false,
+        error: 'indexId 파라미터가 필요합니다.',
+        example: '/api/index/raw?indexId=002&network=hardhat-local'
+      });
+    }
+    
+    console.log(`\n📦 범용 인덱스 조회 - IndexID: ${indexId}, Network: ${network}`);
+    
+    // IndexingClient 생성
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: '/home/blockchain/fedblock/bi-index/idxmngr-go/protos/index_manager.proto'
+    });
+    
+    await indexingClient.connect();
+    
+    // 인덱스 목록에서 확인
+    const indexList = await indexingClient.getIndexList();
+    const targetIndex = indexList.find(idx => 
+      idx.idxid === indexId && idx.network === network
+    );
+    
+    if (!targetIndex) {
+      await indexingClient.close();
+      return res.status(404).json({
+        success: false,
+        error: `IndexID ${indexId} (${network})를 찾을 수 없습니다.`
+      });
+    }
+    
+    console.log(`✅ 인덱스 발견: ${targetIndex.idxname}`);
+    
+    // 인덱스에서 데이터 조회 (간단하게 처리)
+    // 실제로는 인덱스에서 txId 목록을 가져와야 하지만, 
+    // 여기서는 블록체인에서 직접 조회
+    
+    await indexingClient.close();
+    
+    res.json({
+      success: true,
+      indexId: indexId,
+      network: network,
+      indexInfo: {
+        idxname: targetIndex.idxname,
+        indexingkey: targetIndex.indexingkey,
+        filepath: targetIndex.filepath
+      },
+      message: '인덱스 정보 조회 성공. 실제 데이터는 특화 API 또는 컨트랙트로 조회하세요.',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ 범용 인덱스 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// =========================
+// 🔸 과속 데이터 조회 API (GeoJSON 특화)
+// =========================
+app.get('/api/pvd/speeding', async (req, res) => {
+  try {
+    const { network = 'hardhat-local', method = 'direct', minSpeed = 60 } = req.query;
+    const startTime = Date.now();
+    const speedThreshold = Number(minSpeed);
+    
+    console.log(`\n🗺️  과속 데이터 조회 시작 - Network: ${network}, Method: ${method}, MinSpeed: ${speedThreshold}km/h`);
+    
+    // 블록체인에서 직접 조회
+    const rpcUrl = network === 'kaia' ? 
+      'https://public-en-kairos.node.kaia.io' : 
+      'http://127.0.0.1:8545';
+    
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
+    });
+    
+    // PvdRecord 컨트랙트 ABI (필요한 함수만)
+    const contractABI = [
+      'function getKeyLists() view returns (string[])',
+      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
+    ];
+    
+    // 최신 배포 주소 자동 로드
+    const deploymentPath = path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json');
+    let contractAddress = '0x5f3f1dBD7B74C6B46e8c44f98792A1dAf8d69154'; // fallback
+    try {
+      if (fs.existsSync(deploymentPath)) {
+        const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+        contractAddress = deployment.contractAddress;
+        console.log(`📍 최신 컨트랙트 주소 로드: ${contractAddress}`);
+      }
+    } catch (err) {
+      console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
+    }
+    
+    const contract = new ethers.Contract(contractAddress, contractABI, provider);
+    
+    console.log('📡 블록체인에서 데이터 조회 중...');
+    
+    let speedingData = [];
+    try {
+      // 1. 모든 키 목록 가져오기
+      const allKeys = await contract.getKeyLists();
+      console.log(`📋 총 ${allKeys.length}개의 키 발견`);
+      
+      // 2. 배치로 데이터 조회 (한 번에 50개씩)
+      const BATCH_SIZE = 50;
+      const allData = [];
+      
+      for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
+        const batchKeys = allKeys.slice(i, Math.min(i + BATCH_SIZE, allKeys.length));
+        console.log(`🔄 배치 ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allKeys.length / BATCH_SIZE)} 조회 중...`);
+        
+        const batchPromises = batchKeys.map(async (key) => {
+          try {
+            const data = await contract.readPvd(key);
+            return data;
+          } catch (error) {
+            console.warn(`⚠️  키 ${key} 조회 실패`);
+            return null;
+          }
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        allData.push(...batchResults.filter(d => d !== null));
+        
+        // 배치 간 짧은 대기 (rate limit 방지)
+        if (i + BATCH_SIZE < allKeys.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      // 3. 과속 데이터만 필터링 (speed >= speedThreshold)
+      speedingData = allData.filter(pvd => Number(pvd.speed) >= speedThreshold);
+      console.log(`✅ 총 ${allData.length}건 중 ${speedThreshold}km/h 이상 데이터 ${speedingData.length}건 발견`);
+      
+    } catch (contractError) {
+      console.error('⚠️  컨트랙트 조회 실패:', contractError.message);
+      speedingData = [];
+    }
+    
+    const queryTime = Date.now() - startTime;
+    console.log(`✅ 블록체인 조회 완료 (${queryTime}ms)`);
+    
+    // GeoJSON 형식으로 변환
+    const geoJSON = {
+      type: 'FeatureCollection',
+      features: speedingData.map(pvd => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [
+            parseFloat(pvd.startvectorLongitude),
+            parseFloat(pvd.startvectorLatitude)
+          ]
+        },
+        properties: {
+          obuId: pvd.obuId,
+          speed: Number(pvd.speed),
+          collectionDt: pvd.collectionDt,
+          timestamp: Number(pvd.timestamp),
+          blockNumber: Number(pvd.blockNumber),
+          heading: Number(pvd.startvectorHeading)
+        }
+      }))
+    };
+    
+    res.json({
+      success: true,
+      network: network,
+      method: 'blockchain-direct',
+      totalCount: speedingData.length,
+      queryTime: `${queryTime}ms`,
+      data: geoJSON,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ 과속 데이터 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// =========================
+// 🔸 특정 차량 과속 데이터 조회 API (인덱싱 활용)
+// =========================
+app.get('/api/pvd/speeding/vehicle/:obuId', async (req, res) => {
+  try {
+    const { obuId } = req.params;
+    const { network = 'hardhat-local' } = req.query;
+    const startTime = Date.now();
+    
+    console.log(`\n🚗 특정 차량 과속 데이터 조회 - OBU: ${obuId}, Network: ${network}`);
+    
+    // 1. 블록체인에서 전체 데이터 조회
+    const rpcUrl = network === 'kaia' ? 
+      'https://public-en-kairos.node.kaia.io' : 
+      'http://127.0.0.1:8545';
+    
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
+    });
+    const contractABI = [
+      'function getKeyLists() view returns (string[])',
+      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
+    ];
+    
+    // 최신 배포 주소 자동 로드
+    const deploymentPath = path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json');
+    let contractAddress = '0x5f3f1dBD7B74C6B46e8c44f98792A1dAf8d69154'; // fallback
+    try {
+      if (fs.existsSync(deploymentPath)) {
+        const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+        contractAddress = deployment.contractAddress;
+      }
+    } catch (err) {
+      console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
+    }
+    
+    const contract = new ethers.Contract(contractAddress, contractABI, provider);
+    
+    // 1. 모든 키 목록 가져오기
+    const allKeys = await contract.getKeyLists();
+    
+    // 2. 특정 차량의 키만 필터링
+    const vehicleKeys = allKeys.filter(key => key.startsWith(obuId + '::'));
+    console.log(`📋 ${obuId} 차량의 키 ${vehicleKeys.length}개 발견`);
+    
+    // 3. 해당 차량의 데이터 조회
+    const vehicleDataPromises = vehicleKeys.map(async (key) => {
+      try {
+        const data = await contract.readPvd(key);
+        return data;
+      } catch (error) {
+        return null;
+      }
+    });
+    
+    const vehicleData = (await Promise.all(vehicleDataPromises)).filter(d => d !== null);
+    
+    // 4. 과속 데이터만 필터링
+    const vehicleSpeedingData = vehicleData.filter(pvd => Number(pvd.speed) >= 80);
+    
+    const queryTime = Date.now() - startTime;
+    console.log(`✅ ${obuId} 차량의 과속 데이터 ${vehicleSpeedingData.length}건 발견 (${queryTime}ms)`);
+    
+    // GeoJSON 형식으로 변환
+    const geoJSON = {
+      type: 'FeatureCollection',
+      features: vehicleSpeedingData.map(pvd => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [
+            parseFloat(pvd.startvectorLongitude),
+            parseFloat(pvd.startvectorLatitude)
+          ]
+        },
+        properties: {
+          obuId: pvd.obuId,
+          speed: Number(pvd.speed),
+          collectionDt: pvd.collectionDt,
+          timestamp: Number(pvd.timestamp),
+          blockNumber: Number(pvd.blockNumber),
+          heading: Number(pvd.startvectorHeading)
+        }
+      }))
+    };
+    
+    res.json({
+      success: true,
+      network: network,
+      obuId: obuId,
+      method: 'vehicle-filter',
+      totalCount: vehicleSpeedingData.length,
+      queryTime: `${queryTime}ms`,
+      data: geoJSON,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ 차량별 과속 데이터 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// =========================
+// 🔸 인덱스 기반 과속 데이터 조회 API (트랜잭션 ID 리스트로 개별 조회)
+// =========================
+app.post('/api/pvd/speeding/by-index', async (req, res) => {
+  try {
+    const { minSpeed = 60, network = 'kaia' } = req.body;
+    const startTime = Date.now();
+    
+    console.log(`\n🚀 인덱스 기반 과속 데이터 조회 - ${minSpeed}km/h 이상, Network: ${network}`);
+    
+    // 1단계: 인덱스에서 트랜잭션 ID 조회 (카운트 확인용)
+    const IndexingClient = require('../lib/indexing-client');
+    const indexingClient = new IndexingClient({
+      serverAddr: 'localhost:50052',
+      protoPath: path.join(__dirname, '../../bi-index/idxmngr-go/protos/index_manager.proto')
+    });
+    
+    await indexingClient.connect();
+    
+    const paddedSpeed = String(minSpeed).padStart(3, '0');
+    const indexResult = await indexingClient.searchData({
+      IndexName: 'speeding',
+      Field: 'IndexableData',
+      Begin: `spd::${paddedSpeed}::`,
+      End: 'spd::999::',
+      ComOp: 6  // Range
+    });
+    
+    await indexingClient.close();
+    
+    const txIds = indexResult.IdxData || [];
+    const indexQueryTime = Date.now() - startTime;
+    console.log(`✅ 인덱스 조회 완료: ${txIds.length}건 (${indexQueryTime}ms)`);
+    
+    // 2단계: 트랜잭션 해시로 블록체인에서 데이터 조회
+    const rpcUrl = network === 'kaia' ? 
+      'https://public-en-kairos.node.kaia.io' : 
+      'http://127.0.0.1:8545';
+    
+    console.log(`🔗 블록체인 RPC 연결: ${rpcUrl}`);
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
+    });
+    
+    const contractABI = [
+      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))',
+      'function createUpdatePvd(string memory obuId, tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber) pvd) returns (string)'
+    ];
+    
+    const deploymentPath = path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json');
+    let contractAddress = '0xe452Ae89B6c187F8Deee162153F946f07AF7aA82';
+    try {
+      if (fs.existsSync(deploymentPath)) {
+        const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+        contractAddress = deployment.contractAddress;
+      }
+    } catch (err) {
+      console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
+    }
+    
+    const contract = new ethers.Contract(contractAddress, contractABI, provider);
+    const iface = new ethers.Interface(contractABI);
+    
+    console.log(`📡 트랜잭션 해시로 블록체인 데이터 조회 중... (${txIds.length}건)`);
+    const blockchainStartTime = Date.now();
+    
+    // 배치 처리로 트랜잭션 조회 및 키 추출
+    const BATCH_SIZE = 50;
+    const speedingData = [];
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (let i = 0; i < txIds.length; i += BATCH_SIZE) {
+      const batch = txIds.slice(i, i + BATCH_SIZE);
+      
+      const batchPromises = batch.map(async (txHash) => {
+        try {
+          // 트랜잭션 조회
+          const tx = await provider.getTransaction(txHash);
+          if (!tx || !tx.data) {
+            console.warn(`⚠️  트랜잭션 ${txHash} 데이터 없음`);
+            return null;
+          }
+          
+          // Input data 디코딩하여 obuId (키) 추출
+          const decoded = iface.parseTransaction({ data: tx.data });
+          if (!decoded || decoded.name !== 'createUpdatePvd') {
+            console.warn(`⚠️  트랜잭션 ${txHash} 함수 불일치: ${decoded?.name}`);
+            return null;
+          }
+          
+          // obuId는 첫 번째 파라미터 (OBU_ID_COLLECTION_DT 조합)
+          const key = decoded.args[0];
+          
+          // 블록체인에서 실제 데이터 조회
+          const pvdData = await contract.readPvd(key);
+          
+          // 트랜잭션 해시 추가
+          return { ...pvdData, txHash: txHash };
+          
+        } catch (error) {
+          console.warn(`⚠️  트랜잭션 ${txHash} 처리 실패:`, error.message);
+          return null;
+        }
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      const validResults = batchResults.filter(data => data !== null);
+      
+      successCount += validResults.length;
+      failCount += (batchResults.length - validResults.length);
+      speedingData.push(...validResults);
+      
+      if ((i + BATCH_SIZE) % 200 === 0 || i + BATCH_SIZE >= txIds.length) {
+        console.log(`   진행 중: ${Math.min(i + BATCH_SIZE, txIds.length)}/${txIds.length} (성공: ${successCount}, 실패: ${failCount})`);
+      }
+    }
+    
+    const blockchainQueryTime = Date.now() - blockchainStartTime;
+    const totalQueryTime = Date.now() - startTime;
+    console.log(`✅ 블록체인 조회 및 필터링 완료: ${speedingData.length}건 (${blockchainQueryTime}ms)`);
+    
+    // GeoJSON 형식으로 변환
+    const geoJSON = {
+      type: 'FeatureCollection',
+      features: speedingData.map(pvd => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [
+            parseFloat(pvd.startvectorLongitude),
+            parseFloat(pvd.startvectorLatitude)
+          ]
+        },
+        properties: {
+          obuId: pvd.obuId,
+          speed: Number(pvd.speed),
+          collectionDt: pvd.collectionDt,
+          timestamp: Number(pvd.timestamp),
+          blockNumber: Number(pvd.blockNumber),
+          heading: Number(pvd.startvectorHeading),
+          txHash: pvd.txHash || null
+        }
+      }))
+    };
+    
+    res.json({
+      success: true,
+      network: network,
+      method: 'index-based',
+      minSpeed: minSpeed,
+      indexQueryTime: `${indexQueryTime}ms`,
+      blockchainQueryTime: `${totalQueryTime - indexQueryTime}ms`,
+      totalQueryTime: `${totalQueryTime}ms`,
+      indexCount: txIds.length,
+      resultCount: speedingData.length,
+      data: geoJSON,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ 인덱스 기반 과속 데이터 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // 통합 검색 API (인덱스 + 블록체인)
