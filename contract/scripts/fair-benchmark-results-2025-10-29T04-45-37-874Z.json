@@ -1,0 +1,55 @@
+{
+  "timestamp": "2025-10-29T04:45:37.874Z",
+  "method": "three-way-comparison",
+  "description": "블록체인 최신 상태 vs 히스토리 vs 인덱스 (3-way 비교)",
+  "results": [
+    {
+      "speedThreshold": 60,
+      "latest": {
+        "success": true,
+        "count": 1641,
+        "totalCount": 5792,
+        "queryTime": 14361
+      },
+      "history": {
+        "success": true,
+        "count": 1716,
+        "totalCount": 5983,
+        "queryTime": 27690
+      },
+      "indexRange": {
+        "count": 1715,
+        "time": 4416
+      }
+    },
+    {
+      "speedThreshold": 80,
+      "latest": {
+        "success": true,
+        "count": 1274,
+        "totalCount": 5792,
+        "queryTime": 12065
+      },
+      "history": {
+        "success": true,
+        "count": 1333,
+        "totalCount": 5983,
+        "queryTime": 28083
+      },
+      "indexRange": {
+        "count": 1332,
+        "time": 3144
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 2,
+    "successfulLatestTests": 2,
+    "successfulHistoryTests": 2,
+    "avgLatestTime": 13213,
+    "avgHistoryTime": 27886.5,
+    "avgIndexTime": 3780,
+    "avgSpeedupVsLatest": 3.5447531184312426,
+    "avgSpeedupVsHistory": 7.601316171589778
+  }
+}

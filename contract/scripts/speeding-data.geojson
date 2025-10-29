@@ -1,0 +1,869 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.521763,
+          33.480759
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610114a",
+        "speed": 85,
+        "collectionDt": "20211001001000260",
+        "timestamp": 1761616519,
+        "blockNumber": 53,
+        "heading": 7367
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.895499,
+          33.401473
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 97,
+        "collectionDt": "20211001001000385",
+        "timestamp": 1761616520,
+        "blockNumber": 54,
+        "heading": 15518
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.895499,
+          33.401473
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 97,
+        "collectionDt": "20211001001000401",
+        "timestamp": 1761616521,
+        "blockNumber": 55,
+        "heading": 15518
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.891566,
+          33.394863
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 102,
+        "collectionDt": "20211001001030988",
+        "timestamp": 1761616522,
+        "blockNumber": 56,
+        "heading": 17053
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.897924,
+          33.485
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 92,
+        "collectionDt": "20211001000030296",
+        "timestamp": 1761616524,
+        "blockNumber": 58,
+        "heading": 14226
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.912513,
+          33.447417
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 84,
+        "collectionDt": "20211001000600367",
+        "timestamp": 1761616525,
+        "blockNumber": 59,
+        "heading": 13747
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.909694,
+          33.435267
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 87,
+        "collectionDt": "20211001000700417",
+        "timestamp": 1761616526,
+        "blockNumber": 60,
+        "heading": 15202
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.907363,
+          33.427628
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 104,
+        "collectionDt": "20211001000730969",
+        "timestamp": 1761616527,
+        "blockNumber": 61,
+        "heading": 15668
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.904464,
+          33.421019
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 102,
+        "collectionDt": "20211001000800507",
+        "timestamp": 1761616528,
+        "blockNumber": 62,
+        "heading": 16196
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.900505,
+          33.414448
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 92,
+        "collectionDt": "20211001000830043",
+        "timestamp": 1761616529,
+        "blockNumber": 63,
+        "heading": 16475
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.864463,
+          33.360042
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 91,
+        "collectionDt": "20211001001430402",
+        "timestamp": 1761616530,
+        "blockNumber": 64,
+        "heading": 15249
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.887226,
+          33.388934
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 92,
+        "collectionDt": "20211001001100508",
+        "timestamp": 1761616531,
+        "blockNumber": 65,
+        "heading": 18623
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.81387,
+          33.309899
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 96,
+        "collectionDt": "20211001002200304",
+        "timestamp": 1761616532,
+        "blockNumber": 66,
+        "heading": 19801
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.856621,
+          33.350848
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 87,
+        "collectionDt": "20211001001530476",
+        "timestamp": 1761616533,
+        "blockNumber": 67,
+        "heading": 17586
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.836975,
+          33.334387
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 94,
+        "collectionDt": "20211001001800195",
+        "timestamp": 1761616534,
+        "blockNumber": 68,
+        "heading": 20527
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.763003,
+          33.297104
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 83,
+        "collectionDt": "20211001002630407",
+        "timestamp": 1761616535,
+        "blockNumber": 69,
+        "heading": 18147
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.721437,
+          33.283825
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 102,
+        "collectionDt": "20211001003000631",
+        "timestamp": 1761616536,
+        "blockNumber": 70,
+        "heading": 20371
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.721437,
+          33.283825
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 102,
+        "collectionDt": "20211001003000647",
+        "timestamp": 1761616537,
+        "blockNumber": 71,
+        "heading": 20371
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.372425,
+          33.384784
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 85,
+        "collectionDt": "20211001003000757",
+        "timestamp": 1761616538,
+        "blockNumber": 72,
+        "heading": 961
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.372425,
+          33.384784
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 85,
+        "collectionDt": "20211001003000772",
+        "timestamp": 1761616539,
+        "blockNumber": 73,
+        "heading": 961
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.372425,
+          33.384784
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 85,
+        "collectionDt": "20211001003000788",
+        "timestamp": 1761616540,
+        "blockNumber": 74,
+        "heading": 961
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.372425,
+          33.384784
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 85,
+        "collectionDt": "20211001003000803",
+        "timestamp": 1761616541,
+        "blockNumber": 75,
+        "heading": 961
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.37435,
+          33.391067
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 91,
+        "collectionDt": "20211001003030307",
+        "timestamp": 1761616542,
+        "blockNumber": 76,
+        "heading": 1940
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.37435,
+          33.391067
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 91,
+        "collectionDt": "20211001003030323",
+        "timestamp": 1761616543,
+        "blockNumber": 77,
+        "heading": 1940
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.377728,
+          33.397211
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 84,
+        "collectionDt": "20211001003100876",
+        "timestamp": 1761616545,
+        "blockNumber": 79,
+        "heading": 2008
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.377728,
+          33.397211
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 84,
+        "collectionDt": "20211001003100939",
+        "timestamp": 1761616546,
+        "blockNumber": 80,
+        "heading": 2008
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.738428,
+          33.287919
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 84,
+        "collectionDt": "20211001002900290",
+        "timestamp": 1761616547,
+        "blockNumber": 81,
+        "heading": 20318
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.73053,
+          33.285942
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 97,
+        "collectionDt": "20211001002930878",
+        "timestamp": 1761616548,
+        "blockNumber": 82,
+        "heading": 20255
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.431922,
+          33.443676
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 87,
+        "collectionDt": "20211001003700621",
+        "timestamp": 1761616549,
+        "blockNumber": 83,
+        "heading": 3171
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.431922,
+          33.443676
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 87,
+        "collectionDt": "20211001003700637",
+        "timestamp": 1761616550,
+        "blockNumber": 84,
+        "heading": 3171
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.431922,
+          33.443676
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 87,
+        "collectionDt": "20211001003700668",
+        "timestamp": 1761616551,
+        "blockNumber": 85,
+        "heading": 3171
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.437042,
+          33.448304
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 84,
+        "collectionDt": "20211001003730252",
+        "timestamp": 1761616552,
+        "blockNumber": 86,
+        "heading": 3073
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.437042,
+          33.448304
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 84,
+        "collectionDt": "20211001003730346",
+        "timestamp": 1761616553,
+        "blockNumber": 87,
+        "heading": 3073
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.437042,
+          33.448304
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-4610076b",
+        "speed": 84,
+        "collectionDt": "20211001003730361",
+        "timestamp": 1761616554,
+        "blockNumber": 88,
+        "heading": 3073
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.793401,
+          33.306859
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 81,
+        "collectionDt": "20211001002400673",
+        "timestamp": 1761616555,
+        "blockNumber": 89,
+        "heading": 21864
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.785035,
+          33.307331
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461006aa",
+        "speed": 82,
+        "collectionDt": "20211001002430212",
+        "timestamp": 1761616556,
+        "blockNumber": 90,
+        "heading": 21856
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.415341,
+          33.48146
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 100,
+        "collectionDt": "20211001014458810",
+        "timestamp": 1761616557,
+        "blockNumber": 91,
+        "heading": 9337
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.415599,
+          33.481352
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 97,
+        "collectionDt": "20211001014459826",
+        "timestamp": 1761616558,
+        "blockNumber": 92,
+        "heading": 9319
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.41585,
+          33.481248
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 93,
+        "collectionDt": "20211001014500857",
+        "timestamp": 1761616559,
+        "blockNumber": 93,
+        "heading": 9301
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.416113,
+          33.481138
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 88,
+        "collectionDt": "20211001014501873",
+        "timestamp": 1761616560,
+        "blockNumber": 94,
+        "heading": 9307
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.416344,
+          33.481042
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 85,
+        "collectionDt": "20211001014502889",
+        "timestamp": 1761616561,
+        "blockNumber": 95,
+        "heading": 9295
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.416564,
+          33.480951
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 81,
+        "collectionDt": "20211001014503904",
+        "timestamp": 1761616562,
+        "blockNumber": 96,
+        "heading": 9289
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.431463,
+          33.49318
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 81,
+        "collectionDt": "20211001014241323",
+        "timestamp": 1761616563,
+        "blockNumber": 97,
+        "heading": 20541
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.431223,
+          33.493136
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 81,
+        "collectionDt": "20211001014242338",
+        "timestamp": 1761616564,
+        "blockNumber": 98,
+        "heading": 20603
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.430956,
+          33.493088
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 83,
+        "collectionDt": "20211001014243354",
+        "timestamp": 1761616565,
+        "blockNumber": 99,
+        "heading": 20622
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.430708,
+          33.493044
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 84,
+        "collectionDt": "20211001014244370",
+        "timestamp": 1761616566,
+        "blockNumber": 100,
+        "heading": 20657
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.430456,
+          33.493004
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 85,
+        "collectionDt": "20211001014245401",
+        "timestamp": 1761616567,
+        "blockNumber": 101,
+        "heading": 20722
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          126.430196,
+          33.492974
+        ]
+      },
+      "properties": {
+        "obuId": "OBU-461000f6",
+        "speed": 87,
+        "collectionDt": "20211001014246401",
+        "timestamp": 1761616568,
+        "blockNumber": 102,
+        "heading": 21013
+      }
+    }
+  ]
+}

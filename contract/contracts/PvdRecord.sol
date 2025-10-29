@@ -103,73 +103,7 @@ contract PvdRecord {
         authorizedUsers[user] = false;
     }
 
-    /**
-     * @dev 초기 데이터 설정 (InitLedger와 동일)
-     */
-    function initLedger() external onlyOwner {
-        // 초기 PVD 데이터들 생성
-        string[4] memory obuIds = [
-            "OBU-461001c1",
-            "OBU-461001c2", 
-            "OBU-461001c3",
-            "OBU-461001c4"
-        ];
 
-        for (uint i = 0; i < obuIds.length; i++) {
-            PvdHist memory pvd = PvdHist({
-                obuId: obuIds[i],
-                collectionDt: "20211001001000198",
-                startvectorLatitude: "33.496063",
-                startvectorLongitude: "126.491677",
-                transmisstion: "-",
-                speed: 0,
-                hazardLights: "OFF",
-                leftTurnSignalOn: "OFF",
-                rightTurnSignalOn: "OFF",
-                steering: 0,
-                rpm: 0,
-                footbrake: "-",
-                gear: "0",
-                accelator: 0,
-                wipers: "작동",
-                tireWarnLeftF: "-",
-                tireWarnLeftR: "-",
-                tireWarnRightF: "-",
-                tireWarnRightR: "-",
-                tirePsiLeftF: 0,
-                tirePsiLeftR: 0,
-                tirePsiRightF: 0,
-                tirePsiRightR: 0,
-                fuelPercent: 0,
-                fuelLiter: 0,
-                totaldist: 0,
-                rsuId: "",
-                msgId: "PVD-461001c4-20210930150956947",
-                startvectorHeading: 2463,
-                timestamp: block.timestamp,
-                blockNumber: block.number
-            });
-
-            pvdRecords[obuIds[i]] = pvd;
-            pvdHistory[obuIds[i]].push(pvd);
-            allKeys.push(obuIds[i]);
-            
-            emit PvdCreated(obuIds[i], _getTxId());
-        }
-    }
-
-    /**
-     * @dev 새로운 PVD 레코드 생성 (CreatePVD와 동일)
-     * @param pvdData JSON 문자열로 인코딩된 PVD 데이터
-     * @return txId 트랜잭션 ID
-     */
-    function createPvd(string memory pvdData) external onlyAuthorized returns (string memory) {
-        // 실제 구현에서는 JSON 파싱이 필요하지만, 여기서는 간단한 예시로 처리
-        // 실제로는 off-chain에서 JSON을 파싱하여 구조체로 변환 후 호출해야 함
-        
-        // 중복 체크는 별도 함수로 구현
-        return _getTxId();
-    }
 
     /**
      * @dev PVD 레코드 생성 또는 업데이트 (CreateUpdatePVD와 동일)
@@ -204,7 +138,6 @@ contract PvdRecord {
     function readPvd(string memory obuId) external view returns (PvdHist memory) {
         require(_pvdExists(obuId), "PVD does not exist");
         
-        emit PvdRead(obuId);
         return pvdRecords[obuId];
     }
 
@@ -315,42 +248,6 @@ contract PvdRecord {
         return allKeys.length;
     }
 
-    /**
-     * @dev 페이지네이션을 위한 레코드 조회
-     * @param offset 시작 인덱스
-     * @param limit 조회할 개수
-     * @return pvds PVD 데이터 배열
-     */
-    function getPvdsWithPagination(uint256 offset, uint256 limit) external view returns (PvdHist[] memory) {
-        require(offset < allKeys.length, "Offset out of bounds");
-        
-        uint256 endIndex = offset + limit;
-        if (endIndex > allKeys.length) {
-            endIndex = allKeys.length;
-        }
-        
-        uint256 resultLength = endIndex - offset;
-        PvdHist[] memory pvds = new PvdHist[](resultLength);
-        
-        for (uint256 i = 0; i < resultLength; i++) {
-            pvds[i] = pvdRecords[allKeys[offset + i]];
-        }
-        
-        return pvds;
-    }
-
-    /**
-     * @dev 특정 필드로 검색 (간단한 구현)
-     * @param field 검색할 필드명
-     * @param value 검색할 값
-     * @return pvds 매칭되는 PVD 데이터 배열
-     */
-    function searchByField(string memory field, string memory value) external view returns (PvdHist[] memory) {
-        // 실제 구현에서는 더 복잡한 검색 로직이 필요
-        // 여기서는 간단한 예시로 처리
-        PvdHist[] memory results = new PvdHist[](0);
-        return results;
-    }
 
     // 내부 함수들
 

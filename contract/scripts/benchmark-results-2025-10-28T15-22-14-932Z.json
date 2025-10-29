@@ -1,0 +1,57 @@
+{
+  "timestamp": "2025-10-28T15:22:14.932Z",
+  "config": {
+    "speedThresholds": [
+      60,
+      80
+    ],
+    "iterations": 5,
+    "warmupIterations": 2
+  },
+  "blockchainResults": [
+    {
+      "testName": "blockchain_60",
+      "success": false,
+      "error": "모든 테스트 실패",
+      "results": []
+    },
+    {
+      "testName": "blockchain_80",
+      "success": false,
+      "error": "모든 테스트 실패",
+      "results": []
+    }
+  ],
+  "indexResults": [
+    {
+      "testName": "index_range_60",
+      "success": false,
+      "error": "모든 테스트 실패",
+      "results": []
+    },
+    {
+      "testName": "index_exact_60",
+      "success": false,
+      "error": "모든 테스트 실패",
+      "results": []
+    },
+    {
+      "testName": "index_range_80",
+      "success": false,
+      "error": "모든 테스트 실패",
+      "results": []
+    },
+    {
+      "testName": "index_exact_80",
+      "success": false,
+      "error": "모든 테스트 실패",
+      "results": []
+    }
+  ],
+  "comparisons": [],
+  "summary": {
+    "totalTests": 6,
+    "successfulTests": 0,
+    "avgSpeedup": 0
+  }
+}

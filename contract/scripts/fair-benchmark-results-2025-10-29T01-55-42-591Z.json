@@ -1,0 +1,52 @@
+{
+  "timestamp": "2025-10-29T01:55:42.591Z",
+  "method": "full-scan-comparison",
+  "description": "블록체인 전체 조회 vs 인덱스 직접 조회 (공정한 비교)",
+  "results": [
+    {
+      "speedThreshold": 60,
+      "blockchain": {
+        "success": true,
+        "count": 1641,
+        "totalCount": 5792,
+        "queryTime": 27858
+      },
+      "history": {
+        "success": true,
+        "count": 1716,
+        "totalCount": 5983,
+        "queryTime": 27412
+      },
+      "indexRange": {
+        "count": 1715,
+        "time": 156
+      }
+    },
+    {
+      "speedThreshold": 80,
+      "blockchain": {
+        "success": true,
+        "count": 1274,
+        "totalCount": 5792,
+        "queryTime": 26182
+      },
+      "history": {
+        "success": true,
+        "count": 1333,
+        "totalCount": 5983,
+        "queryTime": 27836
+      },
+      "indexRange": {
+        "count": 1332,
+        "time": 162
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 2,
+    "successfulBlockchainTests": 2,
+    "avgBlockchainTime": 27020,
+    "avgIndexRangeTime": 159,
+    "avgSpeedup": 170.09710351377018
+  }
+}

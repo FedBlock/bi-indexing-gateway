@@ -12,3 +12,16 @@ items:
       callcnt: 0
       keycnt: 0
       indexdatacnt: 0
+    - idxid: "002"
+      idxname: speeding
+      indexingkey: speeding
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/speeding.bf
+      network: kaia
+      blocknum: 200020914
+      fromblock: 199980507
+      keysize: 128
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

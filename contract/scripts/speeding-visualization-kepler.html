@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>과속 구간 시각화 - Kepler.gl</title>
+  
+  <!-- React, Redux, Kepler.gl -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/redux@4.2.0/dist/redux.min.js"></script>
+  <script src="https://unpkg.com/react-redux@8.0.5/dist/react-redux.min.js"></script>
+  <script src="https://unpkg.com/kepler.gl@3.0.0/umd/keplergl.min.js"></script>
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    #app {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+    }
+    
+    #control-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      z-index: 1000;
+      max-width: 350px;
+    }
+    
+    h1 {
+      margin: 0 0 15px 0;
+      font-size: 20px;
+      color: #333;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 15px 0;
+    }
+    
+    .stat-card {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #e74c3c;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+    
+    button:hover {
+      background: #2980b9;
+    }
+    
+    button:disabled {
+      background: #95a5a6;
+      cursor: not-allowed;
+    }
+    
+    .loading {
+      text-align: center;
+      color: #7f8c8d;
+      padding: 10px;
+    }
+    
+    .error {
+      background: #fee;
+      color: #c33;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+    
+    .info {
+      font-size: 12px;
+      color: #7f8c8d;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <div id="control-panel">
+    <h1>🚨 과속 구간 분석</h1>
+    <button id="load-btn" onclick="loadSpeedingData()">
+      📡 블록체인 데이터 로드
+    </button>
+    <div id="status"></div>
+    <div id="stats"></div>
+    <div class="info">
+      <strong>데이터 소스:</strong> 블록체인 (PVD 컨트랙트)<br>
+      <strong>기준:</strong> 80km/h 초과
+    </div>
+  </div>
+  
+  <div id="app"></div>
+
+  <script>
+    const { Component } = React;
+    const { createStore, combineReducers, applyMiddleware } = Redux;
+    const { Provider, connect } = ReactRedux;
+    const { KeplerGl, keplerGlReducer } = KeplerGl;
+    
+    // Redux store 설정
+    const reducers = combineReducers({
+      keplerGl: keplerGlReducer
+    });
+    
+    const store = createStore(reducers);
+    
+    // Kepler.gl 컴포넌트
+    class Map extends Component {
+      render() {
+        return (
+          <KeplerGl
+            id="speeding-map"
+            mapboxApiAccessToken="pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw"
+            width={window.innerWidth}
+            height={window.innerHeight}
+          />
+        );
+      }
+    }
+    
+    const mapStateToProps = state => state;
+    const dispatchToProps = dispatch => ({ dispatch });
+    const MapContainer = connect(mapStateToProps, dispatchToProps)(Map);
+    
+    // 앱 렌더링
+    ReactDOM.render(
+      <Provider store={store}>
+        <MapContainer />
+      </Provider>,
+      document.getElementById('app')
+    );
+    
+    // 데이터 로드 함수
+    let speedingStats = {
+      total: 0,
+      maxSpeed: 0,
+      avgSpeed: 0,
+      vehicles: 0
+    };
+    
+    async function loadSpeedingData() {
+      const btn = document.getElementById('load-btn');
+      const status = document.getElementById('status');
+      const statsDiv = document.getElementById('stats');
+      
+      btn.disabled = true;
+      status.innerHTML = '<div class="loading">⏳ 블록체인에서 데이터 로드 중...</div>';
+      statsDiv.innerHTML = '';
+      
+      try {
+        // 블록체인 데이터 직접 조회 (컨트랙트 사용)
+        const response = await fetch('http://127.0.0.1:8545', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'eth_call',
+            params: [{
+              to: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              data: '0x89419cf0'  // getPvdWorldStates() 함수 시그니처
+            }, 'latest'],
+            id: 1
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error.message || '블록체인 호출 실패');
+        }
+        
+        if (!result.result || result.result === '0x') {
+          throw new Error('데이터가 없습니다. upload-speeding-data.js를 먼저 실행하세요.');
+        }
+        
+        // 간단한 처리: ethers.js를 사용하지 않고 직접 파싱하는 것은 복잡하므로
+        // API 방식으로 전환
+        throw new Error('RPC 파싱 복잡 - API 사용으로 전환');
+        
+      } catch (blockchainError) {
+        console.log('블록체인 직접 조회 실패, API로 전환:', blockchainError.message);
+        
+        // API를 통한 조회
+        try {
+          const apiResponse = await fetch('http://localhost:3001/api/pvd/speeding?network=hardhat-local');
+          
+          if (!apiResponse.ok) {
+            const errorData = await apiResponse.json();
+            throw new Error(errorData.error || 'API 호출 실패');
+          }
+          
+          const data = await apiResponse.json();
+          
+          if (!data.success) {
+            throw new Error(data.error || 'API 응답 실패');
+          }
+          
+          const geoJSON = data.data;
+          
+          if (!geoJSON.features || geoJSON.features.length === 0) {
+            throw new Error('과속 데이터가 없습니다.');
+          }
+          
+          // 통계 계산
+          const speeds = geoJSON.features.map(f => f.properties.speed);
+          const vehicles = new Set(geoJSON.features.map(f => f.properties.obuId));
+          
+          speedingStats = {
+            total: geoJSON.features.length,
+            maxSpeed: Math.max(...speeds),
+            avgSpeed: (speeds.reduce((a, b) => a + b, 0) / speeds.length).toFixed(1),
+            vehicles: vehicles.size
+          };
+          
+          // Kepler.gl에 데이터 추가
+          store.dispatch(KeplerGl.addDataToMap({
+            datasets: {
+              info: {
+                label: '과속 데이터',
+                id: 'speeding-data'
+              },
+              data: geoJSON
+            },
+            option: {
+              centerMap: true,
+              readOnly: false
+            },
+            config: {
+              visState: {
+                filters: [],
+                layers: [{
+                  type: 'point',
+                  config: {
+                    dataId: 'speeding-data',
+                    label: '과속 지점',
+                    color: [231, 76, 60],
+                    columns: {
+                      lat: 'geometry.coordinates[1]',
+                      lng: 'geometry.coordinates[0]'
+                    },
+                    isVisible: true,
+                    visConfig: {
+                      radius: 10,
+                      fixedRadius: false,
+                      opacity: 0.8,
+                      outline: false,
+                      colorRange: {
+                        name: 'Global Warming',
+                        type: 'sequential',
+                        category: 'Uber',
+                        colors: ['#5A1846', '#900C3F', '#C70039', '#E3611C', '#F1920E', '#FFC300']
+                      },
+                      radiusRange: [5, 50],
+                      'hi-precision': false
+                    }
+                  }
+                }, {
+                  type: 'heatmap',
+                  config: {
+                    dataId: 'speeding-data',
+                    label: '히트맵',
+                    color: [231, 76, 60],
+                    isVisible: true,
+                    visConfig: {
+                      opacity: 0.8,
+                      colorRange: {
+                        name: 'Global Warming',
+                        type: 'sequential',
+                        category: 'Uber',
+                        colors: ['#5A1846', '#900C3F', '#C70039', '#E3611C', '#F1920E', '#FFC300']
+                      },
+                      radius: 20
+                    }
+                  }
+                }]
+              },
+              mapState: {
+                latitude: 33.35,
+                longitude: 126.8,
+                zoom: 10
+              }
+            }
+          }, 'speeding-map'));
+          
+          status.innerHTML = '<div style="color: #27ae60; font-weight: bold;">✅ 데이터 로드 완료!</div>';
+          
+          // 통계 표시
+          statsDiv.innerHTML = `
+            <div class="stats">
+              <div class="stat-card">
+                <div class="stat-value">${speedingStats.total}</div>
+                <div class="stat-label">과속 건수</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${speedingStats.maxSpeed}</div>
+                <div class="stat-label">최고 속도 (km/h)</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${speedingStats.avgSpeed}</div>
+                <div class="stat-label">평균 속도 (km/h)</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${speedingStats.vehicles}</div>
+                <div class="stat-label">차량 수</div>
+              </div>
+            </div>
+          `;
+          
+        } catch (apiError) {
+          status.innerHTML = `<div class="error">❌ ${apiError.message}</div>`;
+          console.error('데이터 로드 실패:', apiError);
+        }
+      }
+      
+      btn.disabled = false;
+    }
+    
+    // 페이지 로드 시 자동 실행
+    window.addEventListener('load', () => {
+      setTimeout(loadSpeedingData, 1000);
+    });
+  </script>
+</body>
+</html>
+
