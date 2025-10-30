@@ -18,7 +18,7 @@ items:
       keycol: IndexableData
       filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/speeding.bf
       network: kaia
-      blocknum: 200020914
+      blocknum: 200099173
       fromblock: 199980507
       keysize: 128
       address: localhost:50052

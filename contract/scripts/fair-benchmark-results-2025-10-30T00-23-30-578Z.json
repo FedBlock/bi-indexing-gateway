@@ -1,0 +1,55 @@
+{
+  "timestamp": "2025-10-30T00:23:30.579Z",
+  "method": "three-way-comparison",
+  "description": "블록체인 최신 상태 vs 히스토리 vs 인덱스 (3-way 비교)",
+  "results": [
+    {
+      "speedThreshold": 60,
+      "latest": {
+        "success": false,
+        "count": 0,
+        "queryTime": 0,
+        "error": "could not decode result data (value=\"0x\", info={ \"method\": \"getKeyLists\", \"signature\": \"getKeyLists()\" }, code=BAD_DATA, version=6.15.0)"
+      },
+      "history": {
+        "success": false,
+        "count": 0,
+        "queryTime": 0,
+        "error": "could not decode result data (value=\"0x\", info={ \"method\": \"getKeyLists\", \"signature\": \"getKeyLists()\" }, code=BAD_DATA, version=6.15.0)"
+      },
+      "indexRange": {
+        "count": 0,
+        "time": 338
+      }
+    },
+    {
+      "speedThreshold": 80,
+      "latest": {
+        "success": false,
+        "count": 0,
+        "queryTime": 0,
+        "error": "could not decode result data (value=\"0x\", info={ \"method\": \"getKeyLists\", \"signature\": \"getKeyLists()\" }, code=BAD_DATA, version=6.15.0)"
+      },
+      "history": {
+        "success": false,
+        "count": 0,
+        "queryTime": 0,
+        "error": "could not decode result data (value=\"0x\", info={ \"method\": \"getKeyLists\", \"signature\": \"getKeyLists()\" }, code=BAD_DATA, version=6.15.0)"
+      },
+      "indexRange": {
+        "count": 0,
+        "time": 188
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 2,
+    "successfulLatestTests": 0,
+    "successfulHistoryTests": 0,
+    "avgLatestTime": 0,
+    "avgHistoryTime": 0,
+    "avgIndexTime": 263,
+    "avgSpeedupVsLatest": 0,
+    "avgSpeedupVsHistory": 0
+  }
+}

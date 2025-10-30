@@ -87,6 +87,7 @@ async function getIndexId() {
 
 /**
  * 블록체인에 PVD 데이터 저장
+ * @returns {Object|null} { txHash, blockNumber, gasCost } 또는 null (실패 시)
  */
 async function savePvdToBlockchain(contract, record, index) {
   try {
@@ -132,11 +133,16 @@ async function savePvdToBlockchain(contract, record, index) {
     
     const txHash = tx.hash;
     const blockNumber = receipt.blockNumber;
+    const gasUsed = receipt.gasUsed.toString();
+    const effectiveGasPrice = receipt.effectiveGasPrice ? receipt.effectiveGasPrice.toString() : '0';
+    const gasCost = hre.ethers.formatEther(
+      BigInt(gasUsed) * BigInt(effectiveGasPrice)
+    );
     
-    console.log(`✅ 레코드 ${index + 1} 저장 완료 - TxID: ${txHash.substring(0, 10)}...`);
+    console.log(`✅ 레코드 ${index + 1} 저장 완료 - TxID: ${txHash.substring(0, 10)}... | Gas: ${gasCost.substring(0, 10)} ${NETWORK === 'kaia' ? 'KAIA' : 'ETH'}`);
     
     // 인덱싱 처리
-    await indexSpeedingData(
+    const indexed = await indexSpeedingData(
       txHash,
       record.OBU_ID,
       record.COLLECTION_DT,
@@ -146,11 +152,38 @@ async function savePvdToBlockchain(contract, record, index) {
       blockNumber
     );
     
-    return { txHash, blockNumber };
+    return { 
+      txHash, 
+      blockNumber, 
+      gasCost: parseFloat(gasCost),
+      indexed: indexed  // 인덱싱 성공 여부
+    };
     
   } catch (error) {
-    console.error(`❌ 레코드 ${index + 1} 저장 실패:`, error.message);
+    console.error(`\n❌ 레코드 ${index + 1} 저장 실패:`);
     console.error(`   OBU ID: ${record.OBU_ID}, CollectionDt: ${record.COLLECTION_DT}`);
+    console.error(`   에러 메시지: ${error.message}`);
+    
+    // 상세 에러 정보 출력
+    if (error.code) {
+      console.error(`   에러 코드: ${error.code}`);
+    }
+    if (error.reason) {
+      console.error(`   에러 원인: ${error.reason}`);
+    }
+    if (error.error) {
+      console.error(`   내부 에러:`, error.error);
+    }
+    if (error.transaction) {
+      console.error(`   트랜잭션 정보:`, JSON.stringify(error.transaction, null, 2));
+    }
+    
+    // 잔액 부족 에러일 경우 특별 처리
+    if (error.message.includes('insufficient funds')) {
+      console.error(`\n⚠️  잔액 부족 감지! 현재 계정의 잔액을 확인하세요.`);
+      console.error(`   계정 주소를 확인하고 테스트넷 토큰을 충전해야 합니다.\n`);
+    }
+    
     // 실패해도 계속 진행
     return null;
   }
@@ -158,6 +191,7 @@ async function savePvdToBlockchain(contract, record, index) {
 
 /**
  * 인덱싱 처리 (조건부 - 속도 기준)
+ * @returns {boolean} 인덱싱 성공 여부
  */
 async function indexSpeedingData(txHash, obuId, collectionDt, speed, lat, lng, blockNumber) {
   try {
@@ -165,13 +199,13 @@ async function indexSpeedingData(txHash, obuId, collectionDt, speed, lat, lng, b
     const speedValue = parseInt(speed);
     if (speedValue < SPEED_LIMIT_INDEXING) {
       // 인덱싱 건너뛰기 (저장은 되었지만 인덱스에는 추가 안 함)
-      return;
+      return false; // 건너뛰기
     }
     
     const indexId = await getIndexId();
     if (!indexId) {
       console.error(`⚠️  인덱스 ID를 찾을 수 없어 인덱싱을 건너뜁니다.`);
-      return;
+      return false;
     }
     
     // 복합 키 생성: spd::{speed}::{obuId}::{collectionDt}
@@ -207,13 +241,16 @@ async function indexSpeedingData(txHash, obuId, collectionDt, speed, lat, lng, b
     
     if (indexingResponse.ok) {
       console.log(`✅ 인덱싱 완료: ${speedingKey}`);
+      return true;
     } else {
       const errorData = await indexingResponse.json();
       console.error(`❌ 인덱싱 실패 (HTTP ${indexingResponse.status}):`, errorData.error);
+      return false;
     }
     
   } catch (error) {
     console.error(`❌ 인덱싱 에러:`, error.message);
+    return false;
   }
 }
 
@@ -260,15 +297,31 @@ async function main() {
     const [signer] = await hre.ethers.getSigners();
     const contract = await hre.ethers.getContractAt("PvdRecord", CONTRACT_ADDRESS, signer);
     
+    const signerAddress = await signer.getAddress();
+    const balance = await hre.ethers.provider.getBalance(signerAddress);
+    const balanceInEther = hre.ethers.formatEther(balance);
+    
     console.log(`📡 컨트랙트 연결 완료`);
-    console.log(`   서명자: ${await signer.getAddress()}`);
+    console.log(`   서명자: ${signerAddress}`);
+    console.log(`   잔액: ${balanceInEther} ${NETWORK === 'kaia' ? 'KAIA' : 'ETH'}`);
     console.log(`   네트워크: ${hre.network.name}`);
-    console.log(`   Chain ID: ${(await hre.ethers.provider.getNetwork()).chainId}\n`);
+    console.log(`   Chain ID: ${(await hre.ethers.provider.getNetwork()).chainId}`);
+    
+    // 잔액 경고
+    if (parseFloat(balanceInEther) < 0.1) {
+      console.log(`\n⚠️  경고: 잔액이 부족합니다! (${balanceInEther} ${NETWORK === 'kaia' ? 'KAIA' : 'ETH'})`);
+      console.log(`   업로드 중 실패할 수 있으니 토큰을 충전하세요.`);
+    }
+    console.log();
     
     // 업로드 시작
     const startTime = Date.now();
     let successCount = 0;
     let failCount = 0;
+    let totalGasCost = 0;
+    let indexedCount = 0;      // 인덱싱 성공 카운트
+    let indexedFailCount = 0;  // 인덱싱 실패 카운트
+    let indexedSkipCount = 0;  // 인덱싱 건너뛰기 카운트 (속도 기준 미달)
     
     console.log("⏳ 데이터 업로드 시작...\n");
     
@@ -278,6 +331,20 @@ async function main() {
       
       if (result) {
         successCount++;
+        totalGasCost += result.gasCost || 0;
+        
+        // 인덱싱 결과 추적
+        if (result.indexed === true) {
+          indexedCount++;
+        } else if (result.indexed === false) {
+          // 속도 기준 확인
+          const speed = parseInt(finalRecords[i].SPEED);
+          if (speed < SPEED_LIMIT_INDEXING) {
+            indexedSkipCount++;
+          } else {
+            indexedFailCount++;
+          }
+        }
       } else {
         failCount++;
       }
@@ -288,7 +355,17 @@ async function main() {
         const elapsed = (Date.now() - startTime) / 1000;
         const avgSpeed = successCount / elapsed;
         const estimated = (finalRecords.length - (i + 1)) / avgSpeed;
-        console.log(`📊 진행률: ${i + 1}/${finalRecords.length} (${progress}%) | 성공: ${successCount} | 실패: ${failCount} | 예상 남은 시간: ${estimated.toFixed(0)}초\n`);
+        
+        // 현재 잔액 확인 (50개마다)
+        let balanceInfo = '';
+        if ((i + 1) % 50 === 0) {
+          const currentBalance = await hre.ethers.provider.getBalance(signerAddress);
+          const currentBalanceInEther = hre.ethers.formatEther(currentBalance);
+          balanceInfo = ` | 잔액: ${parseFloat(currentBalanceInEther).toFixed(4)} ${NETWORK === 'kaia' ? 'KAIA' : 'ETH'}`;
+        }
+        
+        console.log(`📊 진행률: ${i + 1}/${finalRecords.length} (${progress}%) | 저장: ${successCount} | 실패: ${failCount} | 인덱싱: ${indexedCount}/${indexedCount + indexedSkipCount + indexedFailCount}${balanceInfo}`);
+        console.log(`   가스 총합: ${totalGasCost.toFixed(6)} | 예상 남은 시간: ${estimated.toFixed(0)}초\n`);
       }
       
       // Rate limiting
@@ -297,14 +374,30 @@ async function main() {
     
     const totalTime = Date.now() - startTime;
     
+    // 최종 잔액 확인
+    const finalBalance = await hre.ethers.provider.getBalance(signerAddress);
+    const finalBalanceInEther = hre.ethers.formatEther(finalBalance);
+    const usedBalance = parseFloat(balanceInEther) - parseFloat(finalBalanceInEther);
+    
     console.log("\n" + "=".repeat(70));
     console.log("✅ 업로드 완료!");
     console.log("=".repeat(70));
-    console.log(`📊 성공: ${successCount}/${recordsToUpload.length}건`);
-    console.log(`❌ 실패: ${failCount}건`);
-    console.log(`⏱️  소요 시간: ${(totalTime / 1000).toFixed(2)}초 (${(totalTime / 1000 / 60).toFixed(2)}분)`);
-    console.log(`📈 평균 속도: ${(successCount / (totalTime / 1000)).toFixed(2)}건/초`);
-    console.log(`💾 저장된 데이터: ${successCount}건`);
+    console.log(`\n📊 블록체인 저장 결과:`);
+    console.log(`   성공: ${successCount}/${finalRecords.length}건`);
+    console.log(`   실패: ${failCount}건`);
+    console.log(`\n📇 인덱싱 결과:`);
+    console.log(`   인덱싱 성공: ${indexedCount}건`);
+    console.log(`   인덱싱 건너뜀: ${indexedSkipCount}건 (${SPEED_LIMIT_INDEXING}km/h 미만)`);
+    console.log(`   인덱싱 실패: ${indexedFailCount}건`);
+    console.log(`   총 인덱싱 대상: ${indexedCount + indexedFailCount}건 (${SPEED_LIMIT_INDEXING}km/h 이상)`);
+    console.log(`\n⏱️  성능:`);
+    console.log(`   소요 시간: ${(totalTime / 1000).toFixed(2)}초 (${(totalTime / 1000 / 60).toFixed(2)}분)`);
+    console.log(`   평균 속도: ${(successCount / (totalTime / 1000)).toFixed(2)}건/초`);
+    console.log(`\n💰 가스 사용:`);
+    console.log(`   총 가스 비용: ${totalGasCost.toFixed(6)} ${NETWORK === 'kaia' ? 'KAIA' : 'ETH'}`);
+    console.log(`   시작 잔액: ${parseFloat(balanceInEther).toFixed(6)} ${NETWORK === 'kaia' ? 'KAIA' : 'ETH'}`);
+    console.log(`   최종 잔액: ${parseFloat(finalBalanceInEther).toFixed(6)} ${NETWORK === 'kaia' ? 'KAIA' : 'ETH'}`);
+    console.log(`   사용한 금액: ${usedBalance.toFixed(6)} ${NETWORK === 'kaia' ? 'KAIA' : 'ETH'}`);
     console.log("=".repeat(70));
     
   } catch (error) {
