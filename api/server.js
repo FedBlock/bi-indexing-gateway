@@ -1070,10 +1070,11 @@ app.get('/api/pvd/speeding', async (req, res) => {
       staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
     });
     
-    // PvdRecord 컨트랙트 ABI (필요한 함수만)
+    // PvdRecord 컨트랙트 ABI (히스토리 조회 포함)
     const contractABI = [
       'function getKeyLists() view returns (string[])',
-      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
+      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))',
+      'function getHistoryForKey(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber)[])'
     ];
     
     // 최신 배포 주소 자동 로드
@@ -1091,17 +1092,21 @@ app.get('/api/pvd/speeding', async (req, res) => {
     
     const contract = new ethers.Contract(contractAddress, contractABI, provider);
     
-    console.log('📡 블록체인에서 데이터 조회 중...');
+    console.log('📜 블록체인에서 히스토리 데이터 조회 중... (모든 업데이트 포함)');
     
     let speedingData = [];
+    let totalHistoryCount = 0;
+    let uniqueKeyCount = 0;
+    
     try {
       // 1. 모든 키 목록 가져오기
       const allKeys = await contract.getKeyLists();
       console.log(`📋 총 ${allKeys.length}개의 키 발견`);
+      uniqueKeyCount = allKeys.length;
       
-      // 2. 배치로 데이터 조회 (한 번에 50개씩)
-      const BATCH_SIZE = 50;
-      const allData = [];
+      // 2. 배치로 히스토리 조회 (한 번에 30개씩 - 히스토리는 더 무거움)
+      const BATCH_SIZE = 30;
+      const allHistoryData = [];
       
       for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
         const batchKeys = allKeys.slice(i, Math.min(i + BATCH_SIZE, allKeys.length));
@@ -1109,16 +1114,24 @@ app.get('/api/pvd/speeding', async (req, res) => {
         
         const batchPromises = batchKeys.map(async (key) => {
           try {
-            const data = await contract.readPvd(key);
-            return data;
+            // 각 키의 모든 히스토리 조회
+            const history = await contract.getHistoryForKey(key);
+            return history || [];
           } catch (error) {
-            console.warn(`⚠️  키 ${key} 조회 실패`);
-            return null;
+            console.warn(`⚠️  키 ${key} 히스토리 조회 실패`);
+            return [];
           }
         });
         
         const batchResults = await Promise.all(batchPromises);
-        allData.push(...batchResults.filter(d => d !== null));
+        
+        // 각 키의 히스토리를 평면화
+        batchResults.forEach(history => {
+          if (Array.isArray(history)) {
+            allHistoryData.push(...history);
+            totalHistoryCount += history.length;
+          }
+        });
         
         // 배치 간 짧은 대기 (rate limit 방지)
         if (i + BATCH_SIZE < allKeys.length) {
@@ -1127,8 +1140,9 @@ app.get('/api/pvd/speeding', async (req, res) => {
       }
       
       // 3. 과속 데이터만 필터링 (speed >= speedThreshold)
-      speedingData = allData.filter(pvd => Number(pvd.speed) >= speedThreshold);
-      console.log(`✅ 총 ${allData.length}건 중 ${speedThreshold}km/h 이상 데이터 ${speedingData.length}건 발견`);
+      speedingData = allHistoryData.filter(pvd => Number(pvd.speed) >= speedThreshold);
+      console.log(`✅ 총 ${totalHistoryCount}건의 히스토리 중 ${speedThreshold}km/h 이상 데이터 ${speedingData.length}건 발견`);
+      console.log(`   (고유 키: ${uniqueKeyCount}개, 업데이트: ${totalHistoryCount - uniqueKeyCount}회)`);
       
     } catch (contractError) {
       console.error('⚠️  컨트랙트 조회 실패:', contractError.message);
@@ -1164,8 +1178,11 @@ app.get('/api/pvd/speeding', async (req, res) => {
     res.json({
       success: true,
       network: network,
-      method: 'blockchain-direct',
+      method: 'blockchain-history',
       totalCount: speedingData.length,
+      totalHistoryCount: totalHistoryCount,
+      uniqueKeyCount: uniqueKeyCount,
+      updateCount: totalHistoryCount - uniqueKeyCount,
       queryTime: `${queryTime}ms`,
       data: geoJSON,
       timestamp: new Date().toISOString()
@@ -1318,11 +1335,21 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     
     await indexingClient.close();
     
+    // 인덱스 결과 구조 확인
+    console.log('🔍 인덱스 결과 구조:', Object.keys(indexResult));
+    console.log('🔍 IdxData 첫 번째:', indexResult.IdxData?.[0]);
+    console.log('🔍 Key 필드:', indexResult.Key);
+    if (Array.isArray(indexResult.Key)) {
+      console.log('🔍 Key 배열 길이:', indexResult.Key.length);
+      console.log('🔍 Key 첫 3개:', indexResult.Key.slice(0, 3));
+    }
+    console.log('🔍 idxInfo:', indexResult.idxInfo);
+    
     const txIds = indexResult.IdxData || [];
     const indexQueryTime = Date.now() - startTime;
     console.log(`✅ 인덱스 조회 완료: ${txIds.length}건 (${indexQueryTime}ms)`);
     
-    // 2단계: 트랜잭션 해시로 블록체인에서 데이터 조회
+    // 2단계: 인덱스의 txHash로 트랜잭션 조회 → 키 추출 → readPvd
     const rpcUrl = network === 'kaia' ? 
       'https://public-en-kairos.node.kaia.io' : 
       'http://127.0.0.1:8545';
@@ -1351,7 +1378,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     const contract = new ethers.Contract(contractAddress, contractABI, provider);
     const iface = new ethers.Interface(contractABI);
     
-    console.log(`📡 트랜잭션 해시로 블록체인 데이터 조회 중... (${txIds.length}건)`);
+    console.log(`📡 인덱스의 ${txIds.length}개 트랜잭션으로 키 추출 후 블록체인 조회 중...`);
     const blockchainStartTime = Date.now();
     
     // 배치 처리로 트랜잭션 조회 및 키 추출
@@ -1368,47 +1395,59 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
           // 트랜잭션 조회
           const tx = await provider.getTransaction(txHash);
           if (!tx || !tx.data) {
-            console.warn(`⚠️  트랜잭션 ${txHash} 데이터 없음`);
             return null;
           }
           
-          // Input data 디코딩하여 obuId (키) 추출
+          // Input data 디코딩하여 키 추출
+          // createUpdatePvd(string obuId, ...) 
+          // 첫 번째 파라미터가 키 (obuId::collectionDt)
           const decoded = iface.parseTransaction({ data: tx.data });
-          if (!decoded || decoded.name !== 'createUpdatePvd') {
-            console.warn(`⚠️  트랜잭션 ${txHash} 함수 불일치: ${decoded?.name}`);
+          if (!decoded) {
             return null;
           }
           
-          // obuId는 첫 번째 파라미터 (OBU_ID_COLLECTION_DT 조합)
+          // 키 추출
           const key = decoded.args[0];
           
           // 블록체인에서 실제 데이터 조회
           const pvdData = await contract.readPvd(key);
           
-          // 트랜잭션 해시 추가
-          return { ...pvdData, txHash: txHash };
+          return pvdData;
           
         } catch (error) {
-          console.warn(`⚠️  트랜잭션 ${txHash} 처리 실패:`, error.message);
           return null;
         }
       });
       
       const batchResults = await Promise.all(batchPromises);
-      const validResults = batchResults.filter(data => data !== null);
       
-      successCount += validResults.length;
-      failCount += (batchResults.length - validResults.length);
-      speedingData.push(...validResults);
+      // 속도 필터링 (60km/h 이상만)
+      const filtered = batchResults.filter(data => {
+        if (!data) {
+          failCount++;
+          return false;
+        }
+        if (Number(data.speed) >= minSpeed) {
+          return true;
+        }
+        return false;
+      });
+      
+      successCount += filtered.length;
+      speedingData.push(...filtered);
       
       if ((i + BATCH_SIZE) % 200 === 0 || i + BATCH_SIZE >= txIds.length) {
-        console.log(`   진행 중: ${Math.min(i + BATCH_SIZE, txIds.length)}/${txIds.length} (성공: ${successCount}, 실패: ${failCount})`);
+        const progress = ((i + BATCH_SIZE) / txIds.length * 100).toFixed(1);
+        console.log(`   진행: ${Math.min(i + BATCH_SIZE, txIds.length)}/${txIds.length} (${progress}%) | ${minSpeed}km/h 이상: ${successCount}건 | 실패: ${failCount}건`);
       }
     }
     
     const blockchainQueryTime = Date.now() - blockchainStartTime;
     const totalQueryTime = Date.now() - startTime;
-    console.log(`✅ 블록체인 조회 및 필터링 완료: ${speedingData.length}건 (${blockchainQueryTime}ms)`);
+    console.log(`✅ 블록체인 조회 및 필터링 완료 (${blockchainQueryTime}ms)`);
+    console.log(`   인덱스 트랜잭션: ${txIds.length}건`);
+    console.log(`   ${minSpeed}km/h 이상: ${speedingData.length}건`);
+    console.log(`   조회 실패/필터링: ${failCount}건`);
     
     // GeoJSON 형식으로 변환
     const geoJSON = {
@@ -1703,6 +1742,65 @@ app.get('/api/performance', async (req, res) => {
     
   } catch (error) {
     console.error('성능 통계 조회 실패:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// =========================
+// 🔸 블록체인 통계 조회 API
+// =========================
+app.get('/api/blockchain/stats', async (req, res) => {
+  try {
+    const { network = 'kaia' } = req.query;
+    
+    console.log(`\n📊 블록체인 통계 조회 - Network: ${network}`);
+    
+    const rpcUrl = network === 'kaia' ? 
+      'https://public-en-kairos.node.kaia.io' : 
+      'http://127.0.0.1:8545';
+    
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
+    });
+    
+    const contractABI = [
+      'function getKeyLists() view returns (string[])'
+    ];
+    
+    // 최신 배포 주소 로드
+    const deploymentPath = path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json');
+    let contractAddress = '0xe452Ae89B6c187F8Deee162153F946f07AF7aA82';
+    try {
+      if (fs.existsSync(deploymentPath)) {
+        const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+        contractAddress = deployment.contractAddress;
+      }
+    } catch (err) {
+      console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
+    }
+    
+    const contract = new ethers.Contract(contractAddress, contractABI, provider);
+    
+    // 전체 키 개수 조회
+    const allKeys = await contract.getKeyLists();
+    const totalRecords = allKeys.length;
+    
+    console.log(`✅ 통계 조회 완료: ${totalRecords}건`);
+    
+    res.json({
+      success: true,
+      network: network,
+      contractAddress: contractAddress,
+      totalRecords: totalRecords,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ 통계 조회 실패:', error);
     res.status(500).json({
       success: false,
       error: error.message,
