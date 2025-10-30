@@ -1399,7 +1399,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     // Step 3: 고유 키로 블록체인 조회 (최신 상태만)
     console.log(`📋 ${uniqueKeys.length}개 고유 키로 블록체인 조회 중... (최신 상태)`);
     
-    const QUERY_BATCH_SIZE = 50;
+    const QUERY_BATCH_SIZE = 100;
     const speedingData = [];
     let totalResults = 0;
     
