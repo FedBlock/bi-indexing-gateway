@@ -1055,12 +1055,11 @@ app.get('/api/index/raw', async (req, res) => {
 // =========================
 app.get('/api/pvd/speeding', async (req, res) => {
   try {
-    const { network = 'hardhat-local', method = 'direct', minSpeed = 60, includeHistory = 'false' } = req.query;
+    const { network = 'hardhat-local', method = 'direct', minSpeed = 60 } = req.query;
     const startTime = Date.now();
     const speedThreshold = Number(minSpeed);
-    const includeHistoryFlag = includeHistory === 'true';
     
-    console.log(`\n🗺️  과속 데이터 조회 시작 - Network: ${network}, MinSpeed: ${speedThreshold}km/h, HistoryMode: ${includeHistoryFlag}`);
+    console.log(`\n🗺️  과속 데이터 조회 시작 - Network: ${network}, MinSpeed: ${speedThreshold}km/h (최신 상태만)`);
     
     // 블록체인에서 직접 조회
     const rpcUrl = network === 'kaia' ? 
@@ -1071,11 +1070,10 @@ app.get('/api/pvd/speeding', async (req, res) => {
       staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
     });
     
-    // PvdRecord 컨트랙트 ABI (히스토리 조회 포함)
+    // PvdRecord 컨트랙트 ABI (최신 상태 조회만)
     const contractABI = [
       'function getKeyLists() view returns (string[])',
-      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))',
-      'function getHistoryForKey(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber)[])'
+      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
     ];
     
     // 최신 배포 주소 자동 로드
@@ -1094,7 +1092,6 @@ app.get('/api/pvd/speeding', async (req, res) => {
     const contract = new ethers.Contract(contractAddress, contractABI, provider);
     
     let speedingData = [];
-    let totalHistoryCount = 0;
     let uniqueKeyCount = 0;
     
     try {
@@ -1103,76 +1100,34 @@ app.get('/api/pvd/speeding', async (req, res) => {
       console.log(`📋 총 ${allKeys.length}개의 키 발견`);
       uniqueKeyCount = allKeys.length;
       
-      if (includeHistoryFlag) {
-        // 히스토리 모드: 모든 업데이트 포함
-        console.log('📜 블록체인에서 히스토리 데이터 조회 중... (모든 업데이트 포함)');
+      // 최신 상태 모드: 각 키의 최신 값만
+      console.log('📜 블록체인에서 최신 상태 데이터 조회 중...');
+      
+      const BATCH_SIZE = 50;
+      
+      for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
+        const batchKeys = allKeys.slice(i, Math.min(i + BATCH_SIZE, allKeys.length));
         
-        const BATCH_SIZE = 30;
-        const allHistoryData = [];
-        
-        for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
-          const batchKeys = allKeys.slice(i, Math.min(i + BATCH_SIZE, allKeys.length));
-          
-          const batchPromises = batchKeys.map(async (key) => {
-            try {
-              const history = await contract.getHistoryForKey(key);
-              return history || [];
-            } catch (error) {
-              console.warn(`⚠️  키 ${key} 히스토리 조회 실패`);
-              return [];
-            }
-          });
-          
-          const batchResults = await Promise.all(batchPromises);
-          
-          batchResults.forEach(history => {
-            if (Array.isArray(history)) {
-              allHistoryData.push(...history);
-              totalHistoryCount += history.length;
-            }
-          });
-          
-          if (i + BATCH_SIZE < allKeys.length) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+        const batchPromises = batchKeys.map(async (key) => {
+          try {
+            const pvd = await contract.readPvd(key);
+            return pvd || null;
+          } catch (error) {
+            console.warn(`⚠️  키 ${key} 조회 실패`);
+            return null;
           }
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        const validData = batchResults.filter(d => d !== null);
+        speedingData.push(...validData.filter(pvd => Number(pvd.speed) >= speedThreshold));
+        
+        if (i + BATCH_SIZE < allKeys.length) {
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
-        
-        speedingData = allHistoryData.filter(pvd => Number(pvd.speed) >= speedThreshold);
-        console.log(`✅ 총 ${totalHistoryCount}건의 히스토리 중 ${speedThreshold}km/h 이상 데이터 ${speedingData.length}건 발견`);
-        console.log(`   (고유 키: ${uniqueKeyCount}개, 업데이트: ${totalHistoryCount - uniqueKeyCount}회)`);
-        
-      } else {
-        // 최신 상태 모드: 각 키의 최신 값만
-        console.log('📡 블록체인에서 최신 상태 조회 중...');
-        
-        const BATCH_SIZE = 50;
-        const allLatestData = [];
-        
-        for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
-          const batchKeys = allKeys.slice(i, Math.min(i + BATCH_SIZE, allKeys.length));
-          
-          const batchPromises = batchKeys.map(async (key) => {
-            try {
-              const pvd = await contract.readPvd(key);
-              return pvd;
-            } catch (error) {
-              console.warn(`⚠️  키 ${key} 조회 실패`);
-              return null;
-            }
-          });
-          
-          const batchResults = await Promise.all(batchPromises);
-          allLatestData.push(...batchResults.filter(d => d !== null));
-          
-          if (i + BATCH_SIZE < allKeys.length) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-          }
-        }
-        
-        speedingData = allLatestData.filter(pvd => Number(pvd.speed) >= speedThreshold);
-        totalHistoryCount = allLatestData.length;
-        console.log(`✅ 총 ${uniqueKeyCount}개 키의 최신 상태 중 ${speedThreshold}km/h 이상 데이터 ${speedingData.length}건 발견`);
       }
+      
+      console.log(`✅ 총 ${uniqueKeyCount}개 키의 최신 상태 중 ${speedThreshold}km/h 이상 데이터 ${speedingData.length}건 발견`);
       
     } catch (contractError) {
       console.error('⚠️  컨트랙트 조회 실패:', contractError.message);
@@ -1208,12 +1163,9 @@ app.get('/api/pvd/speeding', async (req, res) => {
     res.json({
       success: true,
       network: network,
-      method: includeHistoryFlag ? 'blockchain-history' : 'blockchain-latest',
-      includeHistory: includeHistoryFlag,
+      method: 'blockchain-latest',
       totalCount: speedingData.length,
-      totalHistoryCount: totalHistoryCount,
       uniqueKeyCount: uniqueKeyCount,
-      updateCount: includeHistoryFlag ? totalHistoryCount - uniqueKeyCount : 0,
       queryTime: `${queryTime}ms`,
       data: geoJSON,
       timestamp: new Date().toISOString()
@@ -1341,10 +1293,10 @@ app.get('/api/pvd/speeding/vehicle/:obuId', async (req, res) => {
 // =========================
 app.post('/api/pvd/speeding/by-index', async (req, res) => {
   try {
-    const { minSpeed = 60, network = 'kaia', includeHistory = false } = req.body;
+    const { minSpeed = 60, network = 'kaia' } = req.body;
     const startTime = Date.now();
     
-    console.log(`\n🚀 인덱스 기반 과속 데이터 조회 - ${minSpeed}km/h 이상, Network: ${network}, HistoryMode: ${includeHistory}`);
+    console.log(`\n🚀 인덱스 기반 과속 데이터 조회 - ${minSpeed}km/h 이상, Network: ${network}`);
     
     // 1단계: 인덱스에서 트랜잭션 ID 조회 (카운트 확인용)
     const IndexingClient = require('../lib/indexing-client');
@@ -1444,10 +1396,10 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     const uniqueKeys = [...new Set(extractedKeys)];
     console.log(`   추출된 키: ${extractedKeys.length}개 (고유 키: ${uniqueKeys.length}개, 중복: ${extractedKeys.length - uniqueKeys.length}개)`);
     
-    // Step 3: 고유 키로 블록체인 조회
-    console.log(`📋 ${uniqueKeys.length}개 고유 키로 블록체인 조회 중... (${includeHistory ? '히스토리' : '최신 상태'})`);
+    // Step 3: 고유 키로 블록체인 조회 (최신 상태만)
+    console.log(`📋 ${uniqueKeys.length}개 고유 키로 블록체인 조회 중... (최신 상태)`);
     
-    const QUERY_BATCH_SIZE = includeHistory ? 30 : 50;
+    const QUERY_BATCH_SIZE = 50;
     const speedingData = [];
     let totalResults = 0;
     
@@ -1456,15 +1408,9 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
       
       const batchPromises = batch.map(async (key) => {
         try {
-          if (includeHistory) {
-            // 히스토리 조회: 모든 업데이트 포함
-            const history = await contract.getHistoryForKey(key);
-            return Array.isArray(history) ? history : [];
-          } else {
-            // 최신 상태 조회: 최신 값만
-            const pvd = await contract.readPvd(key);
-            return pvd ? [pvd] : [];
-          }
+          // 최신 상태 조회: 최신 값만
+          const pvd = await contract.readPvd(key);
+          return pvd ? [pvd] : [];
         } catch (error) {
           return [];
         }
@@ -1487,7 +1433,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
       }
       
       if (i + QUERY_BATCH_SIZE < uniqueKeys.length) {
-        await new Promise(resolve => setTimeout(resolve, includeHistory ? 100 : 50));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
     
@@ -1496,7 +1442,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     console.log(`✅ 블록체인 조회 및 필터링 완료 (${blockchainQueryTime}ms)`);
     console.log(`   인덱스 트랜잭션: ${txIds.length}건`);
     console.log(`   고유 키: ${uniqueKeys.length}개`);
-    console.log(`   ${includeHistory ? '전체 히스토리' : '최신 상태'}: ${totalResults}건`);
+    console.log(`   최신 상태: ${totalResults}건`);
     console.log(`   ${minSpeed}km/h 이상: ${speedingData.length}건`);
     
     // GeoJSON 형식으로 변환
@@ -1526,8 +1472,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     res.json({
       success: true,
       network: network,
-      method: includeHistory ? 'index-history' : 'index-latest',
-      includeHistory: includeHistory,
+      method: 'index-latest',
       minSpeed: minSpeed,
       indexQueryTime: `${indexQueryTime}ms`,
       blockchainQueryTime: `${totalQueryTime - indexQueryTime}ms`,
