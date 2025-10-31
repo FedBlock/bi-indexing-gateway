@@ -1766,7 +1766,7 @@ app.get('/api/blockchain/stats', async (req, res) => {
     });
     
     const contractABI = [
-      'function getKeyLists() view returns (string[])'
+      'function getTotalRecordCount() view returns (uint256)'
     ];
     
     // 최신 배포 주소 로드
@@ -1783,9 +1783,10 @@ app.get('/api/blockchain/stats', async (req, res) => {
     
     const contract = new ethers.Contract(contractAddress, contractABI, provider);
     
-    // 전체 키 개수 조회
-    const allKeys = await contract.getKeyLists();
-    const totalRecords = allKeys.length;
+    // 전체 레코드 개수 조회 (빠른 조회 - 개수만)
+    console.log('⏳ getTotalRecordCount() 호출 중...');
+    const totalRecordsRaw = await contract.getTotalRecordCount();
+    const totalRecords = Number(totalRecordsRaw);
     
     console.log(`✅ 통계 조회 완료: ${totalRecords}건`);
     
