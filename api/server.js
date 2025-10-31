@@ -18,13 +18,9 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // Middleware
+// CORS 설정 - 모든 origin 허용 (개발/프로덕션 모두)
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173',
-    'https://grnd.bimatrix.co.kr'
-  ],
+  origin: true,  // 모든 origin 허용
   credentials: true
 }));
 app.use(express.json());
