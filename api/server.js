@@ -1,3 +1,9 @@
+/**
+ * 인덱스 id 숫자만 포함 -> inferNetworkFromIndexId 현재 동작 x
+ * 
+ */
+
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -1069,6 +1075,7 @@ app.get('/api/pvd/speeding', async (req, res) => {
     // PvdRecord 컨트랙트 ABI (최신 상태 조회만)
     const contractABI = [
       'function getKeyLists() view returns (string[])',
+      'function getTotalRecordCount() view returns (uint256)',
       'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
     ];
     
@@ -1089,17 +1096,100 @@ app.get('/api/pvd/speeding', async (req, res) => {
     
     let speedingData = [];
     let uniqueKeyCount = 0;
+    let contractError = null;
     
     try {
-      // 1. 모든 키 목록 가져오기
-      const allKeys = await contract.getKeyLists();
-      console.log(`📋 총 ${allKeys.length}개의 키 발견`);
-      uniqueKeyCount = allKeys.length;
+      // 1. 전체 레코드 개수 확인 (키 목록 대신)
+      let totalRecords = 0;
+      try {
+        console.log('⏳ 전체 레코드 개수 확인 중...');
+        const totalRecordsRaw = await Promise.race([
+          contract.getTotalRecordCount(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('getTotalRecordCount timeout')), 10000))
+        ]);
+        totalRecords = Number(totalRecordsRaw);
+        uniqueKeyCount = totalRecords;
+        console.log(`📊 총 ${totalRecords}개의 레코드 확인`);
+      } catch (countError) {
+        console.warn(`⚠️  getTotalRecordCount() 실패: ${countError.message}`);
+      }
       
-      // 최신 상태 모드: 각 키의 최신 값만
-      console.log('📜 블록체인에서 최신 상태 데이터 조회 중...');
+      // 2. 모든 키 목록 가져오기 (타임아웃 설정 - 5분)
+      let allKeys = [];
+      try {
+        console.log('⏳ 키 목록 조회 중... (타임아웃: 5분 - 대용량 데이터 처리 중)');
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('getKeyLists timeout after 5 minutes')), 300000) // 5분 = 300초
+        );
+        
+        allKeys = await Promise.race([
+          contract.getKeyLists(),
+          timeoutPromise
+        ]);
+        
+        console.log(`📋 총 ${allKeys.length}개의 키 발견`);
+        uniqueKeyCount = allKeys.length;
+        
+      } catch (keysError) {
+        console.error(`❌ getKeyLists() 실패:`, keysError);
+        contractError = keysError;
+        
+        // getKeyLists()가 실패했을 때 - 명확한 에러 반환
+        const queryTime = Date.now() - startTime;
+        
+        if (totalRecords > 0) {
+          // 개수는 알고 있지만 키 목록을 가져올 수 없음
+          console.error(`⚠️  블록체인 직접 조회 불가능: 전체 ${totalRecords}건의 데이터가 있어 키 목록 조회에 실패했습니다.`);
+          
+          return res.status(500).json({
+            success: false,
+            error: `블록체인 직접 조회 실패: 키 목록을 가져올 수 없습니다 (전체 ${totalRecords}건)`,
+            errorDetails: keysError.message,
+            network: network,
+            contractAddress: contractAddress,
+            totalRecords: totalRecords,
+            queryTime: `${queryTime}ms`,
+            data: { type: 'FeatureCollection', features: [] },
+            timestamp: new Date().toISOString(),
+            suggestion: `데이터가 너무 많아 블록체인 직접 조회가 불가능합니다. '인덱스 조회' 방식을 사용해주세요. (인덱스 조회는 성공적으로 작동합니다)`,
+            recommendation: '인덱스 조회 방식 사용'
+          });
+        } else {
+          return res.status(500).json({
+            success: false,
+            error: `키 목록 조회 실패: ${keysError.message}`,
+            errorDetails: keysError.message,
+            network: network,
+            contractAddress: contractAddress,
+            queryTime: `${queryTime}ms`,
+            data: { type: 'FeatureCollection', features: [] },
+            timestamp: new Date().toISOString(),
+            suggestion: '인덱스 조회 방식을 사용해주세요.'
+          });
+        }
+      }
+      
+      if (allKeys.length === 0) {
+        console.warn('⚠️  키 목록이 비어있습니다.');
+        const queryTime = Date.now() - startTime;
+        return res.json({
+          success: true,
+          network: network,
+          method: 'blockchain-latest',
+          totalCount: 0,
+          uniqueKeyCount: 0,
+          queryTime: `${queryTime}ms`,
+          data: { type: 'FeatureCollection', features: [] },
+          timestamp: new Date().toISOString(),
+          warning: '키 목록이 비어있습니다'
+        });
+      }
+      
+      // 3. 최신 상태 모드: 각 키의 최신 값만 조회
+      console.log(`📜 블록체인에서 최신 상태 데이터 조회 중... (${allKeys.length}개 키)`);
       
       const BATCH_SIZE = 50;
+      let processedCount = 0;
       
       for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
         const batchKeys = allKeys.slice(i, Math.min(i + BATCH_SIZE, allKeys.length));
@@ -1109,7 +1199,7 @@ app.get('/api/pvd/speeding', async (req, res) => {
             const pvd = await contract.readPvd(key);
             return pvd || null;
           } catch (error) {
-            console.warn(`⚠️  키 ${key} 조회 실패`);
+            // 개별 키 조회 실패는 조용히 무시
             return null;
           }
         });
@@ -1118,6 +1208,13 @@ app.get('/api/pvd/speeding', async (req, res) => {
         const validData = batchResults.filter(d => d !== null);
         speedingData.push(...validData.filter(pvd => Number(pvd.speed) >= speedThreshold));
         
+        processedCount += batchKeys.length;
+        
+        // 진행률 로그 (1000개마다)
+        if (processedCount % 1000 === 0 || processedCount === allKeys.length) {
+          console.log(`   진행률: ${processedCount}/${allKeys.length} (${((processedCount/allKeys.length)*100).toFixed(1)}%) | ${speedThreshold}km/h 이상: ${speedingData.length}건`);
+        }
+        
         if (i + BATCH_SIZE < allKeys.length) {
           await new Promise(resolve => setTimeout(resolve, 50));
         }
@@ -1125,35 +1222,64 @@ app.get('/api/pvd/speeding', async (req, res) => {
       
       console.log(`✅ 총 ${uniqueKeyCount}개 키의 최신 상태 중 ${speedThreshold}km/h 이상 데이터 ${speedingData.length}건 발견`);
       
-    } catch (contractError) {
-      console.error('⚠️  컨트랙트 조회 실패:', contractError.message);
-      speedingData = [];
+    } catch (error) {
+      console.error('❌ 컨트랙트 조회 실패:', error.message);
+      contractError = error;
+      
+      const queryTime = Date.now() - startTime;
+      return res.status(500).json({
+        success: false,
+        error: error.message,
+        network: network,
+        contractAddress: contractAddress,
+        totalCount: 0,
+        uniqueKeyCount: uniqueKeyCount,
+        queryTime: `${queryTime}ms`,
+        data: { type: 'FeatureCollection', features: [] },
+        timestamp: new Date().toISOString(),
+        suggestion: '인덱스 조회 방식을 사용하거나 데이터를 페이지네이션으로 조회해주세요.'
+      });
     }
     
     const queryTime = Date.now() - startTime;
-    console.log(`✅ 블록체인 조회 완료 (${queryTime}ms)`);
     
-    // GeoJSON 형식으로 변환
+    if (contractError) {
+      console.error(`❌ 블록체인 조회 중 에러 발생 (${queryTime}ms): ${contractError.message}`);
+    } else {
+      console.log(`✅ 블록체인 조회 완료 (${queryTime}ms)`);
+    }
+    
+    // GeoJSON 형식으로 변환 (안전한 변환)
     const geoJSON = {
       type: 'FeatureCollection',
-      features: speedingData.map(pvd => ({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [
-            parseFloat(pvd.startvectorLongitude),
-            parseFloat(pvd.startvectorLatitude)
-          ]
-        },
-        properties: {
-          obuId: pvd.obuId,
-          speed: Number(pvd.speed),
-          collectionDt: pvd.collectionDt,
-          timestamp: Number(pvd.timestamp),
-          blockNumber: Number(pvd.blockNumber),
-          heading: Number(pvd.startvectorHeading)
-        }
-      }))
+      features: speedingData
+        .filter(pvd => pvd && pvd.startvectorLongitude && pvd.startvectorLatitude)
+        .map(pvd => {
+          try {
+            return {
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [
+                  parseFloat(pvd.startvectorLongitude) || 0,
+                  parseFloat(pvd.startvectorLatitude) || 0
+                ]
+              },
+              properties: {
+                obuId: pvd.obuId || '',
+                speed: Number(pvd.speed) || 0,
+                collectionDt: pvd.collectionDt || '',
+                timestamp: Number(pvd.timestamp) || 0,
+                blockNumber: Number(pvd.blockNumber) || 0,
+                heading: Number(pvd.startvectorHeading) || 0
+              }
+            };
+          } catch (geoError) {
+            console.warn(`⚠️  GeoJSON 변환 실패:`, geoError.message);
+            return null;
+          }
+        })
+        .filter(feature => feature !== null)
     };
     
     res.json({
@@ -1164,7 +1290,8 @@ app.get('/api/pvd/speeding', async (req, res) => {
       uniqueKeyCount: uniqueKeyCount,
       queryTime: `${queryTime}ms`,
       data: geoJSON,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ...(contractError ? { warning: `일부 에러 발생: ${contractError.message}` } : {})
     });
     
   } catch (error) {
@@ -1761,8 +1888,11 @@ app.get('/api/blockchain/stats', async (req, res) => {
       staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
     });
     
+    // 컨트랙트 ABI (모든 가능한 함수 포함)
     const contractABI = [
-      'function getTotalRecordCount() view returns (uint256)'
+      'function getTotalRecordCount() view returns (uint256)',
+      'function getKeyLists() view returns (string[])',
+      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
     ];
     
     // 최신 배포 주소 로드
@@ -1772,6 +1902,7 @@ app.get('/api/blockchain/stats', async (req, res) => {
       if (fs.existsSync(deploymentPath)) {
         const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
         contractAddress = deployment.contractAddress;
+        console.log(`📍 최신 컨트랙트 주소 로드: ${contractAddress}`);
       }
     } catch (err) {
       console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
@@ -1779,18 +1910,77 @@ app.get('/api/blockchain/stats', async (req, res) => {
     
     const contract = new ethers.Contract(contractAddress, contractABI, provider);
     
-    // 전체 레코드 개수 조회 (빠른 조회 - 개수만)
-    console.log('⏳ getTotalRecordCount() 호출 중...');
-    const totalRecordsRaw = await contract.getTotalRecordCount();
-    const totalRecords = Number(totalRecordsRaw);
+    let totalRecords = 0;
+    let errorDetails = null;
+    let methodUsed = null;
     
-    console.log(`✅ 통계 조회 완료: ${totalRecords}건`);
+    // 방법 1: getTotalRecordCount() 시도 (가장 빠름)
+    try {
+      console.log('⏳ getTotalRecordCount() 호출 중...');
+      // 타임아웃 설정 (10초)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout after 10 seconds')), 10000)
+      );
+      
+      const totalRecordsRaw = await Promise.race([
+        contract.getTotalRecordCount(),
+        timeoutPromise
+      ]);
+      
+      totalRecords = Number(totalRecordsRaw);
+      methodUsed = 'getTotalRecordCount';
+      console.log(`✅ getTotalRecordCount() 성공: ${totalRecords}건`);
+    } catch (error1) {
+      console.warn(`⚠️  getTotalRecordCount() 실패: ${error1.message}`);
+      errorDetails = `getTotalRecordCount: ${error1.message}`;
+      
+      // 방법 2: getKeyLists() 시도 (배열 길이로 계산)
+      try {
+        console.log('⏳ getKeyLists() 호출 중... (대체 방법)');
+        // 타임아웃 설정 (30초 - 배열이 클 수 있으므로 더 긴 시간)
+        const timeoutPromise2 = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30000)
+        );
+        
+        const keys = await Promise.race([
+          contract.getKeyLists(),
+          timeoutPromise2
+        ]);
+        
+        totalRecords = keys.length;
+        methodUsed = 'getKeyLists';
+        console.log(`✅ getKeyLists() 성공: ${totalRecords}건`);
+      } catch (error2) {
+        console.error(`❌ getKeyLists()도 실패: ${error2.message}`);
+        errorDetails = `${errorDetails}, getKeyLists: ${error2.message}`;
+        
+        // 방법 3: 컨트랙트 코드 확인으로 최소한의 검증
+        try {
+          const code = await provider.getCode(contractAddress);
+          if (code === '0x' || code === '0x0') {
+            throw new Error(`컨트랙트가 해당 주소에 배포되지 않았습니다: ${contractAddress}`);
+          }
+          console.warn(`⚠️  컨트랙트는 배포되어 있지만 함수 호출에 실패했습니다`);
+          // 컨트랙트는 존재하지만 함수 호출 실패 - 0 반환
+          totalRecords = 0;
+          methodUsed = 'contract_exists_but_call_failed';
+        } catch (error3) {
+          console.error(`❌ 컨트랙트 검증도 실패: ${error3.message}`);
+          // 모든 방법 실패 - 에러 반환
+          throw new Error(`모든 조회 방법 실패. ${errorDetails}`);
+        }
+      }
+    }
+    
+    console.log(`✅ 통계 조회 완료: ${totalRecords}건 (방법: ${methodUsed || 'unknown'})`);
     
     res.json({
       success: true,
       network: network,
       contractAddress: contractAddress,
       totalRecords: totalRecords,
+      methodUsed: methodUsed,
+      errorDetails: errorDetails || null,
       timestamp: new Date().toISOString()
     });
     
