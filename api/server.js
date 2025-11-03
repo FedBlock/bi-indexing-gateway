@@ -49,7 +49,7 @@ app.use((req, res, next) => {
 
 // 게이트웨이 인스턴스 (재사용)
 let gateway = null;
-
+//인덱스 스키마 이름을 파일명으로 안전하게 변환하는 유틸리티 함수
 const slugify = (value, fallback = 'index') => {
   if (!value) {
     return fallback;
@@ -275,16 +275,16 @@ app.get('/api/index/list', async (req, res) => {
     if (forceRefresh === 'true') {
       console.log('🔄 강제 새로고침: config.yaml 직접 읽기');
       const metadataItems = loadIndexConfigMetadata();
-      const rawIndexes = metadataItems.map((meta, idx) => ({
-        IndexID: meta.idxid || meta.indexid || `index_${idx}`,
-        IndexName: meta.idxname || meta.idxid || meta.indexid,
-        IndexingKey: meta.indexingkey || meta.idxname,
-        KeyCol: meta.keycol || 'IndexableData',
-        FilePath: meta.filepath || '',
-        Network: meta.filepath ? meta.filepath.split('/')[1] : 'unknown',
-        FromBlock: meta.fromblock || 0,
-        CurrentBlock: meta.blocknum || 0
-      }));
+      // const rawIndexes = metadataItems.map((meta, idx) => ({
+      //   IndexID: meta.idxid || meta.indexid || `index_${idx}`,
+      //   IndexName: meta.idxname || meta.idxid || meta.indexid,
+      //   IndexingKey: meta.indexingkey || meta.idxname,
+      //   KeyCol: meta.keycol || 'IndexableData',
+      //   FilePath: meta.filepath || '',
+      //   Network: meta.filepath ? meta.filepath.split('/')[1] : 'unknown',
+      //   FromBlock: meta.fromblock || 0,
+      //   CurrentBlock: meta.blocknum || 0
+      // }));
       
       // searchableValues 메타데이터 읽기
       const idxmngrRoot = resolveIdxmngrRoot();
