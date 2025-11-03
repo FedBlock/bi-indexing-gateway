@@ -783,7 +783,7 @@ app.post('/api/index/insert', async (req, res) => {
       network,
       schema,
       keySize,
-      contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+      contractAddress = '0xe452ae89b6c187f8deee162153f946f07af7aa82',
       indexingKey // Optional - can be extracted from data if not provided
     } = req.body;
     
