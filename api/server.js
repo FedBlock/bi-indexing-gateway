@@ -823,6 +823,7 @@ app.post('/api/index/insert', async (req, res) => {
     // Extract key dynamically from data or use provided indexingKey
     const dynamicKey = indexingKey || data.purpose || data.type || data.category || Object.keys(data)[0] || 'default';
     
+    console.log(`📝 인덱싱 요청: IndexID=${resolvedIndexId}, TxId=${txId}, Key=${dynamicKey}`);
     console.log(`Inserting data: ${resolvedIndexId}, dynamic key: ${dynamicKey}, data:`, data);
 
     // Create proper DynamicFields object - 모든 값을 문자열로 변환
@@ -1061,22 +1062,31 @@ app.get('/api/pvd/speeding', async (req, res) => {
     const startTime = Date.now();
     const speedThreshold = Number(minSpeed);
     
-    console.log(`\n🗺️  과속 데이터 조회 시작 - Network: ${network}, MinSpeed: ${speedThreshold}km/h (최신 상태만)`);
+    console.log(`\n과속 데이터 조회 시작 - Network: ${network}, MinSpeed: ${speedThreshold}km/h (최신 상태만)`);
     
     // 블록체인에서 직접 조회
     const rpcUrl = network === 'kaia' ? 
       'https://public-en-kairos.node.kaia.io' : 
       'http://127.0.0.1:8545';
     
-    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
-      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
+    // RPC 타임아웃 설정 증가 (대량 데이터 조회를 위해)
+    const fetchRequest = new ethers.FetchRequest(rpcUrl);
+    fetchRequest.timeout = 600000; // 10분 타임아웃
+    fetchRequest.retryFunc = () => false; // 재시도 비활성화
+    
+    const provider = new ethers.JsonRpcProvider(fetchRequest, undefined, {
+      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined,
+      batchMaxCount: 1, // 배치 요청 비활성화
+      polling: false
     });
     
-    // PvdRecord 컨트랙트 ABI (최신 상태 조회만)
+    // PvdRecord 컨트랙트 ABI (이벤트 포함)
     const contractABI = [
       'function getKeyLists() view returns (string[])',
       'function getTotalRecordCount() view returns (uint256)',
-      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
+      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))',
+      'event PvdCreated(string indexed obuId, string txId)',
+      'event PvdUpdated(string indexed obuId, string txId)'
     ];
     
     // 최신 배포 주소 자동 로드
@@ -1086,7 +1096,7 @@ app.get('/api/pvd/speeding', async (req, res) => {
       if (fs.existsSync(deploymentPath)) {
         const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
         contractAddress = deployment.contractAddress;
-        console.log(`📍 최신 컨트랙트 주소 로드: ${contractAddress}`);
+        console.log(`최신 컨트랙트 주소 로드: ${contractAddress}`);
       }
     } catch (err) {
       console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
@@ -1102,71 +1112,34 @@ app.get('/api/pvd/speeding', async (req, res) => {
       // 1. 전체 레코드 개수 확인 (키 목록 대신)
       let totalRecords = 0;
       try {
-        console.log('⏳ 전체 레코드 개수 확인 중...');
+        console.log('전체 레코드 개수 확인 중...');
         const totalRecordsRaw = await Promise.race([
           contract.getTotalRecordCount(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('getTotalRecordCount timeout')), 10000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('getTotalRecordCount timeout')), 30000)) // 30초
         ]);
         totalRecords = Number(totalRecordsRaw);
         uniqueKeyCount = totalRecords;
-        console.log(`📊 총 ${totalRecords}개의 레코드 확인`);
+        console.log(`✅ 총 ${totalRecords}개의 레코드 확인`);
       } catch (countError) {
         console.warn(`⚠️  getTotalRecordCount() 실패: ${countError.message}`);
       }
       
-      // 2. 모든 키 목록 가져오기 (타임아웃 설정 - 5분)
+      // 2. 모든 키 목록 가져오기
       let allKeys = [];
       try {
-        console.log('⏳ 키 목록 조회 중... (타임아웃: 5분 - 대용량 데이터 처리 중)');
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('getKeyLists timeout after 5 minutes')), 300000) // 5분 = 300초
-        );
+        console.log('키 목록 조회 중...');
+        allKeys = await contract.getKeyLists();
         
-        allKeys = await Promise.race([
-          contract.getKeyLists(),
-          timeoutPromise
-        ]);
-        
-        console.log(`📋 총 ${allKeys.length}개의 키 발견`);
+        console.log(`✅ 키 목록 조회 성공: ${allKeys.length}개의 키 발견`);
         uniqueKeyCount = allKeys.length;
         
       } catch (keysError) {
-        console.error(`❌ getKeyLists() 실패:`, keysError);
-        contractError = keysError;
+        console.error(`❌ getKeyLists() 실패:`, keysError.message);
+        console.log('⚠️  데이터가 많아 직접 조회 실패, 빈 결과 반환');
         
-        // getKeyLists()가 실패했을 때 - 명확한 에러 반환
-        const queryTime = Date.now() - startTime;
-        
-        if (totalRecords > 0) {
-          // 개수는 알고 있지만 키 목록을 가져올 수 없음
-          console.error(`⚠️  블록체인 직접 조회 불가능: 전체 ${totalRecords}건의 데이터가 있어 키 목록 조회에 실패했습니다.`);
-          
-          return res.status(500).json({
-            success: false,
-            error: `블록체인 직접 조회 실패: 키 목록을 가져올 수 없습니다 (전체 ${totalRecords}건)`,
-            errorDetails: keysError.message,
-            network: network,
-            contractAddress: contractAddress,
-            totalRecords: totalRecords,
-            queryTime: `${queryTime}ms`,
-            data: { type: 'FeatureCollection', features: [] },
-            timestamp: new Date().toISOString(),
-            suggestion: `데이터가 너무 많아 블록체인 직접 조회가 불가능합니다. '인덱스 조회' 방식을 사용해주세요. (인덱스 조회는 성공적으로 작동합니다)`,
-            recommendation: '인덱스 조회 방식 사용'
-          });
-        } else {
-          return res.status(500).json({
-            success: false,
-            error: `키 목록 조회 실패: ${keysError.message}`,
-            errorDetails: keysError.message,
-            network: network,
-            contractAddress: contractAddress,
-            queryTime: `${queryTime}ms`,
-            data: { type: 'FeatureCollection', features: [] },
-            timestamp: new Date().toISOString(),
-            suggestion: '인덱스 조회 방식을 사용해주세요.'
-          });
-        }
+        // 타임아웃 실패 시 빈 배열로 계속 (에러 반환 안함)
+        allKeys = [];
+        uniqueKeyCount = 0;
       }
       
       if (allKeys.length === 0) {
@@ -1186,7 +1159,7 @@ app.get('/api/pvd/speeding', async (req, res) => {
       }
       
       // 3. 최신 상태 모드: 각 키의 최신 값만 조회
-      console.log(`📜 블록체인에서 최신 상태 데이터 조회 중... (${allKeys.length}개 키)`);
+      console.log(`블록체인에서 데이터 조회 중... (${allKeys.length}개 키)`);
       
       const BATCH_SIZE = 50;
       let processedCount = 0;
@@ -1442,14 +1415,13 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     await indexingClient.close();
     
     // 인덱스 결과 구조 확인
-    console.log('🔍 인덱스 결과 구조:', Object.keys(indexResult));
-    console.log('🔍 IdxData 첫 번째:', indexResult.IdxData?.[0]);
-    console.log('🔍 Key 필드:', indexResult.Key);
-    if (Array.isArray(indexResult.Key)) {
-      console.log('🔍 Key 배열 길이:', indexResult.Key.length);
-      console.log('🔍 Key 첫 3개:', indexResult.Key.slice(0, 3));
-    }
-    console.log('🔍 idxInfo:', indexResult.idxInfo);
+    // console.log('🔍 인덱스 결과 구조:', Object.keys(indexResult));
+    // console.log('🔍 IdxData 첫 번째:', indexResult.IdxData?.[0]);
+    // console.log('🔍 Key 필드:', indexResult.Key);
+    // if (Array.isArray(indexResult.Key)) {
+    //   console.log('🔍 Key 배열 길이:', indexResult.Key.length);
+    //   console.log('🔍 Key 첫 3개:', indexResult.Key.slice(0, 3));
+    // }
     
     const txIds = indexResult.IdxData || [];
     const indexQueryTime = Date.now() - startTime;
@@ -1460,7 +1432,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
       'https://public-en-kairos.node.kaia.io' : 
       'http://127.0.0.1:8545';
     
-    console.log(`🔗 블록체인 RPC 연결: ${rpcUrl}`);
+    console.log(`블록체인 RPC 연결: ${rpcUrl}`);
     const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
       staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
     });
@@ -1517,7 +1489,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     
     // Step 2: 키 중복 제거
     const uniqueKeys = [...new Set(extractedKeys)];
-    console.log(`   추출된 키: ${extractedKeys.length}개 (고유 키: ${uniqueKeys.length}개, 중복: ${extractedKeys.length - uniqueKeys.length}개)`);
+    // console.log(`   추출된 키: ${extractedKeys.length}개 (고유 키: ${uniqueKeys.length}개, 중복: ${extractedKeys.length - uniqueKeys.length}개)`);
     
     // Step 3: 고유 키로 블록체인 조회 (최신 상태만)
     console.log(`📋 ${uniqueKeys.length}개 고유 키로 블록체인 조회 중... (최신 상태)`);
@@ -1562,11 +1534,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     
     const blockchainQueryTime = Date.now() - blockchainStartTime;
     const totalQueryTime = Date.now() - startTime;
-    console.log(`✅ 블록체인 조회 및 필터링 완료 (${blockchainQueryTime}ms)`);
-    console.log(`   인덱스 트랜잭션: ${txIds.length}건`);
-    console.log(`   고유 키: ${uniqueKeys.length}개`);
-    console.log(`   최신 상태: ${totalResults}건`);
-    console.log(`   ${minSpeed}km/h 이상: ${speedingData.length}건`);
+    console.log(`✅ 블록체인 조회 완료: ${totalResults}건 → ${minSpeed}km/h 이상 필터링 → ${speedingData.length}건 (${blockchainQueryTime}ms)`);
     
     // GeoJSON 형식으로 변환
     const geoJSON = {
@@ -1997,19 +1965,19 @@ app.get('/api/blockchain/stats', async (req, res) => {
 // 서버 시작
 app.listen(port, () => {
   const timestamp = new Date().toISOString();
-  console.log(`\n🚀 BI-Indexing API Server running on http://localhost:${port}`);
-  console.log(`⏰ Started at: ${timestamp}`);
-  console.log(`📊 Health check: http://localhost:${port}/health`);
-  console.log(`📚 API Endpoints:`);
-  console.log(`   POST /api/search/integrated - 통합 검색`);
-  console.log(`   POST /api/search/direct - 블록체인 직접 검색`);
-  console.log(`   POST /api/search/contract - 컨트랙트 필터링 검색`);
-  console.log(`   GET  /api/requests/all - 전체 요청 조회`);
-  console.log(`   GET  /api/requests/count - 총 요청 개수`);
-  console.log(`   POST /api/requests/range - 범위별 요청 조회`);
-  console.log(`   POST /api/index/search - 인덱스 검색`);
-  console.log(`   GET  /api/performance - 성능 통계`);
-  console.log(`\n📡 서버가 요청을 대기 중입니다...`);
+  console.log(`\nBI-Indexing API Server running on http://localhost:${port}`);
+  // console.log(`Started at: ${timestamp}`);
+  // console.log(`Health check: http://localhost:${port}/health`);
+  // console.log(` API Endpoints:`);
+  // console.log(`   POST /api/search/integrated - 통합 검색`);
+  // console.log(`   POST /api/search/direct - 블록체인 직접 검색`);
+  // console.log(`   POST /api/search/contract - 컨트랙트 필터링 검색`);
+  // console.log(`   GET  /api/requests/all - 전체 요청 조회`);
+  // console.log(`   GET  /api/requests/count - 총 요청 개수`);
+  // console.log(`   POST /api/requests/range - 범위별 요청 조회`);
+  // console.log(`   POST /api/index/search - 인덱스 검색`);
+  // console.log(`   GET  /api/performance - 성능 통계`);
+  console.log(`\n서버가 요청을 대기 중입니다...`);
 });
 
 // Graceful shutdown
