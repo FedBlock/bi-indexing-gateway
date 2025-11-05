@@ -1,0 +1,105 @@
+items:
+    - idxid: "004"
+      idxname: emissionItem
+      indexingkey: purpose
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/emissionitem.bf
+      network: kaia
+      blocknum: 0
+      fromblock: 200795534
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: "005"
+      idxname: process
+      indexingkey: purpose
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/process.bf
+      network: kaia
+      blocknum: 0
+      fromblock: 200785522
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: "006"
+      idxname: facility
+      indexingkey: purpose
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/facility.bf
+      network: kaia
+      blocknum: 0
+      fromblock: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: "007"
+      idxname: energySource
+      indexingkey: purpose
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/energysource.bf
+      network: kaia
+      blocknum: 0
+      fromblock: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: "008"
+      idxname: powerConsumption
+      indexingkey: purpose
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/powerconsumption.bf
+      network: kaia
+      blocknum: 0
+      fromblock: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: "009"
+      idxname: utilityUse
+      indexingkey: purpose
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/utilityuse.bf
+      network: kaia
+      blocknum: 0
+      fromblock: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: "010"
+      idxname: wasteType
+      indexingkey: purpose
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/wastetype.bf
+      network: kaia
+      blocknum: 0
+      fromblock: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0
+    - idxid: "011"
+      idxname: emissionFactor
+      indexingkey: purpose
+      keycol: IndexableData
+      filepath: /home/blockchain/fedblock/bi-index/idxmngr-go/data/kaia/emissionfactor.bf
+      network: kaia
+      blocknum: 0
+      fromblock: 0
+      keysize: 64
+      address: localhost:50052
+      callcnt: 0
+      keycnt: 0
+      indexdatacnt: 0

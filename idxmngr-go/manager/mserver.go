@@ -250,7 +250,7 @@ func (p *ConnectionPool) GetConnection(indexID string) (*grpc.ClientConn, idxser
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	log.Println("Check index with ID", indexID)
+	// log.Println("Check index with ID", indexID)
 
 	serverAddr, err := getServerAddress(indexID)
 	if err != nil {
@@ -265,13 +265,13 @@ func (p *ConnectionPool) GetConnection(indexID string) (*grpc.ClientConn, idxser
 		}
 	*/
 
-	log.Printf("Connecting to: %s", serverAddr)
+	// log.Printf("Connecting to: %s", serverAddr)
 
 	if conn, exists := p.clients[serverAddr]; exists {
 		if conn.GetState() == connectivity.Ready {
 			return conn, idxserverapi.NewHLFDataIndexClient(conn), nil
 		} else {
-			log.Println("Connection not ready. Reconnecting...")
+			// log.Println("Connection not ready. Reconnecting...")
 			conn.Close()
 			delete(p.clients, serverAddr)
 		}
@@ -285,7 +285,7 @@ func (p *ConnectionPool) GetConnection(indexID string) (*grpc.ClientConn, idxser
 		return nil, nil, fmt.Errorf("failed to connect to server %s: %v", serverAddr, err)
 	}
 	p.clients[serverAddr] = conn
-	log.Printf("Connected to: %s", serverAddr)
+	// log.Printf("Connected to: %s", serverAddr)
 	return conn, idxserverapi.NewHLFDataIndexClient(conn), nil
 
 	// if conn, exists := p.clients[serverAddr]; exists {
@@ -1099,21 +1099,21 @@ func convertIndexableDataMToIdxserverApi(data *mngr.IndexableDataM) *idxserverap
 
 func (m *MServer) GetindexDataByFieldM(c context.Context, req *mngr.SearchRequestM) (*mngr.RstTxListM, error) {
 	log.SetPrefix("[" + funcName() + "] ")
-	log.Printf("queryDatasByField =  %s", req.String())
+	// log.Printf("queryDatasByField =  %s", req.String())
 
 	_, client, err := m.ConnectionPool.GetConnection(req.IndexID)
 	if err != nil {
 		log.Println("Invalid index ID")
 		return nil, fmt.Errorf("invalid index ID: %s", req.IndexID)
 	}
-	if client != nil {
-		log.Println("connection success")
-	}
+	// if client != nil {
+	// 	log.Println("connection success")
+	// }
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
 
-	log.Println(req)
+	// log.Println(req)
 
 	request, err := m.buildSearchRequest(req)
 	if err != nil {
@@ -1121,7 +1121,7 @@ func (m *MServer) GetindexDataByFieldM(c context.Context, req *mngr.SearchReques
 		return nil, status.Errorf(codes.InvalidArgument, "Failed to build request: %v", err)
 	}
 
-	log.Println(request)
+	// log.Println(request)
 
 	Data, err := client.GetindexDataByField(ctx, request)
 	if err != nil {
@@ -1134,10 +1134,19 @@ func (m *MServer) GetindexDataByFieldM(c context.Context, req *mngr.SearchReques
 		Key:     Data.Key,
 		IdxData: Data.IdxData,
 	}
-	for _, txid := range Data.GetIdxData() {
-		log.Println(txid)
+	
+	// 검색 조건에 따라 로그 메시지 생성
+	searchInfo := req.GetValue()
+	if searchInfo == "" {
+		// Range 검색인 경우
+		if req.GetBegin() != "" || req.GetEnd() != "" {
+			searchInfo = fmt.Sprintf("범위: %s ~ %s", req.GetBegin(), req.GetEnd())
+		} else {
+			searchInfo = req.GetIndexName()
+		}
 	}
-	log.Printf("Count = %d", len(Data.GetIdxData()))
+	
+	log.Printf("📊 [%s] %d개", searchInfo, len(Data.GetIdxData()))
 
 	return rstData, nil
 }
@@ -1145,7 +1154,7 @@ func (m *MServer) GetindexDataByFieldM(c context.Context, req *mngr.SearchReques
 func (m *MServer) buildSearchRequest(req *mngr.SearchRequestM) (*idxserverapi.SearchRequest, error) {
 	log.SetPrefix("[" + funcName() + "] ")
 
-	log.Printf("request: %v", req)
+	// log.Printf("request: %v", req)
 
 	comOp := idxserverapi.ComparisonOps(req.GetComOp())
 	if comOp != idxserverapi.ComparisonOps_Eq && comOp != idxserverapi.ComparisonOps_Range &&
@@ -1158,7 +1167,7 @@ func (m *MServer) buildSearchRequest(req *mngr.SearchRequestM) (*idxserverapi.Se
 		return nil, fmt.Errorf("IndexName is required")
 	}
 	
-	log.Printf("🔍 Searching for index with IndexName: %s", req.IndexName)
+	// log.Printf("🔍 Searching for index with IndexName: %s", req.IndexName)
 	
 	// config.yaml에서 IndexName으로 검색 (idxname 필드로 매칭)
 	var indexInfo IndexInfo
@@ -1168,7 +1177,7 @@ func (m *MServer) buildSearchRequest(req *mngr.SearchRequestM) (*idxserverapi.Se
 		if info.IdxName == req.IndexName {
 			indexInfo = info
 			exists = true
-			log.Printf("✅ Found index by IndexName: %s", req.IndexName)
+			// log.Printf("✅ Found index by IndexName: %s", req.IndexName)
 			break
 		}
 	}
@@ -1192,7 +1201,7 @@ func (m *MServer) buildSearchRequest(req *mngr.SearchRequestM) (*idxserverapi.Se
 		End:       req.End,           // 범위 검색 끝 값 추가
 		KeySize:   indexInfo.KeySize, // config.yaml에서 읽은 KeySize
 	}
-	log.Printf("Built request: %v", request)
+	// log.Printf("Built request: %v", request)
 
 	return request, nil
 }

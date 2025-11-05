@@ -1048,7 +1048,8 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 					// 값이 비어있지 않은 경우만 추가
 					if len(value1) > 0 {
 						txlist = append(txlist, string(value1))
-						log.Printf("✅ Added tx %d: %s", len(txlist), string(value1))
+						// 각 트랜잭션 로그 제거 - 최종 결과만 출력
+						// log.Printf("✅ Added tx %d: %s", len(txlist), string(value1))
 					} else {
 						log.Printf("⚠️ Empty value at chain %d", chainCount)
 					}
@@ -1077,7 +1078,8 @@ func (h IndexServer) GetindexDataByField(ctx context.Context, req *fsindex.Searc
 					// 값이 비어있지 않은 경우만 추가
 					if len(value1) > 0 {
 						txlist = append(txlist, string(value1))
-						log.Printf("Added tx: %s", string(value1))
+						// 각 트랜잭션 로그 제거 - 최종 결과만 출력
+						// log.Printf("Added tx: %s", string(value1))
 					} else {
 						// log.Printf("⚠️ Skipped empty value")
 					}

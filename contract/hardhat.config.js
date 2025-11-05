@@ -20,6 +20,22 @@ module.exports = {
     monadTest: "0x693570F190EbFaAf2E314D353849751b4f237357", // Monad 테스트넷
   },
   
+  etherscan: {
+    apiKey: {
+      kairos: "unnecessary"
+    },
+    customChains: [
+      {
+        network: "kairos",
+        chainId: 1001,
+        urls: {
+          apiURL: "https://kairos-api.kaiascan.io/hardhat-verify",
+          browserURL: "https://kairos.kaiascan.io"
+        }
+      }
+    ]
+  },
+  
   networks: {
     hardhat: {
       chainId: 31337,
@@ -43,8 +59,13 @@ module.exports = {
         "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", // account 1
       ]
     },
-    kaia: {
+    kairos: {
       url: "https://public-en-kairos.node.kaia.io",  // KAIA TEST RPC
+      chainId: 1001,  // KAIA TEST 체인 ID
+      accounts: ["d67ceaf47fbb661f7746872e539db56b2d4c9e402e52df4a4c88de22e9904ea8"]
+    },
+    kaia: {
+      url: "https://public-en-kairos.node.kaia.io",  // KAIA TEST RPC (alias)
       chainId: 1001,  // KAIA TEST 체인 ID
       accounts: ["d67ceaf47fbb661f7746872e539db56b2d4c9e402e52df4a4c88de22e9904ea8"]
     },
