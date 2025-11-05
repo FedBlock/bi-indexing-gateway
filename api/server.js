@@ -84,6 +84,40 @@ const resolveIdxmngrRoot = () => {
   return null;
 };
 
+// 블록체인 조회 재시도 헬퍼 함수
+const retryBlockchainCall = async (fn, maxRetries = 3, delay = 1000, operationName = '블록체인 조회') => {
+  let lastError;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await fn();
+      if (attempt > 1) {
+        console.log(`✅ ${operationName} 성공 (${attempt}번째 시도)`);
+      }
+      return result;
+    } catch (error) {
+      lastError = error;
+      const isRetryable = error.code === 'CALL_EXCEPTION' || 
+                         error.message?.includes('revert') || 
+                         error.message?.includes('timeout') ||
+                         error.message?.includes('network') ||
+                         error.message?.includes('ECONNRESET') ||
+                         error.message?.includes('ETIMEDOUT');
+      
+      if (attempt < maxRetries && isRetryable) {
+        const waitTime = delay * attempt;
+        console.warn(`⚠️  ${operationName} 실패 (${attempt}/${maxRetries}): ${error.message}. ${waitTime}ms 후 재시도...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        if (attempt === maxRetries) {
+          console.error(`❌ ${operationName} 최종 실패 (${maxRetries}회 시도): ${error.message}`);
+        }
+        break;
+      }
+    }
+  }
+  throw lastError;
+};
+
 // 인덱스 ID에서 네트워크 추론
 const inferNetworkFromIndexId = (indexId = '') => {
   const lowered = indexId.toLowerCase();
@@ -1124,17 +1158,22 @@ app.get('/api/pvd/speeding', async (req, res) => {
         console.warn(`⚠️  getTotalRecordCount() 실패: ${countError.message}`);
       }
       
-      // 2. 모든 키 목록 가져오기
+      // 2. 모든 키 목록 가져오기 (재시도 로직 포함)
       let allKeys = [];
       try {
         console.log('키 목록 조회 중...');
-        allKeys = await contract.getKeyLists();
+        allKeys = await retryBlockchainCall(
+          () => contract.getKeyLists(),
+          3,
+          1000,
+          'getKeyLists()'
+        );
         
         console.log(`✅ 키 목록 조회 성공: ${allKeys.length}개의 키 발견`);
         uniqueKeyCount = allKeys.length;
         
       } catch (keysError) {
-        console.error(`❌ getKeyLists() 실패:`, keysError.message);
+        console.error(`❌ getKeyLists() 최종 실패 (3회 시도):`, keysError.message);
         console.log('⚠️  데이터가 많아 직접 조회 실패, 빈 결과 반환');
         
         // 타임아웃 실패 시 빈 배열로 계속 (에러 반환 안함)
@@ -1169,10 +1208,16 @@ app.get('/api/pvd/speeding', async (req, res) => {
         
         const batchPromises = batchKeys.map(async (key) => {
           try {
-            const pvd = await contract.readPvd(key);
+            const pvd = await retryBlockchainCall(
+              () => contract.readPvd(key),
+              3,
+              500,
+              `readPvd(${key.slice(0, 10)}...)`
+            );
             return pvd || null;
           } catch (error) {
-            // 개별 키 조회 실패는 조용히 무시
+            // 개별 키 조회 실패는 조용히 무시 (3회 시도 후)
+            console.warn(`⚠️  키 ${key.slice(0, 10)}... 조회 최종 실패: ${error.message}`);
             return null;
           }
         });
@@ -1469,7 +1514,13 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
       
       const batchPromises = batch.map(async (txHash) => {
         try {
-          const tx = await provider.getTransaction(txHash);
+          // 트랜잭션 조회 (재시도 로직 포함)
+          const tx = await retryBlockchainCall(
+            () => provider.getTransaction(txHash),
+            3,
+            500,
+            `getTransaction(${txHash.slice(0, 10)}...)`
+          );
           if (!tx || !tx.data) return null;
           
           const decoded = iface.parseTransaction({ data: tx.data });
@@ -1477,6 +1528,8 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
           
           return decoded.args[0];  // 키 반환
         } catch (error) {
+          // 트랜잭션 조회 실패는 조용히 무시 (3회 시도 후)
+          console.warn(`⚠️  트랜잭션 ${txHash.slice(0, 10)}... 조회 최종 실패: ${error.message}`);
           return null;
         }
       });
@@ -1503,10 +1556,17 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
       
       const batchPromises = batch.map(async (key) => {
         try {
-          // 최신 상태 조회: 최신 값만
-          const pvd = await contract.readPvd(key);
+          // 최신 상태 조회: 최신 값만 (재시도 로직 포함)
+          const pvd = await retryBlockchainCall(
+            () => contract.readPvd(key),
+            3,
+            500,
+            `readPvd(${key.slice(0, 10)}...)`
+          );
           return pvd ? [pvd] : [];
         } catch (error) {
+          // 개별 키 조회 실패는 조용히 무시 (3회 시도 후)
+          console.warn(`⚠️  키 ${key.slice(0, 10)}... 조회 최종 실패: ${error.message}`);
           return [];
         }
       });
