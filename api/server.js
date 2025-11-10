@@ -1089,7 +1089,8 @@ app.get('/api/pvd/speeding', async (req, res) => {
       // 3. 최신 상태 모드: 각 키의 최신 값만 조회
       console.log(`블록체인에서 데이터 조회 중... (${allKeys.length}개 키)`);
       
-      const BATCH_SIZE = 50;
+      const BATCH_SIZE = 20; // 50 → 20으로 감소 (RPC 부하 감소)
+      const BATCH_DELAY = 800; // 배치 간 800ms 딜레이 추가
       let processedCount = 0;
       
       for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
@@ -1100,7 +1101,7 @@ app.get('/api/pvd/speeding', async (req, res) => {
             const pvd = await retryBlockchainCall(
               () => contract.readPvd(key),
               3,
-              500,
+              1000, // 500ms → 1000ms (재시도 간격 증가)
               `readPvd(${key.slice(0, 10)}...)`
             );
             return pvd || null;
@@ -1117,13 +1118,14 @@ app.get('/api/pvd/speeding', async (req, res) => {
         
         processedCount += batchKeys.length;
         
-        // 진행률 로그 (1000개마다)
-        if (processedCount % 1000 === 0 || processedCount === allKeys.length) {
-          console.log(`   진행률: ${processedCount}/${allKeys.length} (${((processedCount/allKeys.length)*100).toFixed(1)}%) | ${speedThreshold}km/h 이상: ${speedingData.length}건`);
+        // 진행률 로그 (200개마다 출력)
+        if (processedCount % 200 === 0 || processedCount === allKeys.length) {
+          console.log(`   진행: ${processedCount}/${allKeys.length} (${((processedCount/allKeys.length)*100).toFixed(1)}%) | ${speedThreshold}km/h 이상: ${speedingData.length}건`);
         }
         
+        // 배치 간 딜레이 (RPC 서버 부하 방지)
         if (i + BATCH_SIZE < allKeys.length) {
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
       }
       
@@ -1319,7 +1321,8 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     // Step 3: 고유 키로 블록체인 조회 (최신 상태만)
     console.log(`📋 ${uniqueKeys.length}개 고유 키로 블록체인 조회 중... (최신 상태)`);
     
-    const QUERY_BATCH_SIZE = 100;
+    const QUERY_BATCH_SIZE = 20; // 100 → 20으로 감소 (RPC 부하 감소)
+    const QUERY_BATCH_DELAY = 800; // 배치 간 800ms 딜레이
     const speedingData = [];
     let totalResults = 0;
     
@@ -1332,7 +1335,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
           const pvd = await retryBlockchainCall(
             () => contract.readPvd(key),
             3,
-            500,
+            1000, // 500ms → 1000ms (재시도 간격 증가)
             `readPvd(${key.slice(0, 10)}...)`
           );
           return pvd ? [pvd] : [];
@@ -1359,8 +1362,9 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
         console.log(`   진행: ${Math.min(i + QUERY_BATCH_SIZE, uniqueKeys.length)}/${uniqueKeys.length} (${progress}%) | ${minSpeed}km/h 이상: ${speedingData.length}건`);
       }
       
+      // 배치 간 딜레이 (RPC 서버 부하 방지)
       if (i + QUERY_BATCH_SIZE < uniqueKeys.length) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, QUERY_BATCH_DELAY));
       }
     }
     
