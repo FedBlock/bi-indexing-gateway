@@ -170,7 +170,16 @@ paths:
       tags:
         - Data Indexing
       summary: 데이터 인덱싱
-      description: 블록체인 트랜잭션 데이터를 인덱스에 추가합니다.
+      description: |
+        블록체인 트랜잭션 데이터를 인덱스에 추가합니다.
+        
+        **범용 API**: `data` 필드에 어떤 구조의 데이터든 포함할 수 있습니다.
+        모든 필드가 자동으로 인덱스에 저장되며, 특정 필드를 강제하지 않습니다.
+        
+        **동작:**
+        - `data` 객체의 모든 필드가 문자열로 변환되어 저장됩니다
+        - `indexingKey`로 지정한 필드 값으로 인덱싱됩니다
+        - `indexingKey`가 없으면 `data.purpose`, `data.type`, `data.category` 순으로 자동 선택됩니다
       requestBody:
         required: true
         content:
@@ -461,8 +470,50 @@ components:
           example: "0xcf897c459ee1f87357361c69de5df0770cf7e19943d3a5d9893c0cc8c1dc0700"
         data:
           type: object
-          description: 인덱싱할 데이터
+          description: |
+            인덱싱할 데이터 (자유로운 구조).
+            
+            어떤 필드든 포함할 수 있으며, 모든 필드가 인덱스에 저장됩니다.
+            
+            **예시 1 (데이터 접근 요청):**
+            ```json
+            {
+              "purpose": "심박수",
+              "organization": "BIMATRIX",
+              "requester": "0x1234...",
+              "blockNumber": 201100268,
+              "txStatus": 1
+            }
+            ```
+            
+            **예시 2 (차량 데이터):**
+            ```json
+            {
+              "speed": 120,
+              "obuId": "OBU-46101338",
+              "location": "127.024612,37.5326",
+              "timestamp": "20211001054509269"
+            }
+            ```
+            
+            **예시 3 (사용자 정의):**
+            ```json
+            {
+              "category": "healthcare",
+              "dataType": "medical-record",
+              "patientId": "P12345",
+              "hospitalId": "H001"
+            }
+            ```
           additionalProperties: true
+          example:
+            purpose: "심박수"
+            organization: "BIMATRIX"
+            requester: ""
+            blockNumber: 201100268
+            txStatus: 1
+            resourceOwner: "0x21f8814f066283411015ceffa752e4d991fb3990"
+            client_id: "68c7bc72a6ac233b"
         network:
           type: string
           description: 네트워크 이름

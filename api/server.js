@@ -835,19 +835,14 @@ app.post('/api/index/insert', async (req, res) => {
     console.log(`📝 인덱싱 요청: IndexID=${resolvedIndexId}, TxId=${txId}, Key=${dynamicKey}`);
     console.log(`Inserting data: ${resolvedIndexId}, dynamic key: ${dynamicKey}, data:`, data);
 
-    // Create proper DynamicFields object - 모든 값을 문자열로 변환
+    // Create proper DynamicFields object - data에서 동적으로 추출 (범용적)
     const dynamicFields = {
       "key": String(dynamicKey),
       "network": String(network),
-      "timestamp": new Date().toISOString(),
-      "purpose": String(data.purpose || ''),
-      "organization": String(data.organization || ''),
-      "requester": String(data.requester || ''),
-      "blockNumber": String(data.blockNumber || 0),
-      "txStatus": String(data.txStatus || 1)
+      "timestamp": new Date().toISOString()
     };
 
-    // Ensure all data fields are properly included - 모든 값을 문자열로 변환
+    // 모든 data 필드를 문자열로 변환하여 추가 (범용 API)
     Object.keys(data).forEach(key => {
       if (data[key] !== undefined && data[key] !== null) {
         dynamicFields[key] = String(data[key]);
