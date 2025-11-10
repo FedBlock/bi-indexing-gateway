@@ -8,6 +8,8 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const ethers = require('ethers');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
 // gRPC 게이트웨이 클라이언트 (idxmngr와 직접 통신)
 const IndexingGateway = require('../lib/grpc-client');
 const IndexingClient = IndexingGateway;  // 별칭
@@ -39,6 +41,13 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Swagger API 문서
+const swaggerDocument = YAML.load(path.join(__dirname, '../swagger/openapi.yaml'));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "BI-Indexing Gateway API Docs"
+}));
 
 // 요청 로깅 미들웨어
 app.use((req, res, next) => {

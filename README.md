@@ -1,287 +1,322 @@
-# 🚀 BI-Indexing React SDK
+# BI-Indexing Gateway API
 
-블록체인 인덱싱 기능을 React 앱에 쉽게 통합할 수 있는 SDK입니다.
+블록체인 인덱싱 데이터 조회를 위한 REST API 게이트웨이 서버
 
-## 📦 설치
+## 📋 목차
 
-### npm으로 설치
-```bash
-npm install @bi-index/blockchain-indexing-client
-```
+- [개요](#개요)
+- [주요 기능](#주요-기능)
+- [시스템 아키텍처](#시스템-아키텍처)
+- [기술 스택](#기술-스택)
+- [설치 및 실행](#설치-및-실행)
+- [API 문서 (Swagger)](#api-문서-swagger)
+- [API 엔드포인트](#api-엔드포인트)
+- [설정](#설정)
+- [실제 사용 사례](#실제-사용-사례)
+- [라이센스](#라이센스)
 
-### yarn으로 설치
-```bash
-yarn add @bi-index/blockchain-indexing-client
-```
+---
 
-### GitHub에서 직접 설치
-```bash
-npm install git+https://github.com/FedBlock/bi-indexing-gateway.git
-```
+## 개요
 
-## 🎯 빠른 시작
+**BI-Indexing Gateway API**는 블록체인 데이터 인덱싱 시스템의 게이트웨이 역할을 수행하는 REST API 서버입니다. 
+gRPC 기반 인덱스 매니저 서버(`idxmngr-go`)와 통신하여 인덱싱된 블록체인 데이터를 조회하고, 
+인덱스 기반 고속 조회와 블록체인 실시간 조회를 모두 지원하여 성능과 정확성 사이의 균형을 제공합니다.
 
-### 1. Hook 사용법
+### 개발 배경
 
-```jsx
-import React, { useState } from 'react';
-import { useBiIndexing } from '@bi-index/blockchain-indexing-client';
+블록체인 데이터는 투명하고 불변적이지만, 대량의 트랜잭션 데이터를 실시간으로 조회하는 것은 매우 느리고 비효율적입니다.
+예를 들어, 1,000건 이상의 트랜잭션을 블록체인에서 직접 조회할 경우 수십 초에서 수 분이 소요됩니다.
 
-function MySearchComponent() {
-  const [purpose, setPurpose] = useState('수면');
-  const [results, setResults] = useState(null);
-  
-  const { searchIntegrated, loading, error } = useBiIndexing({
-    baseURL: 'http://localhost:3001', // API 서버 주소
-    defaultNetwork: 'hardhat-local'
-  });
+본 시스템은 **B+ Tree 기반 파일 인덱싱**을 통해 조회 속도를 대폭 개선하여,
+연합학습, IoT 데이터 관리, 스마트 모빌리티 등 실시간성이 요구되는 블록체인 애플리케이션에서 활용할 수 있도록 개발되었습니다.
 
-  const handleSearch = async () => {
-    try {
-      const response = await searchIntegrated(purpose);
-      setResults(response.data);
-    } catch (err) {
-      console.error('검색 실패:', err);
-    }
-  };
+### 핵심 가치
 
-  return (
-    <div>
-      <input 
-        value={purpose}
-        onChange={(e) => setPurpose(e.target.value)}
-        placeholder="검색할 목적 입력"
-      />
-      <button onClick={handleSearch} disabled={loading}>
-        {loading ? '검색 중...' : '검색'}
-      </button>
-      
-      {error && <div style={{color: 'red'}}>{error}</div>}
-      {results && <div>결과: {results.totalCount}개</div>}
-    </div>
-  );
-}
-```
+- **고성능 데이터 조회**: B+ Tree 인덱싱으로 블록체인 직접 조회 대비 최대 100배 빠른 검색
+- **하이브리드 접근**: 인덱스 기반 조회(빠름)와 블록체인 직접 조회(최신) 선택 가능
+- **멀티체인 지원**: Kaia, Monad, Hardhat 등 다양한 EVM 호환 체인 지원
+- **RESTful API**: 표준 HTTP/JSON 기반으로 모든 클라이언트에서 쉽게 통합
 
-### 2. 컴포넌트 사용법 (즉시 사용 가능)
+### 활용 분야
 
-```jsx
-import React from 'react';
-import { BiIndexing } from '@bi-index/blockchain-indexing-client';
+- **연합학습(Federated Learning)**: 데이터 접근 요청 기록 추적 및 권한 관리
+- **스마트 모빌리티**: 차량 주행 데이터(PVD) 실시간 조회 및 과속 차량 탐지
+- **IoT 데이터 관리**: 대량의 센서 데이터 트랜잭션 효율적 조회
+- **블록체인 분석**: 트랜잭션 패턴 분석 및 통계 생성
 
-function App() {
-  const handleResults = (data) => {
-    console.log('검색 결과:', data);
-  };
+---
 
-  const handleError = (error) => {
-    console.error('검색 오류:', error);
-  };
+## 주요 기능
 
-  return (
-    <div>
-      <h1>블록체인 데이터 검색</h1>
-      <BiIndexing 
-        config={{ baseURL: 'http://localhost:3001' }}
-        onResults={handleResults}
-        onError={handleError}
-        style={{ margin: '20px' }}
-      />
-    </div>
-  );
-}
-```
+### 1. 인덱스 관리
+- 인덱스 생성 및 삭제
+- 인덱스 목록 조회
+- 데이터 인덱싱 (트랜잭션 기반)
 
-## 🚀 주요 기능
+### 2. 데이터 검색
+- **인덱스 기반 검색**: B+ Tree를 활용한 초고속 검색
+- **블록체인 직접 조회**: 최신 상태 확인
+- 조건별 필터링 (속도, 범위 등)
 
-### 1. **gRPC 인덱싱 서버 통신**
-- idxmngr 서버와의 gRPC 통신
-- 인덱스 생성, 데이터 삽입, 검색 기능
-- 자동 연결 관리 및 오류 처리
+### 3. 블록체인 통합
+- 스마트 컨트랙트 읽기
+- 트랜잭션 조회 및 디코딩
+- 멀티체인 네트워크 지원
 
-### 2. **이더리움 블록체인 통신**
-- 다중 네트워크 지원 (Hardhat, Monad 등)
-- 트랜잭션 상세 조회 및 ABI 디코딩
-- 컨트랙트 이벤트 조회
-- 실시간 블록체인 데이터 분석
 
-### 3. **통합 검색 기능**
-- 인덱스 + 블록체인 데이터 통합 검색
-- 고성능 배치 처리
-- 자동 데이터 매핑 및 정렬
+---
 
-## 📦 설치
-
-```bash
-npm install @bi-index/blockchain-indexing-client
-```
-
-## 🔧 기본 사용법
-
-### 1. 기본 설정
-
-```javascript
-const IndexingClient = require('@bi-index/blockchain-indexing-client');
-
-const client = new IndexingClient({
-  serverAddr: 'localhost:50052',
-  protoPath: './protos/index_manager.proto'
-});
-```
-
-### 2. 이더리움 네트워크 연결
-
-```javascript
-// 지원 네트워크: hardhat-local, hardhat, monad
-await client.connectEthereumNetwork('hardhat-local');
-```
-
-### 3. 통합 검색 (인덱스 + 블록체인)
-
-```javascript
-const result = await client.searchBlockchainAndIndex(
-  '수면',  // 검색할 목적
-  'hardhat-local',  // 네트워크
-  '0x5FbDB2315678afecb367f032d93F642f64180aa3'  // 컨트랙트 주소
-);
-
-console.log(`검색 결과: ${result.totalCount}개`);
-result.transactions.forEach(tx => {
-  console.log(`- ${tx.txId}: ${tx.purpose} (${tx.status})`);
-});
-```
-
-### 4. 개별 기능 사용
-
-#### 인덱스 검색
-```javascript
-const indexResult = await client.searchData({
-  IndexID: 'purpose',
-  Value: '수면'
-});
-```
-
-#### 트랜잭션 상세 조회
-```javascript
-const txDetails = await client.getTransactionDetails('0x123...');
-console.log(`블록: ${txDetails.tx.blockNumber}`);
-console.log(`가스: ${txDetails.receipt.gasUsed}`);
-```
-
-#### 컨트랙트 이벤트 조회
-```javascript
-const events = await client.queryContractEvents(
-  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
-  './artifacts/AccessManagement.json',
-  'AccessRequestsSaved'
-);
-```
-
-## 🎯 고급 사용법
-
-### ABI 디코딩
-
-```javascript
-const decoded = client.decodeTransactionABI(tx, receipt, './custom-abi.json');
-console.log('함수:', decoded.function);
-console.log('이벤트:', decoded.events);
-```
-
-### 네트워크 설정 커스터마이징
-
-```javascript
-const client = new IndexingClient();
-client.networkConfigs['custom-network'] = 'https://my-rpc-url.com';
-await client.connectEthereumNetwork('custom-network');
-```
-
-## 📋 API 레퍼런스
-
-### 생성자 옵션
-
-| 옵션 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `serverAddr` | string | `localhost:50052` | gRPC 서버 주소 |
-| `protoPath` | string | - | Protobuf 파일 경로 |
-| `grpcOptions` | object | - | gRPC 연결 옵션 |
-
-### 주요 메서드
-
-#### 인덱싱 관련
-- `createIndex(indexInfo)` - 인덱스 생성
-- `insertData(indexData)` - 데이터 삽입
-- `searchData(searchRequest)` - 데이터 검색
-- `getIndexInfo(request)` - 인덱스 정보 조회
-
-#### 블록체인 관련
-- `connectEthereumNetwork(network)` - 네트워크 연결
-- `getTransactionDetails(txId)` - 트랜잭션 조회
-- `queryContractEvents(address, abi, event)` - 이벤트 조회
-- `decodeTransactionABI(tx, receipt)` - ABI 디코딩
-
-#### 통합 기능
-- `searchBlockchainAndIndex(purpose, network)` - 통합 검색
-
-## 🌐 지원 네트워크
-
-| 네트워크 | RPC URL | 설명 |
-|----------|---------|------|
-| `hardhat-local` | `http://localhost:8545` | 로컬 Hardhat 네트워크 |
-| `hardhat` | `http://localhost:8545` | Hardhat 네트워크 |
-| `monad` | `https://testnet1.monad.xyz` | Monad 테스트넷 |
-
-## 🔍 문제 해결
-
-### 일반적인 오류
-
-1. **"지원하지 않는 네트워크"**
-   - `networkConfigs`에 네트워크 추가 필요
-
-2. **"이더리움 네트워크에 먼저 연결해주세요"**
-   - `connectEthereumNetwork()` 먼저 호출
-
-3. **"Client is not connected to server"**
-   - gRPC 서버 주소 및 상태 확인
-
-### 디버깅
-
-```javascript
-// 상세 로그 활성화
-process.env.LOG_LEVEL = 'debug';
-```
-
-## 🤝 기여
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 라이선스
-
-MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
-
-## 🏗️ 아키텍처
+## 시스템 아키텍처
 
 ```
-┌─────────────────────┐    ┌─────────────────────┐
-│   IndexingClient    │    │   Ethereum Network  │
-│                     │    │                     │
-│  ┌───────────────┐  │    │  ┌───────────────┐  │
-│  │ gRPC Client   │◄─┼────┼──┤ idxmngr Server│  │
-│  └───────────────┘  │    │  └───────────────┘  │
-│                     │    │                     │
-│  ┌───────────────┐  │    │  ┌───────────────┐  │
-│  │Ethereum Client│◄─┼────┼──┤ RPC Provider  │  │
-│  └───────────────┘  │    │  └───────────────┘  │
-│                     │    │                     │
-│  ┌───────────────┐  │    │  ┌───────────────┐  │
-│  │ ABI Decoder   │◄─┼────┼──┤ Smart Contract│  │
-│  └───────────────┘  │    │  └───────────────┘  │
-└─────────────────────┘    └─────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                       Client Application                     │
+│                  (Web, Mobile, Desktop)                      │
+└───────────────────────────┬─────────────────────────────────┘
+                            │ HTTP/REST
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│              BI-Indexing Gateway API (Express)               │
+│  ┌──────────────────────┐      ┌──────────────────────┐    │
+│  │   REST API Handler   │      │  gRPC Client         │    │
+│  └──────────────────────┘      └──────────────────────┘    │
+└──────────────┬────────────────────────────┬─────────────────┘
+               │                            │ gRPC
+    Blockchain │                            ▼
+         (RPC) │              ┌───────────────────────────┐
+               │              │   idxmngr-go Server       │
+               │              │   (Index Manager)         │
+               │              └───────────┬───────────────┘
+               │                          │
+               ▼                          ▼
+┌──────────────────────┐      ┌─────────────────────────┐
+│  Blockchain Network  │      │  B+ Tree File Indexes   │
+│  (Kaia/Monad/etc)    │      │  (.bf files)            │
+└──────────────────────┘      └─────────────────────────┘
 ```
 
 ---
 
-**Made with ❤️ by BI Index Team**
+## 기술 스택
+
+### Backend
+- **Node.js** (v16+): JavaScript 런타임
+- **Express.js**: REST API 프레임워크
+- **@grpc/grpc-js**: gRPC 클라이언트 (idxmngr 통신)
+- **ethers.js**: 이더리움/EVM 블록체인 인터페이스
+
+### 블록체인
+- **Kaia Testnet**: 메인 테스트 네트워크
+- **Monad Testnet**: 추가 테스트 네트워크
+- **Hardhat Local**: 로컬 개발 환경
+
+---
+
+## 설치 및 실행
+
+### 사전 요구사항
+
+1. **Node.js** v16 이상
+2. **idxmngr-go** 서버 실행 중 (포트 50052)
+3. **블록체인 네트워크** 접근 권한
+
+### 설치
+
+```bash
+# 저장소 클론
+git clone https://github.com/FedBlock/bi-indexing-gateway.git
+cd bi-indexing-gateway
+
+# 의존성 설치
+npm install
+```
+
+### 설정
+
+#### 1. 컨트랙트 설정 (`config/contracts.config.js`)
+
+```javascript
+const CONTRACT_ADDRESSES = {
+  pvd: {
+    kaia: '0xe452Ae89B6c187F8Deee162153F946f07AF7aA82',
+    monad: '0x...',
+    hardhat: '0x...'
+  },
+  accessManagement: {
+    kaia: '0x7423fF426f31AC01dEB370C92D7aD5106e90991e',
+    // ...
+  }
+};
+
+const RPC_URLS = {
+  kaia: 'https://public-en-kairos.node.kaia.io',
+  monad: 'https://testnet-rpc.monad.xyz',
+  hardhat: 'http://localhost:8545'
+};
+```
+
+#### 2. 인덱싱 설정 (`config/indexing-config.js`)
+
+```javascript
+module.exports = {
+  serverAddr: 'localhost:50052',  // idxmngr-go 서버 주소
+  protoPath: path.join(__dirname, '../../bi-index/idxmngr-go/protos/index_manager.proto'),
+  grpcOptions: {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true
+  }
+};
+```
+
+### 실행
+
+```bash
+# 프로덕션 모드
+npm start
+
+# 개발 모드 (nodemon)
+npm run dev
+```
+
+서버가 **포트 3001**에서 실행됩니다.
+
+---
+
+## API 문서 (Swagger)
+
+서버 실행 후 브라우저에서 **인터랙티브 API 문서**에 접속할 수 있습니다.
+
+### 📍 Swagger UI 접속
+
+```
+http://localhost:3001/api-docs
+```
+
+### 주요 기능
+
+- **📖 전체 API 엔드포인트 문서**: 모든 API의 요청/응답 스펙 확인
+- **🧪 Try it out**: 브라우저에서 직접 API 테스트
+- **📋 Example Values**: 요청/응답 예시 자동 생성
+- **🔍 Schema 확인**: 데이터 모델 구조 확인
+- **📥 다운로드**: OpenAPI 스펙 파일 다운로드 가능
+
+### 사용 방법
+
+1. 서버 실행: `npm start`
+2. 브라우저에서 `http://localhost:3001/api-docs` 접속
+3. 원하는 API 엔드포인트 선택
+4. **Try it out** 버튼 클릭
+5. 파라미터 입력 후 **Execute** 실행
+6. 응답 확인
+
+### 스크린샷 예시
+
+Swagger UI에서 다음과 같은 API들을 테스트할 수 있습니다:
+
+- **Index Management**: 인덱스 생성, 삭제, 조회
+- **Data Indexing**: 트랜잭션 데이터 인덱싱
+- **Search**: 인덱스 기반 검색
+- **PVD**: 과속 차량 조회 (직접/인덱스)
+- **Blockchain**: 블록체인 통계
+
+---
+
+## 설정
+
+### 환경 변수
+
+프로젝트 루트에 `.env` 파일을 생성할 수 있습니다:
+
+```env
+# 서버 설정
+PORT=3001
+NODE_ENV=production
+
+# gRPC 설정
+GRPC_SERVER=localhost:50052
+
+# 블록체인 RPC
+KAIA_RPC_URL=https://public-en-kairos.node.kaia.io
+MONAD_RPC_URL=https://testnet-rpc.monad.xyz
+HARDHAT_RPC_URL=http://localhost:8545
+```
+
+
+기본적으로 모든 오리진을 허용합니다. `api/server.js`에서 수정 가능:
+
+```javascript
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://yourdomain.com'],
+  methods: ['GET', 'POST', 'DELETE'],
+  credentials: true
+}));
+```
+
+---
+
+## 성능 최적화
+
+### Rate Limiting 설정
+
+대량의 블록체인 조회 시 RPC 서버 부하를 방지하기 위해 배치 처리 및 딜레이를 적용합니다:
+
+```javascript
+// 배치 크기 및 딜레이
+const BATCH_SIZE = 20;        // 동시 요청 수
+const BATCH_DELAY = 800;      // 배치 간 딜레이 (ms)
+const RETRY_DELAY = 1000;     // 재시도 간격 (ms)
+```
+
+---
+
+## 프로젝트 구조
+
+```
+bi-indexing-gateway/
+├── api/
+│   └── server.js                  # Express API 서버
+├── lib/
+│   ├── grpc-client.js             # gRPC 클라이언트 (idxmngr 통신)
+│   ├── indexing-constants.js     # 상수 정의
+│   └── indexing-config.js        # 인덱싱 설정
+├── config/
+│   ├── contracts.config.js       # 컨트랙트 주소, RPC URL, ABI
+│   └── indexing-config.js        # gRPC 설정
+├── API_GUIDE.md                  # API 상세 가이드
+├── README.md
+├── package.json
+└── package-lock.json
+```
+
+---
+
+## 의존성
+
+### 런타임
+- `@grpc/grpc-js` ^1.9.0 - gRPC 클라이언트
+- `@grpc/proto-loader` ^0.7.0 - Protobuf 로더
+- `express` ^4.21.2 - 웹 프레임워크
+- `cors` ^2.8.5 - CORS 미들웨어
+- `ethers` ^6.15.0 - 블록체인 인터페이스
+
+### 외부 서비스
+- **idxmngr-go**: B+ Tree 기반 파일 인덱스 매니저 (gRPC 서버)
+- **fileindex-go**: B+ Tree 파일 인덱싱 엔진
+- **Blockchain RPC**: Kaia, Monad 등 EVM 호환 체인
+
+---
+
+## 버전 히스토리
+
+### v1.0.0 (2025-11-10)
+- 초기 릴리즈
+- REST API 게이트웨이 기능
+- gRPC 기반 인덱스 매니저 통신
+- 멀티체인 지원 (Kaia, Monad, Hardhat)
+- 인덱스 관리 및 검색 기능
+- 블록체인 직접 조회 기능
+

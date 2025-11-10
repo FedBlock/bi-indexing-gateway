@@ -1,0 +1,580 @@
+openapi: 3.0.0
+info:
+  title: BI-Indexing Gateway API
+  description: |
+    블록체인 데이터 인덱싱 게이트웨이 REST API
+    
+    B+ Tree 기반 파일 인덱싱을 통해 블록체인 데이터를 고속으로 조회합니다.
+    
+    ## 주요 기능
+    - 인덱스 관리 (생성, 삭제, 조회)
+    - 데이터 인덱싱
+    - 인덱스 기반 검색
+    - 블록체인 직접 조회
+    - 통계 조회
+    
+  version: 1.0.0
+  contact:
+    name: FedBlock Team
+    email: contact@fedblock.io
+    url: https://github.com/FedBlock/bi-indexing-gateway
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3001
+    description: Local development server
+  - url: https://grnd.bimatrix.co.kr/bc/idx
+    description: Production server (via proxy)
+
+tags:
+  - name: Index Management
+    description: 인덱스 생성, 삭제, 조회 관리
+  - name: Data Indexing
+    description: 블록체인 데이터 인덱싱
+  - name: Search
+    description: 인덱스 기반 데이터 검색
+  - name: PVD (Vehicle Data)
+    description: 차량 주행 데이터 조회
+  - name: Blockchain
+    description: 블록체인 통계 및 직접 조회
+
+paths:
+  /api/index/list:
+    get:
+      tags:
+        - Index Management
+      summary: 인덱스 목록 조회
+      description: 생성된 모든 인덱스 목록을 반환합니다.
+      responses:
+        '200':
+          description: 인덱스 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      indexes:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Index'
+              example:
+                success: true
+                data:
+                  indexes:
+                    - indexId: "002"
+                      indexName: "speeding"
+                      indexingKey: "speed"
+                      network: "kaia"
+                      filePath: "/data/kaia/speeding.bf"
+                      keySize: 64
+                    - indexId: "003"
+                      indexName: "purpose"
+                      indexingKey: "purpose"
+                      network: "kaia"
+                      filePath: "/data/kaia/purpose.bf"
+                      keySize: 64
+
+  /api/index/create:
+    post:
+      tags:
+        - Index Management
+      summary: 인덱스 생성
+      description: 새로운 인덱스를 생성합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIndexRequest'
+            example:
+              indexId: "002"
+              indexName: "speeding"
+              indexingKey: "speed"
+              network: "kaia"
+              keySize: 64
+      responses:
+        '200':
+          description: 인덱스 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                success: true
+                message: "Index created successfully"
+                data:
+                  indexId: "002"
+                  indexName: "speeding"
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/index/delete:
+    delete:
+      tags:
+        - Index Management
+      summary: 인덱스 삭제
+      description: 기존 인덱스를 삭제합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - indexId
+                - network
+              properties:
+                indexId:
+                  type: string
+                  description: 삭제할 인덱스 ID
+                  example: "002"
+                network:
+                  type: string
+                  description: 네트워크 이름
+                  enum: [kaia, monad, hardhat]
+                  example: "kaia"
+      responses:
+        '200':
+          description: 인덱스 삭제 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: 인덱스를 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/index/insert:
+    post:
+      tags:
+        - Data Indexing
+      summary: 데이터 인덱싱
+      description: 블록체인 트랜잭션 데이터를 인덱스에 추가합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsertDataRequest'
+            example:
+              indexId: "003"
+              txId: "0xcf897c459ee1f87357361c69de5df0770cf7e19943d3a5d9893c0cc8c1dc0700"
+              data:
+                purpose: "심박수"
+                organization: "BIMATRIX"
+                requester: ""
+                blockNumber: 201100268
+                txStatus: 1
+                resourceOwner: "0x21f8814f066283411015ceffa752e4d991fb3990"
+                client_id: "68c7bc72a6ac233b"
+              network: "kaia"
+              contractAddress: "0x7423fF426f31AC01dEB370C92D7aD5106e90991e"
+              schema: "purpose"
+              indexingKey: "purpose"
+      responses:
+        '200':
+          description: 인덱싱 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/index/search:
+    post:
+      tags:
+        - Search
+      summary: 인덱스 기반 검색
+      description: 인덱스를 사용하여 데이터를 검색합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            example:
+              IndexName: "purpose"
+              Field: "IndexableData"
+              Value: "심박수"
+              KeySize: 64
+              ComOp: "Eq"
+      responses:
+        '200':
+          description: 검색 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      IdxData:
+                        type: array
+                        items:
+                          type: string
+                        description: 트랜잭션 해시 목록
+              example:
+                success: true
+                data:
+                  IdxData:
+                    - "0xcf897c459ee1f87357361c69de5df0770cf7e19943d3a5d9893c0cc8c1dc0700"
+                    - "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+
+  /api/pvd/speeding:
+    get:
+      tags:
+        - PVD (Vehicle Data)
+      summary: 과속 차량 조회 (블록체인 직접)
+      description: 블록체인에서 직접 과속 차량 데이터를 조회합니다. (느림, 최신)
+      parameters:
+        - name: network
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [kaia, monad, hardhat]
+          description: 네트워크 이름
+          example: kaia
+        - name: minSpeed
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 80
+          description: 최소 속도 (km/h)
+          example: 80
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpeedingResponse'
+
+  /api/pvd/speeding/by-index:
+    post:
+      tags:
+        - PVD (Vehicle Data)
+      summary: 과속 차량 조회 (인덱스 기반)
+      description: 인덱스를 사용하여 과속 차량 데이터를 조회합니다. (빠름, 약간 지연)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - network
+              properties:
+                minSpeed:
+                  type: integer
+                  description: 최소 속도 (km/h)
+                  default: 80
+                  example: 80
+                network:
+                  type: string
+                  description: 네트워크 이름
+                  enum: [kaia, monad, hardhat]
+                  example: "kaia"
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpeedingResponse'
+              example:
+                success: true
+                network: "kaia"
+                method: "index-based"
+                totalCount: 1627
+                uniqueKeyCount: 1727
+                queryTime: "1250ms"
+                data:
+                  type: "FeatureCollection"
+                  features:
+                    - type: "Feature"
+                      geometry:
+                        type: "Point"
+                        coordinates: [127.024612, 37.5326]
+                      properties:
+                        obuId: "OBU-46101338"
+                        speed: 120
+                        timestamp: "20211001054509269"
+                        key: "spd::120::OBU-46101338::20211001054509269"
+
+  /api/blockchain/stats:
+    get:
+      tags:
+        - Blockchain
+      summary: 블록체인 통계 조회
+      description: 블록체인 네트워크의 최신 블록, 레코드 수 등 통계를 조회합니다.
+      parameters:
+        - name: network
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [kaia, monad, hardhat]
+          description: 네트워크 이름
+          example: kaia
+      responses:
+        '200':
+          description: 통계 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  network:
+                    type: string
+                    example: "kaia"
+                  stats:
+                    type: object
+                    properties:
+                      latestBlock:
+                        type: integer
+                        description: 최신 블록 번호
+                        example: 201234567
+                      totalRecords:
+                        type: integer
+                        description: 총 레코드 수
+                        example: 15234
+                      contractAddress:
+                        type: string
+                        description: 컨트랙트 주소
+                        example: "0xe452Ae89B6c187F8Deee162153F946f07AF7aA82"
+
+components:
+  schemas:
+    Index:
+      type: object
+      properties:
+        indexId:
+          type: string
+          description: 인덱스 ID
+          example: "002"
+        indexName:
+          type: string
+          description: 인덱스 이름
+          example: "speeding"
+        indexingKey:
+          type: string
+          description: 인덱싱 키
+          example: "speed"
+        network:
+          type: string
+          description: 네트워크 이름
+          enum: [kaia, monad, hardhat]
+          example: "kaia"
+        filePath:
+          type: string
+          description: 인덱스 파일 경로
+          example: "/data/kaia/speeding.bf"
+        keySize:
+          type: integer
+          description: 키 크기 (bytes)
+          example: 64
+
+    CreateIndexRequest:
+      type: object
+      required:
+        - indexId
+        - indexName
+        - indexingKey
+        - network
+      properties:
+        indexId:
+          type: string
+          description: 인덱스 ID
+          example: "002"
+        indexName:
+          type: string
+          description: 인덱스 이름
+          example: "speeding"
+        indexingKey:
+          type: string
+          description: 인덱싱 키 (컬럼명)
+          example: "speed"
+        network:
+          type: string
+          description: 네트워크 이름
+          enum: [kaia, monad, hardhat]
+          example: "kaia"
+        keySize:
+          type: integer
+          description: 키 크기 (bytes)
+          default: 64
+          example: 64
+
+    InsertDataRequest:
+      type: object
+      required:
+        - indexId
+        - txId
+        - data
+        - network
+        - contractAddress
+        - schema
+        - indexingKey
+      properties:
+        indexId:
+          type: string
+          description: 인덱스 ID
+          example: "003"
+        txId:
+          type: string
+          description: 트랜잭션 해시
+          example: "0xcf897c459ee1f87357361c69de5df0770cf7e19943d3a5d9893c0cc8c1dc0700"
+        data:
+          type: object
+          description: 인덱싱할 데이터
+          additionalProperties: true
+        network:
+          type: string
+          description: 네트워크 이름
+          enum: [kaia, monad, hardhat]
+          example: "kaia"
+        contractAddress:
+          type: string
+          description: 스마트 컨트랙트 주소
+          example: "0x7423fF426f31AC01dEB370C92D7aD5106e90991e"
+        schema:
+          type: string
+          description: 데이터 스키마
+          example: "purpose"
+        indexingKey:
+          type: string
+          description: 인덱싱 키
+          example: "purpose"
+
+    SearchRequest:
+      type: object
+      required:
+        - IndexName
+        - Field
+        - Value
+      properties:
+        IndexName:
+          type: string
+          description: 인덱스 이름
+          example: "purpose"
+        Field:
+          type: string
+          description: 검색 필드
+          example: "IndexableData"
+        Value:
+          type: string
+          description: 검색 값
+          example: "심박수"
+        KeySize:
+          type: integer
+          description: 키 크기 (bytes)
+          default: 64
+          example: 64
+        ComOp:
+          type: string
+          description: 비교 연산자
+          enum: [Eq, NotEq, Less, LessThanEq, Greater, GreaterThanEq, Range]
+          default: Eq
+          example: "Eq"
+
+    SpeedingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        network:
+          type: string
+          example: "kaia"
+        method:
+          type: string
+          description: 조회 방법
+          enum: [blockchain-direct, index-based]
+          example: "index-based"
+        totalCount:
+          type: integer
+          description: 총 조회 건수
+          example: 1627
+        uniqueKeyCount:
+          type: integer
+          description: 고유 키 개수
+          example: 1727
+        queryTime:
+          type: string
+          description: 조회 시간
+          example: "1250ms"
+        data:
+          type: object
+          description: GeoJSON 형식의 데이터
+          properties:
+            type:
+              type: string
+              example: "FeatureCollection"
+            features:
+              type: array
+              items:
+                type: object
+
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation completed successfully"
+        data:
+          type: object
+          description: 응답 데이터
+          additionalProperties: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: 에러 메시지
+          example: "Invalid request parameters"
+        details:
+          type: string
+          description: 에러 상세 정보
+
