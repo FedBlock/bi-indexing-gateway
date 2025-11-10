@@ -327,16 +327,7 @@ app.get('/api/index/list', async (req, res) => {
     if (forceRefresh === 'true') {
       console.log('🔄 강제 새로고침: config.yaml 직접 읽기');
       const metadataItems = loadIndexConfigMetadata();
-      // const rawIndexes = metadataItems.map((meta, idx) => ({
-      //   IndexID: meta.idxid || meta.indexid || `index_${idx}`,
-      //   IndexName: meta.idxname || meta.idxid || meta.indexid,
-      //   IndexingKey: meta.indexingkey || meta.idxname,
-      //   KeyCol: meta.keycol || 'IndexableData',
-      //   FilePath: meta.filepath || '',
-      //   Network: meta.filepath ? meta.filepath.split('/')[1] : 'unknown',
-      //   FromBlock: meta.fromblock || 0,
-      //   CurrentBlock: meta.blocknum || 0
-      // }));
+
       
       // searchableValues 메타데이터 읽기
       const idxmngrRoot = resolveIdxmngrRoot();
