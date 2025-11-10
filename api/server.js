@@ -9,7 +9,7 @@ const cors = require('cors');
 const fs = require('fs');
 const ethers = require('ethers');
 // gRPC 게이트웨이 클라이언트 (idxmngr와 직접 통신)
-const IndexingGateway = require('../lib/indexing-client');
+const IndexingGateway = require('../lib/grpc-client');
 const IndexingClient = IndexingGateway;  // 별칭
 const {
   INDEX_SCHEMA,
@@ -19,6 +19,15 @@ const {
   buildIndexFilePath,
 } = require('../lib/indexing-constants');
 const path = require('path');
+
+// 컨트랙트 설정 파일 import
+const {
+  getContractAddress,
+  getRpcUrl,
+  getChainId,
+  getAbiPath,
+  normalizeNetwork
+} = require('../config/contracts.config');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -768,43 +777,6 @@ app.post('/api/index/create', async (req, res) => {
   }
 });
 
-// 인덱스 기본 설정 조회 API
-app.get('/api/index/config', async (req, res) => {
-  try {
-    const requestedNetwork = req.query.network;
-    const networkKey = resolveNetworkKey(requestedNetwork);
-    const metadataItems = loadIndexConfigMetadata();
-    const matched = metadataItems.find((item) => {
-      const filePath = item.filepath || '';
-      return filePath.includes(`/${networkKey}/`);
-    });
-
-    if (!matched) {
-      res.status(404).json({ success: false, error: `No index config found for network ${networkKey}` });
-      return;
-    }
-
-    const schema = matched.idxname || INDEX_SCHEMA;
-    const indexId = matched.idxid || buildIndexId(networkKey);
-    const keySize = Number(matched.keysize) > 0 ? Number(matched.keysize) : INDEX_KEY_SIZE;
-    const filePath = matched.filepath || buildIndexFilePath(networkKey);
-
-    res.json({
-      success: true,
-      data: {
-        indexId,
-        schema,
-        network: networkKey,
-        filePath,
-        keySize,
-      },
-    });
-  } catch (error) {
-    console.error('Index config lookup failed:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // 인덱스 데이터 삽입 API
 // Insert data into index  
 app.post('/api/index/insert', async (req, res) => {
@@ -817,7 +789,7 @@ app.post('/api/index/insert', async (req, res) => {
       network,
       schema,
       keySize,
-      contractAddress = '0xe452ae89b6c187f8deee162153f946f07af7aa82',
+      contractAddress, // 클라이언트가 지정하지 않으면 아래에서 config에서 가져옴
       indexingKey // Optional - can be extracted from data if not provided
     } = req.body;
     
@@ -829,6 +801,9 @@ app.post('/api/index/insert', async (req, res) => {
     }
 
     const networkKey = resolveNetworkKey(network);
+    
+    // 컨트랙트 주소가 지정되지 않았으면 config에서 가져오기
+    const finalContractAddress = contractAddress || getContractAddress('pvd', network, true);
     const metadataItems = loadIndexConfigMetadata();
     if (!indexId) {
       return res.status(400).json({
@@ -1016,77 +991,6 @@ app.delete('/api/index/delete/:indexId', async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
-
-// =========================
-// 🔹 범용 인덱스 데이터 조회 API (Raw)
-// =========================
-app.get('/api/index/raw', async (req, res) => {
-  try {
-    const { indexId, network = 'hardhat-local', limit = 100 } = req.query;
-    
-    if (!indexId) {
-      return res.status(400).json({
-        success: false,
-        error: 'indexId 파라미터가 필요합니다.',
-        example: '/api/index/raw?indexId=002&network=hardhat-local'
-      });
-    }
-    
-    console.log(`\n📦 범용 인덱스 조회 - IndexID: ${indexId}, Network: ${network}`);
-    
-    // IndexingClient 생성
-    const indexingClient = new IndexingClient({
-      serverAddr: 'localhost:50052',
-      protoPath: '/home/blockchain/fedblock/bi-index/idxmngr-go/protos/index_manager.proto'
-    });
-    
-    await indexingClient.connect();
-    
-    // 인덱스 목록에서 확인
-    const indexList = await indexingClient.getIndexList();
-    const targetIndex = indexList.find(idx => 
-      idx.idxid === indexId && idx.network === network
-    );
-    
-    if (!targetIndex) {
-      await indexingClient.close();
-      return res.status(404).json({
-        success: false,
-        error: `IndexID ${indexId} (${network})를 찾을 수 없습니다.`
-      });
-    }
-    
-    console.log(`✅ 인덱스 발견: ${targetIndex.idxname}`);
-    
-    // 인덱스에서 데이터 조회 (간단하게 처리)
-    // 실제로는 인덱스에서 txId 목록을 가져와야 하지만, 
-    // 여기서는 블록체인에서 직접 조회
-    
-    await indexingClient.close();
-    
-    res.json({
-      success: true,
-      indexId: indexId,
-      network: network,
-      indexInfo: {
-        idxname: targetIndex.idxname,
-        indexingkey: targetIndex.indexingkey,
-        filepath: targetIndex.filepath
-      },
-      message: '인덱스 정보 조회 성공. 실제 데이터는 특화 API 또는 컨트랙트로 조회하세요.',
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ 범용 인덱스 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 // =========================
 // 🔸 과속 데이터 조회 API (GeoJSON 특화)
 // =========================
@@ -1098,10 +1002,12 @@ app.get('/api/pvd/speeding', async (req, res) => {
     
     console.log(`\n과속 데이터 조회 시작 - Network: ${network}, MinSpeed: ${speedThreshold}km/h (최신 상태만)`);
     
-    // 블록체인에서 직접 조회
-    const rpcUrl = network === 'kaia' ? 
-      'https://public-en-kairos.node.kaia.io' : 
-      'http://127.0.0.1:8545';
+    // Config에서 RPC URL 및 컨트랙트 주소 가져오기
+    const rpcUrl = getRpcUrl(network);
+    const contractAddress = getContractAddress('pvd', network, true); // deployment 파일 우선 사용
+    const chainId = getChainId(network);
+    
+    console.log(`✅ Config 로드 완료 - RPC: ${rpcUrl}, Contract: ${contractAddress}`);
     
     // RPC 타임아웃 설정 증가 (대량 데이터 조회를 위해)
     const fetchRequest = new ethers.FetchRequest(rpcUrl);
@@ -1109,32 +1015,15 @@ app.get('/api/pvd/speeding', async (req, res) => {
     fetchRequest.retryFunc = () => false; // 재시도 비활성화
     
     const provider = new ethers.JsonRpcProvider(fetchRequest, undefined, {
-      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined,
+      staticNetwork: chainId ? ethers.Network.from(chainId) : undefined,
       batchMaxCount: 1, // 배치 요청 비활성화
       polling: false
     });
     
-    // PvdRecord 컨트랙트 ABI (이벤트 포함)
-    const contractABI = [
-      'function getKeyLists() view returns (string[])',
-      'function getTotalRecordCount() view returns (uint256)',
-      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))',
-      'event PvdCreated(string indexed obuId, string txId)',
-      'event PvdUpdated(string indexed obuId, string txId)'
-    ];
-    
-    // 최신 배포 주소 자동 로드
-    const deploymentPath = path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json');
-    let contractAddress = '0x5f3f1dBD7B74C6B46e8c44f98792A1dAf8d69154'; // fallback
-    try {
-      if (fs.existsSync(deploymentPath)) {
-        const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-        contractAddress = deployment.contractAddress;
-        console.log(`최신 컨트랙트 주소 로드: ${contractAddress}`);
-      }
-    } catch (err) {
-      console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
-    }
+    // Config에서 ABI 로드
+    const abiPath = getAbiPath('pvd');
+    const contractArtifact = JSON.parse(fs.readFileSync(abiPath, 'utf8'));
+    const contractABI = contractArtifact.abi;
     
     const contract = new ethers.Contract(contractAddress, contractABI, provider);
     
@@ -1267,6 +1156,13 @@ app.get('/api/pvd/speeding', async (req, res) => {
       console.log(`✅ 블록체인 조회 완료 (${queryTime}ms)`);
     }
     
+    // 속도 기준 오름차순 정렬 (낮은 속도 → 높은 속도)
+    speedingData.sort((a, b) => {
+      const speedA = Number(a.speed) || 0;
+      const speedB = Number(b.speed) || 0;
+      return speedA - speedB;
+    });
+    
     // GeoJSON 형식으로 변환 (안전한 변환)
     const geoJSON = {
       type: 'FeatureCollection',
@@ -1323,113 +1219,6 @@ app.get('/api/pvd/speeding', async (req, res) => {
 });
 
 // =========================
-// 🔸 특정 차량 과속 데이터 조회 API (인덱싱 활용)
-// =========================
-app.get('/api/pvd/speeding/vehicle/:obuId', async (req, res) => {
-  try {
-    const { obuId } = req.params;
-    const { network = 'hardhat-local' } = req.query;
-    const startTime = Date.now();
-    
-    console.log(`\n🚗 특정 차량 과속 데이터 조회 - OBU: ${obuId}, Network: ${network}`);
-    
-    // 1. 블록체인에서 전체 데이터 조회
-    const rpcUrl = network === 'kaia' ? 
-      'https://public-en-kairos.node.kaia.io' : 
-      'http://127.0.0.1:8545';
-    
-    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
-      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
-    });
-    const contractABI = [
-      'function getKeyLists() view returns (string[])',
-      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
-    ];
-    
-    // 최신 배포 주소 자동 로드
-    const deploymentPath = path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json');
-    let contractAddress = '0x5f3f1dBD7B74C6B46e8c44f98792A1dAf8d69154'; // fallback
-    try {
-      if (fs.existsSync(deploymentPath)) {
-        const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-        contractAddress = deployment.contractAddress;
-      }
-    } catch (err) {
-      console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
-    }
-    
-    const contract = new ethers.Contract(contractAddress, contractABI, provider);
-    
-    // 1. 모든 키 목록 가져오기
-    const allKeys = await contract.getKeyLists();
-    
-    // 2. 특정 차량의 키만 필터링
-    const vehicleKeys = allKeys.filter(key => key.startsWith(obuId + '::'));
-    console.log(`📋 ${obuId} 차량의 키 ${vehicleKeys.length}개 발견`);
-    
-    // 3. 해당 차량의 데이터 조회
-    const vehicleDataPromises = vehicleKeys.map(async (key) => {
-      try {
-        const data = await contract.readPvd(key);
-        return data;
-      } catch (error) {
-        return null;
-      }
-    });
-    
-    const vehicleData = (await Promise.all(vehicleDataPromises)).filter(d => d !== null);
-    
-    // 4. 과속 데이터만 필터링
-    const vehicleSpeedingData = vehicleData.filter(pvd => Number(pvd.speed) >= 80);
-    
-    const queryTime = Date.now() - startTime;
-    console.log(`✅ ${obuId} 차량의 과속 데이터 ${vehicleSpeedingData.length}건 발견 (${queryTime}ms)`);
-    
-    // GeoJSON 형식으로 변환
-    const geoJSON = {
-      type: 'FeatureCollection',
-      features: vehicleSpeedingData.map(pvd => ({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [
-            parseFloat(pvd.startvectorLongitude),
-            parseFloat(pvd.startvectorLatitude)
-          ]
-        },
-        properties: {
-          obuId: pvd.obuId,
-          speed: Number(pvd.speed),
-          collectionDt: pvd.collectionDt,
-          timestamp: Number(pvd.timestamp),
-          blockNumber: Number(pvd.blockNumber),
-          heading: Number(pvd.startvectorHeading)
-        }
-      }))
-    };
-    
-    res.json({
-      success: true,
-      network: network,
-      obuId: obuId,
-      method: 'vehicle-filter',
-      totalCount: vehicleSpeedingData.length,
-      queryTime: `${queryTime}ms`,
-      data: geoJSON,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ 차량별 과속 데이터 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// =========================
 // 🔸 인덱스 기반 과속 데이터 조회 API (트랜잭션 ID 리스트로 개별 조회)
 // =========================
 app.post('/api/pvd/speeding/by-index', async (req, res) => {
@@ -1440,7 +1229,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     console.log(`\n🚀 인덱스 기반 과속 데이터 조회 - ${minSpeed}km/h 이상, Network: ${network}`);
     
     // 1단계: 인덱스에서 트랜잭션 ID 조회 (카운트 확인용)
-    const IndexingClient = require('../lib/indexing-client');
+    const IndexingClient = require('../lib/grpc-client');
     const indexingClient = new IndexingClient({
       serverAddr: 'localhost:50052',
       protoPath: path.join(__dirname, '../../bi-index/idxmngr-go/protos/index_manager.proto')
@@ -1459,44 +1248,27 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     
     await indexingClient.close();
     
-    // 인덱스 결과 구조 확인
-    // console.log('🔍 인덱스 결과 구조:', Object.keys(indexResult));
-    // console.log('🔍 IdxData 첫 번째:', indexResult.IdxData?.[0]);
-    // console.log('🔍 Key 필드:', indexResult.Key);
-    // if (Array.isArray(indexResult.Key)) {
-    //   console.log('🔍 Key 배열 길이:', indexResult.Key.length);
-    //   console.log('🔍 Key 첫 3개:', indexResult.Key.slice(0, 3));
-    // }
+
     
     const txIds = indexResult.IdxData || [];
     const indexQueryTime = Date.now() - startTime;
     console.log(`✅ 인덱스 조회 완료: ${txIds.length}건 (${indexQueryTime}ms)`);
     
     // 2단계: 인덱스의 txHash로 트랜잭션 조회 → 키 추출 → readPvd
-    const rpcUrl = network === 'kaia' ? 
-      'https://public-en-kairos.node.kaia.io' : 
-      'http://127.0.0.1:8545';
+    // Config에서 RPC URL 및 컨트랙트 주소 가져오기
+    const rpcUrl = getRpcUrl(network);
+    const contractAddress = getContractAddress('pvd', network, true); // deployment 파일 우선 사용
+    const chainId = getChainId(network);
     
-    console.log(`블록체인 RPC 연결: ${rpcUrl}`);
+    console.log(`✅ Config 로드 완료 - RPC: ${rpcUrl}, Contract: ${contractAddress}`);
     const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
-      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
+      staticNetwork: chainId ? ethers.Network.from(chainId) : undefined
     });
     
-    const contractABI = [
-      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))',
-      'function createUpdatePvd(string memory obuId, tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber) pvd) returns (string)'
-    ];
-    
-    const deploymentPath = path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json');
-    let contractAddress = '0xe452Ae89B6c187F8Deee162153F946f07AF7aA82';
-    try {
-      if (fs.existsSync(deploymentPath)) {
-        const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-        contractAddress = deployment.contractAddress;
-      }
-    } catch (err) {
-      console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
-    }
+    // Config에서 ABI 로드
+    const abiPath = getAbiPath('pvd');
+    const contractArtifact = JSON.parse(fs.readFileSync(abiPath, 'utf8'));
+    const contractABI = contractArtifact.abi;
     
     const contract = new ethers.Contract(contractAddress, contractABI, provider);
     const iface = new ethers.Interface(contractABI);
@@ -1596,6 +1368,13 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     const totalQueryTime = Date.now() - startTime;
     console.log(`✅ 블록체인 조회 완료: ${totalResults}건 → ${minSpeed}km/h 이상 필터링 → ${speedingData.length}건 (${blockchainQueryTime}ms)`);
     
+    // 속도 기준 오름차순 정렬 (낮은 속도 → 높은 속도)
+    speedingData.sort((a, b) => {
+      const speedA = Number(a.speed) || 0;
+      const speedB = Number(b.speed) || 0;
+      return speedA - speedB;
+    });
+    
     // GeoJSON 형식으로 변환
     const geoJSON = {
       type: 'FeatureCollection',
@@ -1645,207 +1424,6 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     });
   }
 });
-
-// 통합 검색 API (인덱스 + 블록체인)
-app.post('/api/search/integrated', async (req, res) => {
-  try {
-    const { purpose, network, contractAddress, abiPath } = req.body;
-
-    if (!purpose || !network) {
-      return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
-    }
-
-    const gatewayClient = await initGateway();
-    
-    const result = await gatewayClient.searchBlockchainAndIndex(
-      purpose,
-      network,
-      contractAddress,
-      abiPath
-    );
-    
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('통합 검색 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// 블록체인 직접 검색 API
-app.post('/api/search/direct', async (req, res) => {
-  try {
-    const { purpose, network, contractAddress, abiPath } = req.body;
-
-    if (!purpose || !network) {
-      return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
-    }
-
-    const gatewayClient = await initGateway();
-    
-    const result = await gatewayClient.searchBlockchainDirect(
-      purpose,
-      network,
-      contractAddress,
-      abiPath
-    );
-    
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('직접 검색 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// 컨트랙트 필터링 검색 API
-app.post('/api/search/contract', async (req, res) => {
-  try {
-    const { purpose, pageSize = 100, network } = req.body;
-    
-    if (!purpose || !network) {
-      return res.status(400).json({ error: 'purpose와 network는 필수입니다' });
-    }
-
-    const gatewayClient = await initGateway();
-    
-    const result = await gatewayClient.getFilteredRequestsByPurpose(
-      purpose,
-      pageSize,
-      network
-    );
-    
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('컨트랙트 검색 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// 전체 요청 데이터 조회 API
-app.get('/api/requests/all', async (req, res) => {
-  try {
-    const { pageSize = 100, network } = req.query;
-
-    if (!network) {
-      return res.status(400).json({ error: 'network는 필수입니다' });
-    }
-
-    // 임시로 빈 데이터 반환 (컨트랙트 함수가 구현되지 않아서)
-    res.json({
-      success: true,
-      data: {
-        success: true,
-        method: 'contract-paging-query',
-        network: network,
-        totalCount: 0,
-        requests: [],
-        totalPages: 0,
-        pageSize: parseInt(pageSize)
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('전체 요청 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// 총 요청 개수 조회 API
-app.get('/api/requests/count', async (req, res) => {
-  try {
-    const { network } = req.query;
-
-    if (!network) {
-      return res.status(400).json({ error: 'network는 필수입니다' });
-    }
-
-    const gatewayClient = await initGateway();
-    
-    const totalCount = await gatewayClient.getTotalRequestCount(network);
-    
-    res.json({
-      success: true,
-      data: {
-        totalCount,
-        network
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('요청 개수 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// 범위별 요청 조회 API
-app.post('/api/requests/range', async (req, res) => {
-  try {
-    const { startId, endId, network } = req.body;
-    
-    if (!startId || !endId || !network) {
-      return res.status(400).json({ error: 'startId, endId, network는 필수입니다' });
-    }
-
-    const gatewayClient = await initGateway();
-    
-    const result = await gatewayClient.getRequestsInRange(
-      parseInt(startId),
-      parseInt(endId),
-      network
-    );
-    
-    res.json({
-      success: true,
-      data: result,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('범위별 요청 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 // 인덱스 데이터 검색 API
 app.post('/api/index/search', async (req, res) => {
   try {
@@ -1876,29 +1454,6 @@ app.post('/api/index/search', async (req, res) => {
   }
 });
 
-// 성능 통계 조회 API
-app.get('/api/performance', async (req, res) => {
-  try {
-    const gatewayClient = await initGateway();
-    
-    const stats = gatewayClient.getPerformanceStats();
-    
-    res.json({
-      success: true,
-      data: stats,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('성능 통계 조회 실패:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 // =========================
 // 🔸 블록체인 통계 조회 API
 // =========================
@@ -1908,33 +1463,21 @@ app.get('/api/blockchain/stats', async (req, res) => {
     
     console.log(`\n📊 블록체인 통계 조회 - Network: ${network}`);
     
-    const rpcUrl = network === 'kaia' ? 
-      'https://public-en-kairos.node.kaia.io' : 
-      'http://127.0.0.1:8545';
+    // Config에서 RPC URL 및 컨트랙트 주소 가져오기
+    const rpcUrl = getRpcUrl(network);
+    const contractAddress = getContractAddress('pvd', network, true); // deployment 파일 우선 사용
+    const chainId = getChainId(network);
+    
+    console.log(`✅ Config 로드 완료 - RPC: ${rpcUrl}, Contract: ${contractAddress}`);
     
     const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
-      staticNetwork: network === 'kaia' ? ethers.Network.from(1001) : undefined
+      staticNetwork: chainId ? ethers.Network.from(chainId) : undefined
     });
     
-    // 컨트랙트 ABI (모든 가능한 함수 포함)
-    const contractABI = [
-      'function getTotalRecordCount() view returns (uint256)',
-      'function getKeyLists() view returns (string[])',
-      'function readPvd(string memory key) view returns (tuple(string obuId, string collectionDt, string startvectorLatitude, string startvectorLongitude, string transmisstion, uint256 speed, string hazardLights, string leftTurnSignalOn, string rightTurnSignalOn, uint256 steering, uint256 rpm, string footbrake, string gear, uint256 accelator, string wipers, string tireWarnLeftF, string tireWarnLeftR, string tireWarnRightF, string tireWarnRightR, uint256 tirePsiLeftF, uint256 tirePsiLeftR, uint256 tirePsiRightF, uint256 tirePsiRightR, uint256 fuelPercent, uint256 fuelLiter, uint256 totaldist, string rsuId, string msgId, uint256 startvectorHeading, uint256 timestamp, uint256 blockNumber))'
-    ];
-    
-    // 최신 배포 주소 로드
-    const deploymentPath = path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json');
-    let contractAddress = '0xe452Ae89B6c187F8Deee162153F946f07AF7aA82';
-    try {
-      if (fs.existsSync(deploymentPath)) {
-        const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-        contractAddress = deployment.contractAddress;
-        console.log(`📍 최신 컨트랙트 주소 로드: ${contractAddress}`);
-      }
-    } catch (err) {
-      console.warn('⚠️  배포 파일 읽기 실패, 기본 주소 사용');
-    }
+    // Config에서 ABI 로드
+    const abiPath = getAbiPath('pvd');
+    const contractArtifact = JSON.parse(fs.readFileSync(abiPath, 'utf8'));
+    const contractABI = contractArtifact.abi;
     
     const contract = new ethers.Contract(contractAddress, contractABI, provider);
     

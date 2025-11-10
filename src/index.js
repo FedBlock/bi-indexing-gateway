@@ -6,6 +6,3 @@ export { default as BiIndexing } from './components/BiIndexing';
 
 // 타입 정의 (TypeScript 사용 시)
 export * from './types';
-
-// 유틸리티
-export * from './utils';
