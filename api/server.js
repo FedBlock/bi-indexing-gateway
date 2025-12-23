@@ -1,9 +1,3 @@
-/**
- * 인덱스 id 숫자만 포함 -> inferNetworkFromIndexId 현재 동작 x
- * 
- */
-
-
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -84,12 +78,12 @@ const slugify = (value, fallback = 'index') => {
 
 const resolveProtoPath = () => {
   // idxmngr-go protobuf 파일만 사용
-  return path.join(__dirname, '../../bi-index/idxmngr-go/protos/index_manager.proto');
+  return path.join(__dirname, '../../etri-index/idxmngr-go/protos/index_manager.proto');
 };
 
 const CONFIG_CANDIDATES = [
-  path.join(__dirname, '../../bi-index/idxmngr-go/config.yaml'),
-  path.join(process.cwd(), '../bi-index/idxmngr-go/config.yaml'),
+  path.join(__dirname, '../../etri-index/idxmngr-go/config.yaml'),
+  path.join(process.cwd(), '../etri-index/idxmngr-go/config.yaml'),
   path.join(process.cwd(), 'idxmngr-go/config.yaml'),
 ];
 
@@ -114,16 +108,28 @@ const retryBlockchainCall = async (fn, maxRetries = 3, delay = 1000, operationNa
       return result;
     } catch (error) {
       lastError = error;
+      // 502 Bad Gateway, 503 Service Unavailable 등 서버 에러도 재시도 대상
+      const isServerError = error.code === 'SERVER_ERROR' || 
+                           error.code === 'UNKNOWN_ERROR' ||
+                           error.message?.includes('502') ||
+                           error.message?.includes('503') ||
+                           error.message?.includes('504') ||
+                           error.message?.includes('Bad Gateway') ||
+                           error.message?.includes('Service Unavailable');
+      
       const isRetryable = error.code === 'CALL_EXCEPTION' || 
                          error.message?.includes('revert') || 
                          error.message?.includes('timeout') ||
                          error.message?.includes('network') ||
                          error.message?.includes('ECONNRESET') ||
-                         error.message?.includes('ETIMEDOUT');
+                         error.message?.includes('ETIMEDOUT') ||
+                         isServerError;
       
       if (attempt < maxRetries && isRetryable) {
-        const waitTime = delay * attempt;
-        console.warn(`⚠️  ${operationName} 실패 (${attempt}/${maxRetries}): ${error.message}. ${waitTime}ms 후 재시도...`);
+        // 서버 에러(502 등)는 더 긴 대기 시간 필요
+        const baseWaitTime = isServerError ? delay * 2 : delay;
+        const waitTime = baseWaitTime * attempt;
+        console.warn(`⚠️  ${operationName} 실패 (${attempt}/${maxRetries}): ${error.message?.slice(0, 100)}. ${waitTime}ms 후 재시도...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       } else {
         if (attempt === maxRetries) {
@@ -1084,8 +1090,8 @@ app.get('/api/pvd/speeding', async (req, res) => {
       // 3. 최신 상태 모드: 각 키의 최신 값만 조회
       console.log(`블록체인에서 데이터 조회 중... (${allKeys.length}개 키)`);
       
-      const BATCH_SIZE = 20; // 50 → 20으로 감소 (RPC 부하 감소)
-      const BATCH_DELAY = 800; // 배치 간 800ms 딜레이 추가
+      const BATCH_SIZE = 100; // 20 → 100으로 증가 (속도 개선)
+      const BATCH_DELAY = 50; // 800ms → 50ms로 감소 (속도 개선)
       let processedCount = 0;
       
       for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
@@ -1096,7 +1102,7 @@ app.get('/api/pvd/speeding', async (req, res) => {
             const pvd = await retryBlockchainCall(
               () => contract.readPvd(key),
               3,
-              1000, // 500ms → 1000ms (재시도 간격 증가)
+              500, // 1000ms → 500ms로 감소 (속도 개선)
               `readPvd(${key.slice(0, 10)}...)`
             );
             return pvd || null;
@@ -1229,7 +1235,7 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     const IndexingClient = require('../lib/grpc-client');
     const indexingClient = new IndexingClient({
       serverAddr: 'localhost:50052',
-      protoPath: path.join(__dirname, '../../bi-index/idxmngr-go/protos/index_manager.proto')
+      protoPath: path.join(__dirname, '../../etri-index/idxmngr-go/protos/index_manager.proto')
     });
     
     await indexingClient.connect();
@@ -1316,13 +1322,17 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
     // Step 3: 고유 키로 블록체인 조회 (최신 상태만)
     console.log(`📋 ${uniqueKeys.length}개 고유 키로 블록체인 조회 중... (최신 상태)`);
     
-    const QUERY_BATCH_SIZE = 20; // 100 → 20으로 감소 (RPC 부하 감소)
-    const QUERY_BATCH_DELAY = 800; // 배치 간 800ms 딜레이
+    // 동적 배치 크기: 502 에러 발생 시 자동으로 줄임
+    let QUERY_BATCH_SIZE = 100; // 50 → 100으로 증가 (속도 개선)
+    const QUERY_BATCH_DELAY = 50; // 200ms → 50ms로 감소 (속도 개선)
     const speedingData = [];
     let totalResults = 0;
+    let consecutiveErrors = 0; // 연속 에러 카운트
+    let consecutiveSuccess = 0; // 연속 성공 카운트 (배치 크기 증가용)
     
     for (let i = 0; i < uniqueKeys.length; i += QUERY_BATCH_SIZE) {
       const batch = uniqueKeys.slice(i, i + QUERY_BATCH_SIZE);
+      let batchErrorCount = 0;
       
       const batchPromises = batch.map(async (key) => {
         try {
@@ -1330,18 +1340,41 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
           const pvd = await retryBlockchainCall(
             () => contract.readPvd(key),
             3,
-            1000, // 500ms → 1000ms (재시도 간격 증가)
+            500, // 1000ms → 500ms로 감소 (속도 개선)
             `readPvd(${key.slice(0, 10)}...)`
           );
           return pvd ? [pvd] : [];
         } catch (error) {
+          // 502 등 서버 에러 카운트
+          if (error.code === 'SERVER_ERROR' || error.message?.includes('502') || error.message?.includes('Bad Gateway')) {
+            batchErrorCount++;
+          }
           // 개별 키 조회 실패는 조용히 무시 (3회 시도 후)
-          console.warn(`⚠️  키 ${key.slice(0, 10)}... 조회 최종 실패: ${error.message}`);
+          console.warn(`⚠️  키 ${key.slice(0, 10)}... 조회 최종 실패: ${error.message?.slice(0, 80)}`);
           return [];
         }
       });
       
       const batchResults = await Promise.all(batchPromises);
+      
+      // 502 에러가 많이 발생하면 배치 크기 줄이기
+      if (batchErrorCount > batch.length * 0.3) { // 30% 이상 에러 발생
+        consecutiveErrors++;
+        consecutiveSuccess = 0; // 성공 카운트 리셋
+        if (consecutiveErrors >= 2 && QUERY_BATCH_SIZE > 20) {
+          QUERY_BATCH_SIZE = Math.max(20, Math.floor(QUERY_BATCH_SIZE * 0.7));
+          console.log(`⚠️  RPC 서버 부하 감지. 배치 크기를 ${QUERY_BATCH_SIZE}로 감소`);
+        }
+      } else {
+        consecutiveErrors = 0; // 에러 카운트 리셋
+        consecutiveSuccess++; // 성공 카운트 증가
+        // 에러가 없고 연속 성공이 3회 이상이면 점진적으로 배치 크기 증가 (최대 150)
+        if (consecutiveSuccess >= 3 && QUERY_BATCH_SIZE < 150) {
+          QUERY_BATCH_SIZE = Math.min(150, QUERY_BATCH_SIZE + 20);
+          consecutiveSuccess = 0; // 증가 후 리셋
+          console.log(`✅ RPC 서버 안정. 배치 크기를 ${QUERY_BATCH_SIZE}로 증가`);
+        }
+      }
       
       // 모든 결과를 평면화하고 속도 필터링
       batchResults.forEach(results => {
@@ -1352,14 +1385,17 @@ app.post('/api/pvd/speeding/by-index', async (req, res) => {
         }
       });
       
+      // 진행 상황 표시 주기 조정 (더 자주 표시)
       if ((i + QUERY_BATCH_SIZE) % 200 === 0 || i + QUERY_BATCH_SIZE >= uniqueKeys.length) {
         const progress = ((i + QUERY_BATCH_SIZE) / uniqueKeys.length * 100).toFixed(1);
         console.log(`   진행: ${Math.min(i + QUERY_BATCH_SIZE, uniqueKeys.length)}/${uniqueKeys.length} (${progress}%) | ${minSpeed}km/h 이상: ${speedingData.length}건`);
       }
       
       // 배치 간 딜레이 (RPC 서버 부하 방지)
+      // 에러가 많으면 더 긴 딜레이
+      const currentDelay = batchErrorCount > batch.length * 0.3 ? QUERY_BATCH_DELAY * 2 : QUERY_BATCH_DELAY;
       if (i + QUERY_BATCH_SIZE < uniqueKeys.length) {
-        await new Promise(resolve => setTimeout(resolve, QUERY_BATCH_DELAY));
+        await new Promise(resolve => setTimeout(resolve, currentDelay));
       }
     }
     

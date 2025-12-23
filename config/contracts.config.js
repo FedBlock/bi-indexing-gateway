@@ -45,14 +45,14 @@ const CONTRACT_ADDRESSES = {
 
 // Deployment 파일 경로 설정
 const DEPLOYMENT_PATHS = {
-  pvd: path.join(__dirname, '../../bi-index/contract/scripts/pvd-deployment.json'),
-  accessManagement: path.join(__dirname, '../../bi-index/contract/scripts/access-deployment.json')
+  pvd: path.join(__dirname, '../../etri-index/contract/scripts/pvd-deployment.json'),
+  accessManagement: path.join(__dirname, '../../etri-index/contract/scripts/access-deployment.json')
 };
 
 // ABI 파일 경로 설정
 const ABI_PATHS = {
-  pvd: path.join(__dirname, '../../bi-index/contract/artifacts/contracts/PvdRecord.sol/PvdRecord.json'),
-  accessManagement: path.join(__dirname, '../../bi-index/contract/artifacts/contracts/AccessManagement.sol/AccessManagement.json')
+  pvd: path.join(__dirname, '../../etri-index/contract/artifacts/contracts/PvdRecord.sol/PvdRecord.json'),
+  accessManagement: path.join(__dirname, '../../etri-index/contract/artifacts/contracts/AccessManagement.sol/AccessManagement.json')
 };
 
 /**
