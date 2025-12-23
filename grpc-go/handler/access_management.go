@@ -76,63 +76,90 @@ func NewAccessManagementHandler() *AccessManagementHandler {
 	return handler
 }
 
-// SaveAccessRequest - 접근 요청 저장
-func (h *AccessManagementHandler) SaveAccessRequest(ctx context.Context, req *accessapi.AccessRequestData) (*accessapi.AccessResponse, error) {
-	log.Printf("AccessManagement 요청 저장: ResourceOwner=%s, Purpose=%s, Organization=%s", 
-		req.ResourceOwner, req.Purpose, req.OrganizationName)
+func (h *AccessManagementHandler) SaveAccessRequest(
+	ctx context.Context,
+	req *accessapi.AccessRequestData,
+) (*accessapi.AccessResponse, error) {
 
-	// pvd와 동일한 방식: configuration.MyContracts[0] 사용
-	// log.Printf("🔍 pvd와 동일한 방식으로 체인코드 호출...")
-	
-	// pvd처럼 SubmitTransaction 반환값이 실제 TxId인지 확인
-	// log.Printf("🎯 pvd 방식으로 SubmitTransaction 반환값 분석...")
-	
-	result, err := configuration.MyContracts[0].SubmitTransaction("SaveRequest", 
-		req.ResourceOwner, req.Purpose, req.OrganizationName)
+	result, err := h.contract.SubmitTransaction(
+		"SaveRequest",
+		req.ResourceOwner,
+		req.Purpose,
+		req.OrganizationName,
+	)
 	if err != nil {
-		return &accessapi.AccessResponse{
-			Success: false,
-			Message: fmt.Sprintf("체인코드 호출 실패: %v", err),
-		}, err
+		return nil, err
 	}
 
-	resultStr := string(result)
-	log.Printf("🔍 SubmitTransaction 반환값: '%s' (길이: %d)", resultStr, len(resultStr))
-
-	// 반환값 분석: RequestId 또는 TxId 확인
-	var requestId uint64
-	var realTxId string
-	
-	if len(resultStr) == 64 {
-		// 64자리면 실제 Fabric TxId
-		realTxId = resultStr
-		log.Printf("🎯 64자리 반환값: 실제 TxId = %s", realTxId)
-		
-		// 요청 시점의 실제 Purpose를 사용하여 인덱싱
-		go h.sendIndexingRequestAfterTransactionWithTxId(realTxId, req.Purpose)
-		requestId = uint64(time.Now().Unix()) // 응답용 임시 ID
-		
-	} else if parsedId, err := strconv.ParseUint(resultStr, 10, 64); err == nil {
-		// 숫자면 RequestId (정상 케이스)
-		requestId = parsedId
-		realTxId = fmt.Sprintf("fabric_access_req_%d_%d", requestId, time.Now().UnixNano())
-		log.Printf("✅ RequestId 파싱 성공: %d", requestId)
-		
-		// 재인덱싱 로직 제거됨 - 실시간 인덱싱만 사용
-		
-	} else {
-		// 파싱 실패시 임시 ID 생성
-		requestId = uint64(time.Now().Unix())
-		realTxId = resultStr
-		log.Printf("⚠️ 예상과 다른 반환값, 임시 ID 사용: %d", requestId)
+	// ✅ 체인코드는 uint64 requestId 반환
+	requestId, err := strconv.ParseUint(string(result), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid requestId")
 	}
+
+	// ✅ 바로 인덱싱
+	go h.indexPurpose(requestId, req)
 
 	return &accessapi.AccessResponse{
 		Success:   true,
-		Message:   fmt.Sprintf("요청이 성공적으로 저장되었습니다. ID: %d", requestId),
 		RequestId: requestId,
+		Message:   "Access request saved",
 	}, nil
 }
+
+func (h *AccessManagementHandler) indexPurpose(
+	requestId uint64,
+	req *accessapi.AccessRequestData,
+) {
+	if h.idxmngrClient == nil {
+		log.Println("idxmngr not connected")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	stream, err := h.idxmngrClient.InsertIndexRequest(ctx)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	indexableData := &idxmngr.IndexableDataM{
+		TxId:            strconv.FormatUint(requestId, 10), // logical tx
+		ContractAddress: "fabric-accessmanagement",
+		EventName:       "AccessRequestsSaved",
+		Timestamp:       time.Now().Format("2006-01-02 15:04:05"),
+		BlockNumber:     0,
+		DynamicFields: map[string]string{
+			"key":              req.Purpose,
+			"purpose":          req.Purpose,
+			"organizationName": req.OrganizationName,
+			"resourceOwner":    req.ResourceOwner,
+			"requestId":        strconv.FormatUint(requestId, 10),
+			"network":          "fabric",
+		},
+		SchemaVersion: "1.0",
+	}
+
+	bcData := &idxmngr.BcDataList{
+		TxId:          indexableData.TxId,
+		KeyCol:        "IndexableData",
+		IndexableData: indexableData,
+	}
+
+	insert := &idxmngr.InsertDatatoIdx{
+		IndexID:  "purpose",
+		Network:  "fabric",
+		ColName:  "IndexableData",
+		FilePath: "data/fabric/purpose.bf",
+		BcList:   []*idxmngr.BcDataList{bcData},
+	}
+
+	_ = stream.Send(insert)
+	_, _ = stream.CloseAndRecv()
+}
+
 
 // UpdateAccessRequestStatus - 접근 요청 상태 변경
 func (h *AccessManagementHandler) UpdateAccessRequestStatus(ctx context.Context, req *accessapi.StatusUpdateRequest) (*accessapi.AccessResponse, error) {

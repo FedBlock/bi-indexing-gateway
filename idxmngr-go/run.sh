@@ -1,1 +1,1 @@
-go run server/idxmngr.go
+exec go run server/idxmngr.go

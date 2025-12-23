@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // API 비교 테스트 함수
 async function compareAPIs() {
-  const baseURL = 'http://192.168.10.30:3001/api/blockchain-search';
+  const baseURL = 'http://192.168.110.30:3001/api/blockchain-search';
   const network = 'hardhat-local';
   const purpose = '수면'; // 또는 다른 목적으로 변경 가능
   

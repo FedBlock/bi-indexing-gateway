@@ -1,1 +1,1 @@
-go run server/fileidx.go
+exec go run server/fileidx.go

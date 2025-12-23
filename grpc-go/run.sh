@@ -1,1 +1,1 @@
-go run server/grpc_main.go
+exec go run server/grpc_main.go
